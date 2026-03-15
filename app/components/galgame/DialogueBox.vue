@@ -17,9 +17,7 @@
         </p>
       </div>
       <div v-if="isComplete" class="absolute bottom-3 right-8 animate-bounce text-pink-300/40">
-        <svg width="12" height="8" viewBox="0 0 12 8" fill="currentColor">
-          <path d="M6 8L0 0h12L6 8z" />
-        </svg>
+        <Icon name="lucide:chevron-down" class="h-3 w-3" />
       </div>
     </div>
   </div>

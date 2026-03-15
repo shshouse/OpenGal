@@ -35,9 +35,7 @@
         animationDelay: p.delay,
       }"
     >
-      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 0C10 0 13 7 10 10C7 13 0 10 0 10C0 10 7 7 10 0Z" fill="currentColor" />
-      </svg>
+      <Icon name="custom:petal" />
     </div>
 
 
@@ -51,9 +49,7 @@
           >
             OpenGal
           </h1>
-          <svg class="mb-2 h-5 w-5 text-pink-400/60" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2l1.09 3.41L16.5 6.5l-3.41 1.09L12 11l-1.09-3.41L7.5 6.5l3.41-1.09L12 2zm5 7l.69 2.16L20 12l-2.31.84L17 15l-.69-2.16L14 12l2.31-.84L17 9zM7 14l.69 2.16L10 17l-2.31.84L7 20l-.69-2.16L4 17l2.31-.84L7 14z" />
-          </svg>
+          <Icon name="mdi:creation" class="mb-2 h-5 w-5 text-pink-400/60" />
         </div>
         <p
           class="mt-2 text-sm tracking-[0.35em] text-slate-400"
@@ -94,7 +90,7 @@
                 : 'bg-slate-100/80 text-slate-400'
             ]"
           >
-            <component :is="item.icon" class="h-4 w-4" />
+            <Icon :name="item.icon" class="h-4 w-4" />
           </div>
           <div class="flex flex-col">
             <span
@@ -165,7 +161,6 @@
 </template>
 
 <script setup lang="ts">
-import { BookOpen, Settings2, Info } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   start: []
@@ -175,9 +170,9 @@ const emit = defineEmits<{
 const hoveredItem = ref<number | null>(null)
 
 const menuItems = [
-  { icon: BookOpen, label: '开始阅读', sub: 'START READING', onClick: () => emit('start') },
-  { icon: Settings2, label: 'API 设置', sub: 'CONFIG', onClick: () => emit('openApiSettings') },
-  { icon: Info, label: '关于', sub: 'ABOUT', onClick: () => {} },
+  { icon: 'lucide:book-open', label: '开始阅读', sub: 'START READING', onClick: () => emit('start') },
+  { icon: 'lucide:settings-2', label: 'API 设置', sub: 'CONFIG', onClick: () => emit('openApiSettings') },
+  { icon: 'lucide:info', label: '关于', sub: 'ABOUT', onClick: () => {} },
 ]
 
 function seededRandom(seed: number): number {

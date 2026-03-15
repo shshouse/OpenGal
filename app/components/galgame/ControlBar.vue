@@ -13,7 +13,7 @@
         :title="ctrl.tip"
         @click.stop="ctrl.onClick"
       >
-        <component :is="ctrl.icon" class="h-3 w-3" />
+        <Icon :name="ctrl.icon" class="h-3 w-3" />
         <span class="hidden sm:inline">{{ ctrl.label }}</span>
       </button>
     </div>
@@ -21,10 +21,6 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Save, FolderOpen, Zap, Download,
-  Play, FastForward, ScrollText, Settings,
-} from 'lucide-vue-next'
 
 const props = defineProps<{
   isAutoPlay: boolean
@@ -43,13 +39,13 @@ const emit = defineEmits<{
 }>()
 
 const controls = computed(() => [
-  { label: 'SAVE', icon: Save, onClick: () => emit('save'), tip: '存档' },
-  { label: 'LOAD', icon: FolderOpen, onClick: () => emit('load'), tip: '读档' },
-  { label: 'Q.SAVE', icon: Zap, onClick: () => emit('quickSave'), tip: '快速存档' },
-  { label: 'Q.LOAD', icon: Download, onClick: () => emit('quickLoad'), tip: '快速读档' },
-  { label: 'AUTO', icon: Play, onClick: () => emit('toggleAuto'), active: props.isAutoPlay, tip: '自动播放' },
-  { label: 'SKIP', icon: FastForward, onClick: () => emit('toggleSkip'), active: props.isSkipping, tip: '跳过' },
-  { label: 'LOG', icon: ScrollText, onClick: () => emit('showHistory'), tip: '历史记录' },
-  { label: 'CONFIG', icon: Settings, onClick: () => emit('showSettings'), tip: '设置' },
+  { label: 'SAVE', icon: 'lucide:save', onClick: () => emit('save'), tip: '存档' },
+  { label: 'LOAD', icon: 'lucide:folder-open', onClick: () => emit('load'), tip: '读档' },
+  { label: 'Q.SAVE', icon: 'lucide:zap', onClick: () => emit('quickSave'), tip: '快速存档' },
+  { label: 'Q.LOAD', icon: 'lucide:download', onClick: () => emit('quickLoad'), tip: '快速读档' },
+  { label: 'AUTO', icon: 'lucide:play', onClick: () => emit('toggleAuto'), active: props.isAutoPlay, tip: '自动播放' },
+  { label: 'SKIP', icon: 'lucide:fast-forward', onClick: () => emit('toggleSkip'), active: props.isSkipping, tip: '跳过' },
+  { label: 'LOG', icon: 'lucide:scroll-text', onClick: () => emit('showHistory'), tip: '历史记录' },
+  { label: 'CONFIG', icon: 'lucide:settings', onClick: () => emit('showSettings'), tip: '设置' },
 ])
 </script>

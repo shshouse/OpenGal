@@ -4,10 +4,7 @@
     <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-pink-900/15 via-transparent to-transparent" />
 
     <div class="relative z-10 flex h-full w-full flex-col items-center justify-center gap-6 px-6">
-      <svg class="h-12 w-12 animate-spin text-pink-400/50" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
+      <Icon name="lucide:loader-2" class="h-12 w-12 animate-spin text-pink-400/50" />
 
       <div class="text-center">
         <h2
@@ -22,9 +19,7 @@
       </div>
 
       <div class="mt-4 flex items-center gap-2 rounded-lg bg-white/[0.04] px-4 py-2">
-        <svg class="h-4 w-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
+        <Icon name="lucide:file-text" class="h-4 w-4 text-white/30" />
         <span class="text-xs text-white/40">{{ fileName }}</span>
       </div>
 

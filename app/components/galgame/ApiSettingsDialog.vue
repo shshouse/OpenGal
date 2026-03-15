@@ -36,7 +36,7 @@
                   class="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
                   @click="showKey = !showKey"
                 >
-                  <component :is="showKey ? EyeOff : Eye" class="h-4 w-4" />
+                  <Icon :name="showKey ? 'lucide:eye-off' : 'lucide:eye'" class="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -58,7 +58,7 @@
               :disabled="saved"
               @click="handleSave"
             >
-              <component :is="saved ? Check : null" v-if="saved" class="h-4 w-4" />
+              <Icon v-if="saved" name="lucide:check" class="h-4 w-4" />
               {{ saved ? '已保存' : '保存' }}
             </button>
           </div>
@@ -69,7 +69,6 @@
 </template>
 
 <script setup lang="ts">
-import { Eye, EyeOff, Check } from 'lucide-vue-next'
 import { getApiSettings, saveApiSettings, type ApiSettings } from '~/utils/api-settings'
 
 const props = defineProps<{ open: boolean }>()
