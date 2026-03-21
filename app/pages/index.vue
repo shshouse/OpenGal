@@ -137,6 +137,7 @@ import { buildDemoScript } from '~/data/demo-script'
 import { useGalgameEngine } from '~/composables/useGalgameEngine'
 import { useTypewriter } from '~/composables/useTypewriter'
 import { getApiSettings } from '~/utils/api-settings'
+import { generateScriptFromLLM } from '~/utils/generate-script'
 import { buildSystemPrompt, buildUserPrompt } from '~/utils/prompt'
 import { addAffinity } from '~/utils/save-manager'
 import type { GalgameScript, Choice } from '~/types/galgame'
@@ -213,18 +214,7 @@ async function generateScript(char: CharacterProfile) {
     const systemPrompt = buildSystemPrompt(char)
     const userPrompt = buildUserPrompt(uploadedText.value!)
 
-    const data = await $fetch<{ script: any }>('/api/generate-script', {
-      method: 'POST',
-      body: {
-        apiUrl: apiSettings.apiUrl,
-        apiKey: apiSettings.apiKey,
-        model: apiSettings.model,
-        systemPrompt,
-        userPrompt,
-      },
-    })
-
-    const llmScript = data.script
+    const llmScript = await generateScriptFromLLM(apiSettings, systemPrompt, userPrompt)
     const fullScript: GalgameScript = {
       title: llmScript.title ?? uploadedFileName.value,
       subtitle: 'AI Paper Reader',
@@ -246,7 +236,7 @@ async function generateScript(char: CharacterProfile) {
     phase.value = 'playing'
     nextTick(() => engine.startGame(char.id))
   } catch (err: any) {
-    generateError.value = err.data?.message || err.message || 'Unknown error'
+    generateError.value = err.message || '未知错误'
     phase.value = 'select'
   }
 }

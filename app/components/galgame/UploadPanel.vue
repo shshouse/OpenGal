@@ -118,17 +118,10 @@ async function handleFile(file: File) {
 
   isUploading.value = true
   try {
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const data = await $fetch<{ text: string; fileName: string }>('/api/parse-document', {
-      method: 'POST',
-      body: formData,
-    })
-
+    const data = await parseDocument(file)
     emit('textExtracted', data.text, data.fileName)
   } catch (err: any) {
-    error.value = err.data?.message || err.message || 'Upload failed'
+    error.value = err.message || '解析失败'
   } finally {
     isUploading.value = false
   }
