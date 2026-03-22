@@ -1,9 +1,3 @@
-import * as pdfjsLib from 'pdfjs-dist'
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import mammoth from 'mammoth'
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc
-
 export async function parseDocument(file: File): Promise<{ text: string; fileName: string }> {
   const ext = file.name.split('.').pop()?.toLowerCase()
   let text = ''
@@ -11,6 +5,9 @@ export async function parseDocument(file: File): Promise<{ text: string; fileNam
   if (ext === 'txt') {
     text = await file.text()
   } else if (ext === 'pdf') {
+    const pdfjsLib = await import('pdfjs-dist')
+    const workerModule = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default
     const arrayBuffer = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
     const pages: string[] = []
@@ -21,8 +18,9 @@ export async function parseDocument(file: File): Promise<{ text: string; fileNam
     }
     text = pages.join('\n')
   } else if (ext === 'docx' || ext === 'doc') {
+    const mammoth = await import('mammoth')
     const arrayBuffer = await file.arrayBuffer()
-    const result = await mammoth.extractRawText({ arrayBuffer })
+    const result = await mammoth.default.extractRawText({ arrayBuffer })
     text = result.value
   } else {
     throw new Error('不支持的文件格式，请上传 PDF、Word 或 TXT 文件')

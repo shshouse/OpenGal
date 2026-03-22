@@ -1,8 +1,4 @@
 export default defineNuxtConfig({
-  compatibilityDate: '2025-05-01',
-  future: {
-    compatibilityVersion: 4
-  },
   modules: ['@nuxt/icon'],
   icon: {
     customCollections: [
@@ -10,6 +6,11 @@ export default defineNuxtConfig({
     ],
   },
   devtools: { enabled: true },
+  vite: {
+    optimizeDeps: {
+      include: ['pdfjs-dist', 'mammoth'],
+    },
+  },
   css: ['~/assets/css/main.css'],
   postcss: {
     plugins: {
