@@ -1,0 +1,70 @@
+/**
+ * 角色卡状态：列表 / 当前激活 / 加载状态。
+ *
+ * 责任划分：
+ * - 启动时 `loadCharacters` 拉一次主进程列表并按 config.activeCharacterId 选中
+ * - 用户切角色时 `setActive` 写回 config 并通知 LLMWorker 更新 system prompt
+ * - 主进程是唯一真源：增删改靠重新 listCharacters
+ */
+
+import { create } from 'zustand'
+import type { RoleCardEntry } from '@shared/types'
+import { setActiveRoleCard as wireLLMWorkerRoleCard } from '@/features/pipeline'
+
+interface CharacterState {
+  list: RoleCardEntry[]
+  activeId: string | null
+  loading: boolean
+  error: string | null
+  loadCharacters: (preferredActiveId?: string | null) => Promise<void>
+  setActive: (id: string) => Promise<void>
+  getActive: () => RoleCardEntry | null
+}
+
+export const useCharacterStore = create<CharacterState>((set, get) => ({
+  list: [],
+  activeId: null,
+  loading: false,
+  error: null,
+
+  loadCharacters: async (preferredActiveId) => {
+    set({ loading: true, error: null })
+    const res = await window.opengal.character.list()
+    if (!res.success || !res.data) {
+      set({ loading: false, error: res.error || '加载角色列表失败' })
+      return
+    }
+    const list = res.data
+    // 选定 active：preferred -> 已选 -> 第一张
+    const current = get().activeId
+    const desiredId = preferredActiveId ?? current
+    const active =
+      list.find((c) => c.id === desiredId) ??
+      list[0] ??
+      null
+    set({ list, activeId: active?.id ?? null, loading: false })
+    if (active) {
+      wireLLMWorkerRoleCard(active)
+    }
+  },
+
+  setActive: async (id) => {
+    const card = get().list.find((c) => c.id === id)
+    if (!card) {
+      set({ error: `未找到角色卡: ${id}` })
+      return
+    }
+    set({ activeId: id, error: null })
+    wireLLMWorkerRoleCard(card)
+    // 持久化到 config（必须先 set 再 reset：activeCharacterId 写完后下一次 speak 才会拿到新角色）
+    await window.opengal.config.set({ activeCharacterId: id })
+    // 清掉主进程 TTS 适配器缓存的 weights：角色切换通常意味着模型也要切
+    void window.opengal.tts.reset()
+  },
+
+  getActive: () => {
+    const id = get().activeId
+    if (!id) return null
+    return get().list.find((c) => c.id === id) ?? null
+  },
+}))

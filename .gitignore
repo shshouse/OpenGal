@@ -1,0 +1,6 @@
+node_modules
+out
+.env
+mod
+STT/vosk-model-*
+ref
