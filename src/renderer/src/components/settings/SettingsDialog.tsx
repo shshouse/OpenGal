@@ -50,6 +50,8 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   const [baseURL, setBaseURL] = React.useState('')
   const [apiKey, setApiKey] = React.useState('')
   const [modelName, setModelName] = React.useState('')
+  const [thinking, setThinking] = React.useState<'auto' | 'on' | 'off'>('auto')
+  const [thinkingBudget, setThinkingBudget] = React.useState('1024')
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
 
@@ -59,6 +61,8 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       setBaseURL(config.llm.baseURL)
       setApiKey(config.llm.apiKey)
       setModelName(config.llm.modelName)
+      setThinking(config.llm.thinking === undefined ? 'auto' : config.llm.thinking ? 'on' : 'off')
+      setThinkingBudget(String(config.llm.thinkingBudget ?? 1024))
     }
   }, [config])
 
@@ -87,6 +91,8 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           baseURL: baseURL.trim(),
           apiKey: apiKey.trim(),
           modelName: modelName.trim(),
+          thinking: thinking === 'auto' ? undefined : thinking === 'on',
+          thinkingBudget: thinking === 'on' ? Number(thinkingBudget) || 1024 : undefined,
         } as AppConfig['llm'],
       })
       setStatus('已保存')
@@ -146,6 +152,40 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           placeholder={currentPreset.exampleModel}
         />
       </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">思考模式</label>
+        <Select
+          value={thinking}
+          onValueChange={(v) => setThinking(v as 'auto' | 'on' | 'off')}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">自动（按模型判断）</SelectItem>
+            <SelectItem value="on">开启</SelectItem>
+            <SelectItem value="off">关闭</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {thinking === 'on' && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">思考强度 (token 预算)</label>
+          <Select value={thinkingBudget} onValueChange={setThinkingBudget}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="512">弱 (512)</SelectItem>
+              <SelectItem value="1024">中 (1024)</SelectItem>
+              <SelectItem value="2048">强 (2048)</SelectItem>
+              <SelectItem value="4096">很强 (4096)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 pt-2">
         <Button onClick={handleSave} disabled={saving} size="sm">

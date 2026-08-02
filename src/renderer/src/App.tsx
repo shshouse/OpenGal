@@ -1,24 +1,34 @@
 import * as React from 'react'
-import { PanelRightOpen, PanelRightClose, Settings, Eye, EyeOff } from 'lucide-react'
+import { PanelRightOpen, PanelRightClose, Settings, Eye, EyeOff, ArrowLeft, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { TitleBar } from '@/components/titlebar/TitleBar'
 import { ChatPanel } from '@/components/chat/ChatPanel'
+import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
+import { LogsPanel } from '@/components/logs/LogsPanel'
+import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
 import { useCharacterStore } from '@/features/character/characterStore'
-import { LogsPanel } from '@/components/logs/LogsPanel'
 import { startLogsBridge } from '@/features/logs/logsStore'
+import { isMobile } from '@/lib/utils'
 
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [showSettings, setShowSettings] = React.useState(false)
   const [petOpen, setPetOpen] = React.useState(false)
+  const [mobile] = React.useState(() => isMobile())
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
   const activeId = useCharacterStore((s) => s.activeId)
+
+  React.useEffect(() => {
+    const handler = () => setShowSettings(true)
+    window.addEventListener('opengal:open-settings', handler)
+    return () => window.removeEventListener('opengal:open-settings', handler)
+  }, [])
 
   // 启动流水线（LLMWorker / TTSWorker / UIWorker）
   React.useEffect(() => {
@@ -138,61 +148,111 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <TitleBar />
-      <div className="flex h-8 items-center justify-end gap-1.5 border-b bg-background/60 px-3">
-        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={togglePet}>
-          {petOpen ? (
-            <><PanelRightClose className="mr-1 size-3" />关闭桌宠</>
-          ) : (
-            <><PanelRightOpen className="mr-1 size-3" />打开桌宠</>
-          )}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs"
-          onClick={toggleLive2D}
-          disabled={!config}
-        >
-          {(config?.showLive2D ?? true) ? (
-            <><Eye className="mr-1 size-3" />隐藏人物</>
-          ) : (
-            <><EyeOff className="mr-1 size-3" />显示人物</>
-          )}
-        </Button>
-        <Button
-          variant={showSettings ? 'default' : 'ghost'}
-          size="sm"
-          className="h-6 px-2 text-xs"
-          onClick={() => setShowSettings((v) => !v)}
-        >
-          <Settings className="mr-1 size-3" />设置
-        </Button>
-      </div>
+      {!mobile && <TitleBar />}
+      {!mobile && (
+        <div className="flex h-8 items-center justify-end gap-1.5 border-b bg-background/60 px-3">
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={togglePet}>
+            {petOpen ? (
+              <><PanelRightClose className="mr-1 size-3" />关闭桌宠</>
+            ) : (
+              <><PanelRightOpen className="mr-1 size-3" />打开桌宠</>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={toggleLive2D}
+            disabled={!config}
+          >
+            {(config?.showLive2D ?? true) ? (
+              <><Eye className="mr-1 size-3" />隐藏人物</>
+            ) : (
+              <><EyeOff className="mr-1 size-3" />显示人物</>
+            )}
+          </Button>
+          <Button
+            variant={showSettings ? 'default' : 'ghost'}
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => setShowSettings((v) => !v)}
+          >
+            <Settings className="mr-1 size-3" />设置
+          </Button>
+        </div>
+      )}
 
-      <main className="flex flex-1 overflow-hidden">
-        <section className="flex w-[44%] flex-col border-r">
-          <ChatPanel />
-        </section>
-        <section className="flex flex-1 flex-col">
-          <div className="flex-1 overflow-hidden">
+      {mobile ? (
+        <main className="relative flex flex-1 overflow-hidden">
+          {/* 人物全屏背景 */}
+          <div className="absolute inset-0">
             {config?.showLive2D ? (
               <Live2DStage model={model} onChange={handleModelChange} />
             ) : (
-              <div className="h-full w-full bg-background" />
+              <div className="flex h-full w-full items-center justify-center bg-background">
+                <Button variant="ghost" size="sm" onClick={toggleLive2D}>
+                  <Eye className="mr-1 size-3" />显示人物
+                </Button>
+              </div>
             )}
           </div>
-          {showSettings && (
-            <>
-              <Separator />
-              <div className="max-h-[40%] overflow-auto border-t bg-card/60 p-4">
+
+          {/* Galgame 对话层（覆盖在人物之上） */}
+          {showSettings && config ? (
+            <div className="absolute inset-0 z-20 flex flex-col bg-background">
+              <div className="flex h-10 items-center gap-2 border-b px-3">
+                <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)}>
+                  <ArrowLeft className="size-4" /> 返回
+                </Button>
+                <span className="text-sm font-semibold">设置</span>
+              </div>
+              <div className="flex-1 overflow-auto p-4">
                 <SettingsCenter config={config} model={model} onSave={saveConfig} />
               </div>
+            </div>
+          ) : (
+            <>
+              {/* 右上角：设置齿轮 */}
+              <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 rounded-full bg-background/60 p-0 backdrop-blur-sm"
+                  onClick={() => setShowSettings(true)}
+                  title="设置"
+                >
+                  <Settings className="size-4" />
+                </Button>
+              </div>
+              <GalgameChatPanel />
             </>
           )}
-        </section>
-      </main>
-      <LogsPanel />
+        </main>
+      ) : (
+        <main className="flex flex-1 overflow-hidden">
+          <section className="flex w-[44%] flex-col border-r">
+            <ChatPanel />
+          </section>
+          <section className="flex flex-1 flex-col">
+            <div className="flex-1 overflow-hidden">
+              {config?.showLive2D ? (
+                <Live2DStage model={model} onChange={handleModelChange} />
+              ) : (
+                <div className="h-full w-full bg-background" />
+              )}
+            </div>
+            {showSettings && (
+              <>
+                <Separator />
+                <div className="max-h-[40%] overflow-auto border-t bg-card/60 p-4">
+                  <SettingsCenter config={config} model={model} onSave={saveConfig} />
+                </div>
+              </>
+            )}
+          </section>
+        </main>
+      )}
+      {!mobile && <LogsPanel />}
     </div>
   )
 }

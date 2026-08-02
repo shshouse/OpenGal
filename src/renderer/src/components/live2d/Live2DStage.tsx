@@ -3,6 +3,7 @@ import * as PIXI from 'pixi.js'
 import { Loader2, AlertCircle } from 'lucide-react'
 import type { Live2DModelConfig } from '@shared/types'
 import { registerLive2DModel } from '@/features/live2d/live2dBus'
+import { useLogsStore } from '@/features/logs/logsStore'
 
 // Set PIXI on window BEFORE pixi-live2d-display is imported.
 // The library checks window.PIXI at module init time for Ticker integration.
@@ -45,6 +46,8 @@ export function Live2DStage({
   const modelRef = React.useRef<Live2DModelInstance | null>(null)
   const [status, setStatus] = React.useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
+  // PIXI 应用创建完成标记：模型加载 effect 依赖它，避免 app 未就绪时跳过加载
+  const [appReady, setAppReady] = React.useState(false)
 
   // Tracks user-adjusted position & scale. Falls back to model props when unchanged.
   const userScaleRef = React.useRef<number | null>(null)
@@ -88,6 +91,7 @@ export function Live2DStage({
           autoDensity: true
         })
         appRef.current = app
+        setAppReady(true)
       } catch (err) {
         console.warn('PIXI init failed, retrying...', err)
         if (!disposed) retryTimer = window.setTimeout(init, 500)
@@ -110,30 +114,29 @@ export function Live2DStage({
     }
   }, [transparent])
 
-  // Load / reload the live2d model whenever the url changes.
+  // Load / reload the live2d model whenever the url changes or app becomes ready.
   React.useEffect(() => {
     const app = appRef.current
-    if (!app || !model) return
+    if (!app || !appReady || !model) return
     let cancelled = false
     setStatus('loading')
     setErrorMessage(null)
+    useLogsStore.getState().appendLocal('info', 'live2d', `开始加载模型: ${model.modelUrl}`)
     ;(async () => {
       try {
-        // --- DEBUG: diagnose "Unknown settings format" ---
-        console.log('[Live2D] CubismCore available:', !!(window as unknown as Record<string, unknown>).Live2DCubismCore)
-        console.log('[Live2D] Model URL:', model.modelUrl)
-        try {
-          const resp = await fetch(model.modelUrl)
-          console.log('[Live2D] Fetch status:', resp.status, resp.statusText)
-          const json = await resp.json()
-          console.log('[Live2D] JSON keys:', Object.keys(json))
-          console.log('[Live2D] FileReferences:', json.FileReferences ? Object.keys(json.FileReferences) : 'MISSING')
-          console.log('[Live2D] Moc:', json.FileReferences?.Moc)
-          console.log('[Live2D] Textures:', json.FileReferences?.Textures)
-        } catch (fetchErr) {
-          console.error('[Live2D] Manual fetch failed:', fetchErr)
+        const cubismOk = !!(window as unknown as Record<string, unknown>).Live2DCubismCore
+        useLogsStore.getState().appendLocal('info', 'live2d', `CubismCore 可用: ${cubismOk}`)
+        if (!cubismOk) {
+          throw new Error('Live2DCubismCore 未加载（检查 index.html 的 script 标签）')
         }
-        // --- END DEBUG ---
+        const resp = await fetch(model.modelUrl)
+        useLogsStore.getState().appendLocal('info', 'live2d', `model3.json HTTP ${resp.status} ${resp.statusText}`)
+        if (!resp.ok) {
+          throw new Error(`模型文件 HTTP ${resp.status}: ${resp.statusText}`)
+        }
+        const json = await resp.json() as { FileReferences?: Record<string, unknown> }
+        const fileRefs = Object.keys(json.FileReferences ?? {}).join(', ')
+        useLogsStore.getState().appendLocal('info', 'live2d', `model3.json 解析成功, FileReferences: ${fileRefs}`)
 
         const Live2DModel = await getLive2DModel()
         const loaded = await Live2DModel.from(model.modelUrl, { autoHitTest: interactive, autoFocus: interactive })
@@ -156,10 +159,13 @@ export function Live2DStage({
         )
         registerLive2DModel(loaded as unknown as Parameters<typeof registerLive2DModel>[0])
         setStatus('ready')
+        useLogsStore.getState().appendLocal('info', 'live2d', '模型加载成功')
       } catch (err) {
         console.error('Live2D load failed', err)
         if (!cancelled) {
-          setErrorMessage((err as Error).message || 'Live2D 加载失败')
+          const msg = (err as Error).message || 'Live2D 加载失败'
+          useLogsStore.getState().appendLocal('error', 'live2d', `模型加载失败: ${msg}`)
+          setErrorMessage(msg)
           setStatus('error')
         }
       }
@@ -167,13 +173,13 @@ export function Live2DStage({
     return () => {
       cancelled = true
     }
-  }, [model?.modelUrl, model?.canvasYRatio, model?.scale, model?.xRatio])
+  }, [model?.modelUrl, model?.canvasYRatio, model?.scale, model?.xRatio, appReady])
 
   // Resize handling.
   React.useEffect(() => {
     const container = containerRef.current
     const app = appRef.current
-    if (!container || !app) return
+    if (!container || !app || !appReady) return
     const observer = new ResizeObserver(() => {
       const currentApp = appRef.current
       const currentContainer = containerRef.current
@@ -194,7 +200,7 @@ export function Live2DStage({
     })
     observer.observe(container)
     return () => observer.disconnect()
-  }, [model?.modelUrl])
+  }, [model?.modelUrl, appReady])
 
   // Lip-sync is handled internally by pixi-live2d-display-lipsyncpatch's
   // model.speak() API, driven from ttsPlayer via the live2dBus.

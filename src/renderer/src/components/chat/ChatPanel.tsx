@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, Eraser, Square, FileText, X } from 'lucide-react'
+import { Send, Eraser, Square, FileText, X, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -9,6 +9,7 @@ import { useChatStore, type RagAttachment, type PersistedUserMessage, type Persi
 import { useChatPipeline } from '@/features/pipeline/useChatPipeline'
 import { pipelineBus } from '@/features/pipeline'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
+import { isMobile } from '@/lib/utils'
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { MicButton } from './MicButton'
@@ -117,19 +118,26 @@ export function ChatPanel() {
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">Neuro</h2>
-          <p className="text-xs text-muted-foreground">对话回复会同步推送到桌宠气泡</p>
+          <p className="text-xs text-muted-foreground">{isMobile() ? 'OpenGal' : '对话回复会同步推送到桌宠气泡'}</p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            abortPipeline()
-            clear()
-          }}
-          disabled={!messages.length && !streamingDisplay}
-        >
-          <Eraser className="size-4" /> 清空
-        </Button>
+        <div className="flex items-center gap-1">
+          {isMobile() && (
+            <Button variant="ghost" size="sm" onClick={() => window.dispatchEvent(new CustomEvent('opengal:open-settings'))}>
+              <Settings className="size-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              abortPipeline()
+              clear()
+            }}
+            disabled={!messages.length && !streamingDisplay}
+          >
+            <Eraser className="size-4" /> 清空
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1">

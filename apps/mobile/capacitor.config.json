@@ -1,0 +1,14 @@
+{
+  "appId": "com.opengal.mobile",
+  "appName": "OpenGal",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "backgroundColor": "#09090b"
+  }
+}

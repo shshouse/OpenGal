@@ -3,6 +3,7 @@ out
 .env
 mod
 ref
+apps/mobile/dist
 
 # TypeScript build cache
 *.tsbuildinfo

@@ -1,0 +1,162 @@
+/**
+ * 移动端 Galgame 式对话组件。
+ *
+ * 布局：
+ * - 全屏人物（Live2D 由外层 App 渲染，本组件只负责底部对话框）
+ * - 底部半透明对话框：角色名 + 最后一句台词 + 输入框
+ * - 点击对话框区域可展开历史对话（上滑查看更多）
+ *
+ * 复用 chatStore + pipeline，与桌面端 ChatPanel 同源。
+ */
+
+import * as React from 'react'
+import { Send, ChevronUp, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
+import { useChatStore, type PersistedUserMessage, type PersistedAssistantMessage } from '@/features/chat/chatStore'
+import { useChatPipeline } from '@/features/pipeline/useChatPipeline'
+import { extractAssistantDisplayText } from '@shared/roleCard'
+import { useCharacterStore } from '@/features/character/characterStore'
+
+export function GalgameChatPanel() {
+  const messages = useChatStore((s) => s.messages)
+  const isSending = useChatStore((s) => s.isSending)
+  const error = useChatStore((s) => s.error)
+  const streamingSegments = useChatStore((s) => s.streamingSegments)
+  const send = useChatPipeline()
+  const [draft, setDraft] = React.useState('')
+  const [historyOpen, setHistoryOpen] = React.useState(false)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
+
+  // 流式内容：拼成当前显示文本
+  const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
+
+  // 显示最后一句（历史模式显示全部）
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  const displayText = streamingDisplay
+    || (lastAssistant ? extractAssistantDisplayText(lastAssistant.content) : '')
+  const displayName = character?.displayName ?? character?.name ?? 'OpenGal'
+
+  // 历史展开时自动滚到底
+  React.useEffect(() => {
+    if (historyOpen && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [historyOpen, messages.length, streamingSegments.length])
+
+  function handleSend(): void {
+    const trimmed = draft.trim()
+    if (!trimmed || isSending) return
+    setDraft('')
+    send(trimmed)
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0 flex flex-col">
+      {/* 历史对话（上滑展开） */}
+      <div
+        className={cn(
+          'pointer-events-auto flex-1 overflow-hidden transition-all duration-200',
+          historyOpen ? 'opacity-100' : 'opacity-0'
+        )}
+      >
+        {historyOpen && (
+          <div ref={scrollRef} className="flex h-full flex-col gap-2 overflow-y-auto bg-background/85 p-4 backdrop-blur-sm">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={cn(
+                  'flex flex-col gap-0.5',
+                  message.role === 'user' ? 'items-end' : 'items-start'
+                )}
+              >
+                <span className="text-[10px] text-muted-foreground">
+                  {message.role === 'user' ? '我' : displayName}
+                </span>
+                <div
+                  className={cn(
+                    'max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-1.5 text-sm',
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground'
+                  )}
+                >
+                  {message.role === 'assistant'
+                    ? extractAssistantDisplayText(message.content)
+                    : (message as PersistedUserMessage).userText}
+                </div>
+              </div>
+            ))}
+            {streamingDisplay && (
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="text-[10px] text-muted-foreground">{displayName}</span>
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-secondary px-3 py-1.5 text-sm text-secondary-foreground">
+                  {streamingDisplay}
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
+                {error}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 收起/展开历史按钮 */}
+      <button
+        type="button"
+        onClick={() => setHistoryOpen((v) => !v)}
+        className="pointer-events-auto absolute right-3 top-14 z-10 flex h-6 items-center gap-0.5 rounded-full border bg-background/60 px-2 text-[10px] text-muted-foreground backdrop-blur-sm"
+      >
+        {historyOpen ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
+        {historyOpen ? '收起' : `历史 ${messages.length}`}
+      </button>
+
+      {/* 底部对话框 */}
+      <div className="pointer-events-auto mx-2 mb-2 rounded-2xl border bg-background/85 shadow-lg backdrop-blur-sm">
+        {/* 台词区：点击展开历史 */}
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(true)}
+          className="block w-full px-4 pt-3 pb-1 text-left"
+        >
+          <span className={cn(
+            'block min-h-[2.5rem] whitespace-pre-wrap text-sm leading-relaxed',
+            !displayText && !isSending && 'text-muted-foreground'
+          )}>
+            {displayText || (isSending ? '……' : '')}
+          </span>
+        </button>
+
+        {/* 输入区 */}
+        <div className="flex items-end gap-2 px-3 pb-3 pt-1">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSend()
+              }
+            }}
+            placeholder="输入消息..."
+            className="min-h-[40px] resize-none bg-muted/50 text-sm"
+            rows={1}
+          />
+          <Button
+            size="icon"
+            className="size-10 shrink-0"
+            onClick={handleSend}
+            disabled={!draft.trim() || isSending}
+          >
+            <Send className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}

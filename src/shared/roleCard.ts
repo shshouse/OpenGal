@@ -102,9 +102,11 @@ export class DialogueStreamParser {
     if (!remaining) return items
 
     // stream 结束时还有残留 buffer：尝试当作完整 JSON 整段 parse（处理只有 1 个对象、
-    // 或者 markdown 包装等边缘情况）
+    // markdown 包装、思考前缀 + JSON 等边缘情况）
     const parsed =
-      tryParseJson(remaining) ?? tryParseJson(stripMarkdownFence(remaining))
+      tryParseJson(remaining) ??
+      tryParseJson(stripMarkdownFence(remaining)) ??
+      tryParseJson(extractJsonSubstring(remaining))
     if (parsed) items.push(...extractSegments(parsed))
     return items
   }
@@ -147,14 +149,14 @@ export class DialogueStreamParser {
  * 历史落盘用 raw JSON（见 chatStore.finalizeStream + useChatPipeline 的注释）以兼容
  * DeepSeek JSON Mode 的多轮约定，但 UI 不能直接显示 `{"segments":[...]}`。
  *
+ * 容错：部分模型会把思考过程写进 content（而非 reasoning_content 通道），
+ * 返回形如 "思考...\n\n{json}"。从首个 `{`/`[` 截取 JSON 子串解析，剥离前缀。
  * 兜底：解析失败（fallback 路径下的纯文本）就原样返回。
  */
 export function extractAssistantDisplayText(content: string): string {
   const t = content.trim()
   if (!t) return ''
-  // 不像 JSON 就直接返回原文（fallback 路径产物）
-  if (t[0] !== '{' && t[0] !== '[' && !t.startsWith('```')) return content
-  const parsed = tryParseJson(t) ?? tryParseJson(stripMarkdownFence(t))
+  const parsed = tryParseJson(t) ?? tryParseJson(stripMarkdownFence(t)) ?? tryParseJson(extractJsonSubstring(t))
   if (!parsed) return content
   const segs = extractSegments(parsed)
   if (segs.length === 0) return content
@@ -172,6 +174,20 @@ function tryParseJson(text: string): unknown {
 function stripMarkdownFence(text: string): string {
   const match = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
   return match ? match[1].trim() : text
+}
+
+/**
+ * 从任意文本中提取 JSON 子串：找到第一个 `{` 或 `[`，截取到与之类型匹配的
+ * 最后一个 `}` 或 `]`。用于模型把思考过程写在 JSON 前面的容错场景。
+ */
+function extractJsonSubstring(text: string): string {
+  const startIdx = text.search(/[\[{]/)
+  if (startIdx === -1) return text
+  const opener = text[startIdx]
+  const closer = opener === '{' ? '}' : ']'
+  const endIdx = text.lastIndexOf(closer)
+  if (endIdx <= startIdx) return text
+  return text.slice(startIdx, endIdx + 1)
 }
 
 function extractSegments(parsed: unknown): LLMDialogueItem[] {

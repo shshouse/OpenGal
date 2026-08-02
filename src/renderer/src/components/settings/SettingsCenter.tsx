@@ -5,6 +5,8 @@
  * - 角色：列出 mod/role-card 下的角色卡，切换激活
  * - LLM：全局供应商 / Base URL / API Key / 模型名
  * - TTS：GPT-SoVITS 服务和参考音频参数（沿用现有 TTSSettings）
+ * - STT：ASR 设置
+ * - 日志：运行日志查看（复用 LogsPanel 的数据，移动端内嵌）
  *
  * 后续可加：Live2D / 主题 / 快捷键 / 数据导入导出
  */
@@ -16,6 +18,7 @@ import { CharacterDisplaySettings } from './CharacterDisplaySettings'
 import { SettingsDialog } from './SettingsDialog'
 import { TTSSettings } from './TTSSettings'
 import { ASRSettings } from './ASRSettings'
+import { LogsView } from './LogsView'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 
 interface SettingsCenterProps {
@@ -33,6 +36,7 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
         <TabsTrigger value="llm">LLM</TabsTrigger>
         <TabsTrigger value="tts">TTS</TabsTrigger>
         <TabsTrigger value="asr">STT</TabsTrigger>
+        <TabsTrigger value="logs">日志</TabsTrigger>
       </TabsList>
       <TabsContent value="character" className="pt-2">
         <CharacterSettings />
@@ -48,6 +52,9 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
       </TabsContent>
       <TabsContent value="asr" className="pt-2">
         <ASRSettings config={config} onSave={onSave} />
+      </TabsContent>
+      <TabsContent value="logs" className="pt-2">
+        <LogsView />
       </TabsContent>
     </Tabs>
   )

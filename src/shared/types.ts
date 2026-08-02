@@ -13,6 +13,10 @@ export interface LLMConfig {
   modelName: string
   temperature?: number
   maxTokens?: number
+  /** 是否启用思考模式（DeepSeek thinking / 推理模型）。缺省时按模型名自动判断。 */
+  thinking?: boolean
+  /** 思考强度：思考 token 预算（DeepSeek budget_tokens）。缺省 1024。 */
+  thinkingBudget?: number
 }
 
 export interface Live2DModelConfig {
