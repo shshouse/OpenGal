@@ -9,7 +9,6 @@
  * M3 扩展：
  * - 工具调用（function calling）：检测到 tool_calls 时执行工具，把结果回填 messages
  *   并再次调用 LLM（用非流式 chat()，简化续传），重复直到 LLM 不再请求工具
- * - RAG 上下文：在构造 messages 时把 data/ 检索结果拼到 system prompt 末尾
  *
  * 注意：当前主进程 `cleanChunk` 已经把 `<think>` 标签清掉，因此 reasoning 通道暂时为空。
  * M1.6 会让主进程把 reasoning 拆成独立 channel 后此处自动接收。
@@ -104,10 +103,7 @@ export function startLLMWorker(): () => void {
     // 取最新 chat history 快照，避免和 abort 中途被覆盖的版本混淆
     const history = useChatStore.getState().messages
 
-    // RAG 检索：基于最新用户输入 query，结果注入 system prompt
-    const ragContext = await window.opengal.rag.search(userText, 3)
     const systemContent = buildSystemPrompt(activeRoleCard!)
-      + (ragContext ? `\n\n${ragContext}` : '')
 
     let messagesForLLM: ChatMessage[] = [
       { role: 'system', content: systemContent },

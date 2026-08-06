@@ -17,7 +17,6 @@ import {
 import type { TTSServerStatus } from '../services/ttsServer'
 import { startASR, stopASR, feedAudio, isASRRunning, setResultCallback } from '../services/asr/voskEngine'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
-import { searchRag, reloadRag, getRagFiles, readRagFile } from '../services/rag'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import type { WindowManager } from '../windows/windowManager'
 
@@ -155,20 +154,6 @@ export function registerIpc(windows: WindowManager): void {
     logBus.info('logs', '日志已清空')
     return { success: true }
   })
-
-  // ---- RAG ----
-  ipcMain.handle(IpcChannels.rag.search, (_, query: string, topK?: number) =>
-    wrap(() => searchRag(query, topK))
-  )
-  ipcMain.handle(IpcChannels.rag.reload, () =>
-    wrap(() => reloadRag())
-  )
-  ipcMain.handle(IpcChannels.rag.listFiles, () =>
-    wrap(() => getRagFiles())
-  )
-  ipcMain.handle(IpcChannels.rag.readFile, (_, fileName: string) =>
-    wrap(() => readRagFile(fileName))
-  )
 
   // ---- Tools (function calling) ----
   ipcMain.handle(IpcChannels.tools.list, () => wrap(() => getToolDefinitions()))

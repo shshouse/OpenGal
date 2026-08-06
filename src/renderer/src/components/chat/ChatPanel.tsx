@@ -1,11 +1,10 @@
 import * as React from 'react'
-import { Send, Eraser, Square, FileText, X, Settings } from 'lucide-react'
+import { Send, Eraser, Square, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { useChatStore, type RagAttachment, type PersistedUserMessage, type PersistedAssistantMessage } from '@/features/chat/chatStore'
+import { useChatStore, type PersistedUserMessage, type PersistedAssistantMessage } from '@/features/chat/chatStore'
 import { useChatPipeline } from '@/features/pipeline/useChatPipeline'
 import { pipelineBus } from '@/features/pipeline'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
@@ -15,7 +14,6 @@ import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { MicButton } from './MicButton'
 import { BusyBar } from './BusyBar'
 import { ToolCallList } from './ToolCallList'
-import { AttachmentList } from './AttachmentList'
 
 function abortPipeline(): void {
   pipelineBus.emit('pipeline:abort', undefined)
@@ -34,39 +32,7 @@ export function ChatPanel() {
   const send = useChatPipeline()
   const asrPartial = useASRStore((s) => s.partial)
   const [draft, setDraft] = React.useState('')
-  const [ragFiles, setRagFiles] = React.useState<string[]>([])
-  const [ragOpen, setRagOpen] = React.useState(false)
-  const [attached, setAttached] = React.useState<Record<string, string>>({})
   const viewportRef = React.useRef<HTMLDivElement>(null)
-
-  function handleRagOpen(open: boolean): void {
-    setRagOpen(open)
-    if (open) {
-      void window.opengal.rag.listFiles().then((res) => {
-        if (res.success && res.data) setRagFiles(res.data)
-      })
-    }
-  }
-
-  async function handleRagFileClick(fileName: string): Promise<void> {
-    if (attached[fileName]) {
-      const { [fileName]: _removed, ...rest } = attached
-      void _removed
-      setAttached(rest)
-      return
-    }
-    const res = await window.opengal.rag.readFile(fileName)
-    if (!res.success || !res.data) return
-    setAttached((prev) => ({ ...prev, [fileName]: res.data! }))
-  }
-
-  function removeAttachment(fileName: string): void {
-    setAttached((prev) => {
-      const { [fileName]: _removed, ...rest } = prev
-      void _removed
-      return rest
-    })
-  }
 
   React.useEffect(() => {
     setASRFinalCallback((text) => {
@@ -90,13 +56,8 @@ export function ChatPanel() {
   function handleSend(): void {
     if (!draft.trim() || isSending) return
     const userText = draft
-    const attachments: RagAttachment[] = Object.entries(attached).map(([fileName, content]) => ({
-      fileName,
-      content
-    }))
     setDraft('')
-    setAttached({})
-    send(userText, attachments.length > 0 ? attachments : undefined)
+    send(userText)
   }
 
   function handleStop(): void {
@@ -111,7 +72,6 @@ export function ChatPanel() {
   }
 
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
-  const hasAttached = Object.keys(attached).length > 0
 
   return (
     <div className="flex h-full flex-col">
@@ -144,7 +104,7 @@ export function ChatPanel() {
         <div ref={viewportRef} className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
           {messages.length === 0 && !streamingDisplay ? (
             <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              输入消息开始对话。点击输入框左侧文件图标选择 data/ 下的 .txt 文件作为知识库引用。
+              输入消息开始对话。
             </div>
           ) : (
             messages.map((message, index) => (
@@ -175,9 +135,6 @@ export function ChatPanel() {
                   (message as PersistedAssistantMessage).toolCalls!.length > 0 && (
                     <ToolCallList records={(message as PersistedAssistantMessage).toolCalls!} />
                   )}
-                {message.role === 'user' && (message as PersistedUserMessage).attachments && (message as PersistedUserMessage).attachments!.length > 0 && (
-                  <AttachmentList attachments={(message as PersistedUserMessage).attachments!} align="right" />
-                )}
               </div>
             ))
           )}
@@ -205,75 +162,17 @@ export function ChatPanel() {
 
       <div className="border-t p-3">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
-          {hasAttached && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {Object.keys(attached).map((fileName) => (
-                <button
-                  key={fileName}
-                  type="button"
-                  onClick={() => removeAttachment(fileName)}
-                  className="flex items-center gap-1 rounded-full border bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground hover:bg-destructive/15 hover:text-destructive hover:border-destructive/40 active:scale-[0.96] transition-all duration-150"
-                  title="移除此文件"
-                >
-                  <FileText className="size-3" />
-                  <span className="font-mono">{fileName}</span>
-                  <X className="size-3" />
-                </button>
-              ))}
-            </div>
-          )}
           <div className="flex items-end gap-2">
             <Textarea
               value={asrPartial || draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={hasAttached ? '只写你的问题（引用文件已附加）' : 'Shift + Enter 换行，Enter 发送'}
+              placeholder="Shift + Enter 换行，Enter 发送"
               className="min-h-[44px] resize-none"
               rows={2}
               readOnly={!!asrPartial}
             />
             <MicButton />
-            <Popover open={ragOpen} onOpenChange={handleRagOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={hasAttached ? 'default' : 'ghost'}
-                  size="icon"
-                  className="size-9"
-                  title="选择 data/ 下的 .txt 文件作为知识库引用"
-                >
-                  <FileText className="size-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-1">
-                <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
-                  选文件作为知识库引用（点第二次取消）
-                </div>
-                {ragFiles.length === 0 ? (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">data/ 下无 .txt 文件</div>
-                ) : (
-                  ragFiles.map((f) => {
-                    const selected = !!attached[f]
-                    return (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => void handleRagFileClick(f)}
-                        className={cn(
-                          'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-left transition-all duration-150',
-                          selected
-                            ? 'bg-primary/90 text-primary-foreground'
-                            : 'hover:bg-accent active:scale-[0.98]'
-                        )}
-                      >
-                        <FileText className="size-3.5 shrink-0" />
-                        <span className="font-mono">{f}</span>
-                        {selected && <span className="ml-auto text-[10px]">已选</span>}
-                      </button>
-                    )
-                  })
-                )}
-              </PopoverContent>
-            </Popover>
             {isSending ? (
               <Button onClick={handleStop} variant="destructive">
                 <Square className="size-4" /> 停止

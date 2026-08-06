@@ -13,12 +13,6 @@ export const IpcChannels = {
     streamAbort: 'llm:stream:abort',
     streamToolCalls: 'llm:stream:tool_calls'
   },
-  rag: {
-    search: 'rag:search',
-    reload: 'rag:reload',
-    listFiles: 'rag:listFiles',
-    readFile: 'rag:readFile'
-  },
   tools: {
     list: 'tools:list',
     execute: 'tools:execute'

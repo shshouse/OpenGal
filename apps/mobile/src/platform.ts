@@ -8,7 +8,7 @@
  * - pet/window: 移动端不适用，返回 no-op
  * - character: 内置默认角色卡 (不依赖文件系统扫描)
  * - model: 内置 CDN Live2D 模型 (不依赖本地文件)
- * - rag/logs: 移动端暂不支持，返回空
+ * - logs: 移动端暂不支持，返回空
  */
 
 import { Preferences } from '@capacitor/preferences'
@@ -332,13 +332,6 @@ export const mobilePlatform: PlatformAPI = {
       // ponytail: 移动端 abort 需要 AbortController，后续实现
       return ok(true)
     }
-  },
-
-  rag: {
-    search: async () => ok([]),
-    reload: async () => ok([]),
-    listFiles: async () => ok([]),
-    readFile: async () => ok(null)
   },
 
   tools: {

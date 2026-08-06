@@ -52,13 +52,6 @@ const api = {
     },
     abortStream: (streamId: string) => invoke(IpcChannels.llm.streamAbort, streamId)
   },
-  rag: {
-    search: (query: string, topK?: number) =>
-      invoke<string>(IpcChannels.rag.search, query, topK),
-    reload: () => invoke<unknown[]>(IpcChannels.rag.reload),
-    listFiles: () => invoke<string[]>(IpcChannels.rag.listFiles),
-    readFile: (fileName: string) => invoke<string | null>(IpcChannels.rag.readFile, fileName)
-  },
   tools: {
     list: () => invoke<ToolDefinition[]>(IpcChannels.tools.list),
     execute: (name: string, argsJson: string) =>

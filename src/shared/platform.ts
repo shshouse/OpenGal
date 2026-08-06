@@ -32,12 +32,6 @@ export interface PlatformAPI {
     onToolCalls(listener: (streamId: string, calls: ToolCall[]) => void): () => void
     abortStream(streamId: string): Promise<IpcResult<unknown>>
   }
-  rag: {
-    search(query: string, topK?: number): Promise<IpcResult<unknown[]>>
-    reload(): Promise<IpcResult<unknown[]>>
-    listFiles(): Promise<IpcResult<string[]>>
-    readFile(fileName: string): Promise<IpcResult<string | null>>
-  }
   tools: {
     list(): Promise<IpcResult<ToolDefinition[]>>
     execute(name: string, argsJson: string): Promise<IpcResult<{ ok: true; result: string } | { ok: false; error: string }>>

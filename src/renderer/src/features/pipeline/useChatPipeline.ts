@@ -14,7 +14,6 @@ import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from './pipelineBus'
 import { getLastRawResponse } from './llmWorker'
 import { useToolCallsStore } from '@/features/tools/toolCallsStore'
-import type { RagAttachment } from '@/features/chat/chatStore'
 
 export function useChatPipeline() {
   const setSending = useChatStore((s) => s.setSending)
@@ -71,18 +70,18 @@ export function useChatPipeline() {
   }, [appendUser, finalizeStream, replaceError, setSending])
 
   return useCallback(
-    function send(userContent: string, attachments?: RagAttachment[]): void {
+    function send(userContent: string): void {
       const trimmed = userContent.trim()
       if (!trimmed) return
       replaceError(null)
-      appendUser(trimmed, attachments)
+      appendUser(trimmed)
       setSending(true)
       useLogsStore
         .getState()
         .appendLocal(
           'info',
           'chat',
-          `用户输入: ${trimmed.slice(0, 200)}${attachments && attachments.length > 0 ? ` [带 ${attachments.length} 个引用文件]` : ''}`
+          `用户输入: ${trimmed.slice(0, 200)}`
         )
       pipelineBus.emit('user:input', { text: trimmed, source: 'user' })
     },
