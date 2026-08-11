@@ -2,7 +2,7 @@
  * 设置中心：把零散的设置面板统一组织进 Tabs。
  *
  * 当前分页：
- * - 角色：列出 mod/role-card 下的角色卡，切换激活
+ * - 角色：列出 mods/role-card 下的角色卡，切换激活
  * - LLM：全局供应商 / Base URL / API Key / 模型名
  * - TTS：GPT-SoVITS 服务和参考音频参数（沿用现有 TTSSettings）
  * - STT：ASR 设置

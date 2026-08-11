@@ -37,9 +37,12 @@ interface TTSSettingsProps {
 export function TTSSettings({ config, onSave }: TTSSettingsProps) {
   const [form, setForm] = React.useState<TTSConfig>({
     enabled: false,
+    provider: 'gpt-sovits',
     baseURL: 'http://127.0.0.1:9880',
     gptModelRelPath: '',
     sovitsModelRelPath: '',
+    characterName: '',
+    onnxModelDir: '',
     referenceAudioRelPath: '',
     referenceText: '',
     referenceLanguage: 'en',
@@ -122,7 +125,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
   async function handleStartServer(): Promise<void> {
     setServerBusy(true)
-    setStatus('正在启动 GPT-SoVITS 服务(首次启动需要 30-90 秒)...')
+    setStatus('正在启动 TTS 服务(首次启动需要 30-90 秒)...')
     try {
       const r = await window.opengal.tts.serverStart()
       if (!r.success) throw new Error(r.error || 'start failed')
@@ -201,7 +204,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <Volume2 className="size-4" /> TTS 设置 (GPT-SoVITS)
+        <Volume2 className="size-4" /> TTS 设置
       </div>
 
       <div className="flex items-center gap-2">
@@ -214,31 +217,80 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         />
       </div>
 
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">引擎</label>
+        <Select
+          value={form.provider}
+          onValueChange={(v) => update('provider', v as TTSConfig['provider'])}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="gpt-sovits">GPT-SoVITS (PyTorch)</SelectItem>
+            <SelectItem value="genie">Genie-TTS (ONNX)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {form.provider === 'genie' && (
+        <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2">
+          Genie 需先转换模型为 ONNX 格式（scripts/convert_to_onnx.py），并启动 Genie API 服务（scripts/start_genie_tts.py）。
+        </div>
+      )}
+
       <label className="text-xs font-medium text-muted-foreground">后端地址</label>
       <Input
         value={form.baseURL}
         onChange={(e) => update('baseURL', e.target.value)}
-        placeholder="http://127.0.0.1:9880"
+        placeholder={form.provider === 'genie' ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:9880'}
       />
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">GPT 权重 (相对路径)</label>
-          <Input
-            value={form.gptModelRelPath}
-            onChange={(e) => update('gptModelRelPath', e.target.value)}
-            placeholder="GPT/Neuro-e24.ckpt"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">SoVITS 权重 (相对路径)</label>
-          <Input
-            value={form.sovitsModelRelPath}
-            onChange={(e) => update('sovitsModelRelPath', e.target.value)}
-            placeholder="SoVITS/Neuro_e8_s7056.pth"
-          />
-        </div>
-      </div>
+      {form.provider === 'gpt-sovits' && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">GPT 权重 (相对路径)</label>
+              <Input
+                value={form.gptModelRelPath}
+                onChange={(e) => update('gptModelRelPath', e.target.value)}
+                placeholder="GPT/Neuro-e24.ckpt"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">SoVITS 权重 (相对路径)</label>
+              <Input
+                value={form.sovitsModelRelPath}
+                onChange={(e) => update('sovitsModelRelPath', e.target.value)}
+                placeholder="SoVITS/Neuro_e8_s7056.pth"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {form.provider === 'genie' && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">角色名</label>
+              <Input
+                value={form.characterName}
+                onChange={(e) => update('characterName', e.target.value)}
+                placeholder="neuro"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">ONNX 模型目录 (相对路径)</label>
+              <Input
+                value={form.onnxModelDir}
+                onChange={(e) => update('onnxModelDir', e.target.value)}
+                placeholder="genie-onnx/neuro"
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       <label className="text-xs font-medium text-muted-foreground">参考音频 (相对路径)</label>
       <Input
@@ -254,7 +306,59 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         placeholder="Hello, I am Neuro!"
       />
 
-      <div className="grid grid-cols-3 gap-2">
+      {form.provider === 'gpt-sovits' && (
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">参考语言</label>
+            <Select
+              value={form.referenceLanguage}
+              onValueChange={(v) => update('referenceLanguage', v as TTSConfig['referenceLanguage'])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REF_LANG_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">输出语言</label>
+            <Select
+              value={form.outputLanguage}
+              onValueChange={(v) => update('outputLanguage', v as TTSConfig['outputLanguage'])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OUT_LANG_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">语速</label>
+            <Input
+              type="number"
+              step={0.1}
+              min={0.5}
+              max={2}
+              value={form.speedFactor}
+              onChange={(e) => update('speedFactor', parseFloat(e.target.value) || 1)}
+            />
+          </div>
+        </div>
+      )}
+
+      {form.provider === 'genie' && (
         <div>
           <label className="text-xs font-medium text-muted-foreground">参考语言</label>
           <Select
@@ -265,48 +369,18 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {REF_LANG_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
+              <SelectItem value="zh">中文</SelectItem>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="ja">日本語</SelectItem>
+              <SelectItem value="ko">한국어</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">输出语言</label>
-          <Select
-            value={form.outputLanguage}
-            onValueChange={(v) => update('outputLanguage', v as TTSConfig['outputLanguage'])}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {OUT_LANG_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">语速</label>
-          <Input
-            type="number"
-            step={0.1}
-            min={0.5}
-            max={2}
-            value={form.speedFactor}
-            onChange={(e) => update('speedFactor', parseFloat(e.target.value) || 1)}
-          />
-        </div>
-      </div>
+      )}
 
       <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
         <span className="text-xs font-medium">
-          <span className="text-muted-foreground">GPT-SoVITS 服务: </span>
+          <span className="text-muted-foreground">TTS 服务: </span>
           {health === 'unknown' && <span className="text-muted-foreground">检测中...</span>}
           {health === 'stopped' && <span className="text-muted-foreground">未运行</span>}
           {health === 'starting' && (
@@ -361,7 +435,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-background rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col border">
             <div className="flex items-center justify-between px-4 py-2 border-b">
-              <span className="text-sm font-semibold">GPT-SoVITS 服务日志</span>
+              <span className="text-sm font-semibold">TTS 服务日志</span>
               <Button size="sm" variant="ghost" onClick={() => setLogVisible(false)}>
                 关闭
               </Button>

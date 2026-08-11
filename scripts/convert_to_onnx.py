@@ -5,8 +5,8 @@ Usage:
   pip install genie-tts torch
   python scripts/convert_to_onnx.py
 
-By default converts the models in mod/role-card/neuro/voice/gpt-sovits/.
-Output goes to mod/role-card/neuro/voice/genie-onnx/.
+By default converts the models in mods/Role/neuro/voice/gpt-sovits/.
+Output goes to mods/Role/neuro/voice/genie-onnx/.
 """
 
 import sys
@@ -19,8 +19,8 @@ sys.path.insert(0, os.path.abspath(GENIE_SRC))
 import genie_tts as genie
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-VOICE_DIR = os.path.join(PROJECT_ROOT, 'mod', 'role-card', 'neuro', 'voice', 'gpt-sovits')
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'mod', 'role-card', 'neuro', 'voice', 'genie-onnx')
+VOICE_DIR = os.path.join(PROJECT_ROOT, 'mods', 'Role', 'neuro', 'voice', 'gpt-sovits')
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'mods', 'Role', 'neuro', 'voice', 'genie-onnx')
 
 PTH_PATH = os.path.join(VOICE_DIR, 'SoVITS', 'Neuro_e8_s7056.pth')
 CKPT_PATH = os.path.join(VOICE_DIR, 'GPT', 'Neuro-e24.ckpt')

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 /**
- * Resolve the repo root where `mod/` lives.
+ * Resolve the repo root where `mods/` lives.
  * Dev: app.getAppPath() is the project root.
  * Packaged: assets ship via extraResources -> process.resourcesPath.
  */
@@ -13,12 +13,12 @@ export function getModRoot(): string {
   }
   const candidates = app.isPackaged
     ? [
-        path.join(process.resourcesPath, 'mod'),
-        path.join(path.dirname(app.getPath('exe')), 'mod')
+        path.join(process.resourcesPath, 'mods'),
+        path.join(path.dirname(app.getPath('exe')), 'mods')
       ]
     : [
-        path.join(app.getAppPath(), 'mod'),
-        path.join(app.getAppPath(), '..', 'mod')
+        path.join(app.getAppPath(), 'mods'),
+        path.join(app.getAppPath(), '..', 'mods')
       ]
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
@@ -27,7 +27,7 @@ export function getModRoot(): string {
 }
 
 const CUSTOM_SCHEME = 'opengal'
-const MOD_HOST = 'mod'
+const MOD_HOST = 'mods'
 
 export function toModUrl(absPath: string): string {
   const root = getModRoot()
@@ -60,7 +60,7 @@ export function modUrlToAbsPath(url: string): string | null {
   return resolved
 }
 
-const VOICE_REL = path.join('role-card', 'neuro', 'voice', 'gpt-sovits')
+const VOICE_REL = path.join('Role', 'neuro', 'voice', 'gpt-sovits')
 
 export function getVoiceRoot(): string {
   return path.join(getModRoot(), VOICE_REL)

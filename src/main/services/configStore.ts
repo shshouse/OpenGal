@@ -18,9 +18,12 @@ const defaultConfig: AppConfig = {
   },
   tts: {
     enabled: false,
+    provider: 'gpt-sovits',
     baseURL: 'http://127.0.0.1:9880',
     gptModelRelPath: '',
     sovitsModelRelPath: '',
+    characterName: '',
+    onnxModelDir: '',
     referenceAudioRelPath: '',
     referenceText: '',
     referenceLanguage: 'en',
@@ -45,12 +48,7 @@ const store = new Store<Record<string, unknown>>({
   defaults: { ...defaultConfig } as unknown as Record<string, unknown>
 })
 
-// One-time migration: clear stale Genie-TTS config fields
-const storedTts = (store.store as Record<string, unknown>).tts as Record<string, unknown> | undefined
-if (storedTts && ('characterName' in storedTts || 'onnxModelDir' in storedTts)) {
-  store.delete('tts' as never)
-}
-// One-time migration: bump old default maxTokens 2048 → 4096
+// One-time migration: bump old default maxTokens 2048 -> 4096
 const storedLlm = (store.store as Record<string, unknown>).llm as Record<string, unknown> | undefined
 if (storedLlm && storedLlm.maxTokens === 2048) {
   store.set('llm.maxTokens' as never, 4096 as never)

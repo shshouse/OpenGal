@@ -1,5 +1,5 @@
 /**
- * 角色管理面板：列出 mod/role-card 下所有角色卡，支持切换激活角色。
+ * 角色管理面板：列出 mods/role-card 下所有角色卡，支持切换激活角色。
  *
  * 当前阶段（M2）只读：
  * - 列出所有 character.json 解析成功的卡
@@ -7,7 +7,7 @@
  * - 展示角色 persona / voice provider / llm provider 简要
  *
  * 后续阶段：
- * - 导入 .char 包（解压到 mod/role-card/）
+ * - 导入 .char 包（解压到 mods/role-card/）
  * - 在线编辑 persona / voice 配置
  * - 角色间快速切换的全局快捷键
  */
@@ -51,7 +51,7 @@ export function CharacterSettings() {
 
       {list.length === 0 && !loading && (
         <div className="rounded-md border border-dashed bg-muted/30 p-4 text-center text-xs text-muted-foreground">
-          mod/role-card 下未发现可用角色卡
+          mods/role-card 下未发现可用角色卡
         </div>
       )}
 

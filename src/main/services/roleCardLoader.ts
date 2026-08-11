@@ -1,5 +1,5 @@
 /**
- * 角色卡加载器：扫描 mod/role-card 下每个子目录的 character.json，验证 + 归一化后返回。
+ * 角色卡加载器：扫描 mods/role-card 下每个子目录的 character.json，验证 + 归一化后返回。
  *
  * - 仅识别 character.json（M2 阶段不支持 yaml；后续可加导入工具把旧格式转 json）
  * - 目录名作为回退 id（character.json 里的 id 字段缺失时启用）

@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
-$src = Join-Path $root 'mod\role-card\neuro\Neuro-V2'
-$base = Join-Path $root 'mod\role-card\neuro\voice\gpt-sovits'
+$src = Join-Path $root 'mods\role-card\neuro\Neuro-V2'
+$base = Join-Path $root 'mods\role-card\neuro\voice\gpt-sovits'
 
 New-Item -ItemType Directory -Force -Path (Join-Path $base 'GPT') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $base 'SoVITS') | Out-Null

@@ -67,12 +67,18 @@ export type TTSLanguage =
 
 export interface TTSConfig {
   enabled: boolean
-  /** GPT-SoVITS API server URL, e.g. http://127.0.0.1:9880 */
+  /** TTS 引擎：'gpt-sovits'（PyTorch 官方 API）或 'genie'（ONNX 轻量推理） */
+  provider: 'gpt-sovits' | 'genie'
+  /** TTS API server URL */
   baseURL: string
   /** Relative path to GPT .ckpt weight file (relative to voice dir) */
   gptModelRelPath: string
   /** Relative path to SoVITS .pth weight file (relative to voice dir) */
   sovitsModelRelPath: string
+  /** Genie: 角色名（Genie server 用 character_name 标识已加载的角色） */
+  characterName: string
+  /** Genie: ONNX 模型目录的相对路径（相对 voice dir） */
+  onnxModelDir: string
   /** Relative path to reference audio (relative to voice dir) */
   referenceAudioRelPath: string
   /** Transcript of the reference audio */
@@ -235,14 +241,14 @@ export interface RoleCard {
 
 /**
  * 角色卡运行期视图：在原始 RoleCard 之上附加加载时解析出的元信息。
- * Main 进程扫描 mod/role-card 下的 character.json 后产出，前端通过 IPC 拉取。
+ * Main 进程扫描 mods/role-card 下的 character.json 后产出，前端通过 IPC 拉取。
  */
 export interface RoleCardEntry extends RoleCard {
   /** 角色卡所在目录的绝对路径（main 端用，用于解析相对路径） */
   rootPath: string
-  /** 角色卡所在目录在 mod/role-card 下的目录名（用作回退 id） */
+  /** 角色卡所在目录在 mods/role-card 下的目录名（用作回退 id） */
   folderName: string
-  /** 是否随包内置（来自 mod/，用户不应删除） */
+  /** 是否随包内置（来自 mods/，用户不应删除） */
   builtin?: boolean
 }
 

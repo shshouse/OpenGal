@@ -37,10 +37,11 @@ function resolveActiveCard(explicitId: string | undefined) {
 export async function pingTTS(): Promise<{ ok: boolean; message?: string }> {
   const config = readConfig().tts
   const card = resolveActiveCard(undefined)
-  const adapter = chooseTTSAdapter(card?.voice?.provider)
+  const provider = card?.voice?.provider || config.provider
+  const adapter = chooseTTSAdapter(provider)
   const res = await adapter.ping({ globalConfig: config })
   if (res.ok) {
-    logBus.info('tts', `ping 成功 provider=${card?.voice?.provider ?? 'gpt-sovits'}`)
+    logBus.info('tts', `ping 成功 provider=${provider}`)
   } else {
     logBus.warn('tts', `ping 失败: ${res.message ?? ''}`)
   }
@@ -55,9 +56,10 @@ export function resetTTSState(): void {
 export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse> {
   const config = readConfig().tts
   const card = resolveActiveCard(request.roleCardId)
-  const adapter = chooseTTSAdapter(card?.voice?.provider)
-  const preview = request.text.slice(0, 80) + (request.text.length > 80 ? '…' : '')
-  logBus.info('tts', `合成开始 provider=${card?.voice?.provider ?? 'gpt-sovits'} 文本=${preview}`)
+  const provider = card?.voice?.provider || config.provider
+  const adapter = chooseTTSAdapter(provider)
+  const preview = request.text.slice(0, 80) + (request.text.length > 80 ? '...' : '')
+  logBus.info('tts', `合成开始 provider=${provider} 文本=${preview}`)
   try {
     const res = await adapter.generateSpeech({
       text: request.text,
