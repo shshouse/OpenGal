@@ -131,7 +131,6 @@ export class WindowManager {
     } else {
       void window.loadFile(this.deps.rendererHtmlPath, { hash })
     }
-    if (is.dev) window.webContents.openDevTools({ mode: 'detach' })
   }
 }
 
