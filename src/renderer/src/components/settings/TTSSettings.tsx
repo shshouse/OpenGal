@@ -10,6 +10,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import type { AppConfig, TTSConfig } from '@shared/types'
+import { useCharacterStore } from '@/features/character/characterStore'
 
 const REF_LANG_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'zh', label: '中英混合' },
@@ -28,6 +29,31 @@ const OUT_LANG_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'auto_yue', label: '多语种混合(粤语)' },
   ...REF_LANG_OPTIONS
 ]
+
+/**
+ * TTSConfig 字段 -> 角色卡 voice 配置里的键名。
+ * 卡里有该键时，设置界面显示卡值（禁用编辑）；合成时适配器同样以卡优先。
+ */
+const CARD_FIELD_MAP: Partial<Record<keyof TTSConfig, string>> = {
+  baseURL: 'baseURL',
+  gptModelRelPath: 'gptModel',
+  sovitsModelRelPath: 'sovitsModel',
+  characterName: 'characterName',
+  onnxModelDir: 'onnxModelDir',
+  referenceAudioRelPath: 'referenceAudio',
+  referenceText: 'referenceText',
+  referenceLanguage: 'referenceLanguage',
+  outputLanguage: 'outputLanguage',
+  speedFactor: 'speedFactor',
+  textSplitMethod: 'textSplitMethod'
+}
+
+/** 标注"该字段来自角色卡"的小标签 */
+function CardTag() {
+  return (
+    <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">角色卡</span>
+  )
+}
 
 interface TTSSettingsProps {
   config: AppConfig | null
@@ -74,6 +100,54 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
       setForm(config.tts)
     }
   }, [config])
+
+  // 当前激活角色卡：设置面板要显示"生效值"（卡优先），而不是只显示全局配置
+  const activeCharacter = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
+  const activeVoiceRef = activeCharacter?.voice?.configRef
+  const [cardVoice, setCardVoice] = React.useState<Record<string, unknown> | null>(null)
+
+  React.useEffect(() => {
+    if (!activeCharacter?.id) {
+      setCardVoice(null)
+      return
+    }
+    let cancelled = false
+    void window.opengal.character
+      .voiceConfig(activeCharacter.id)
+      .then((res) => {
+        if (!cancelled) setCardVoice(res.success && res.data ? res.data : null)
+      })
+      .catch(() => {
+        if (!cancelled) setCardVoice(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeCharacter?.id, activeVoiceRef])
+
+  /** 该字段是否由角色卡提供（有卡且卡里显式配置了该键） */
+  const fromCard = React.useCallback(
+    (key: keyof TTSConfig): boolean => {
+      if (!cardVoice) return false
+      const cardKey = CARD_FIELD_MAP[key]
+      if (!cardKey) return false
+      const v = cardVoice[cardKey]
+      return v !== undefined && v !== null && v !== ''
+    },
+    [cardVoice],
+  )
+
+  /** 生效值：卡里有就用卡值，否则用全局表单值 */
+  const effective = React.useCallback(
+    (key: keyof TTSConfig): string | number => {
+      const cardKey = CARD_FIELD_MAP[key]
+      if (cardVoice && cardKey && fromCard(key)) {
+        return cardVoice[cardKey] as string | number
+      }
+      return form[key] as string | number
+    },
+    [cardVoice, form, fromCard],
+  )
 
   /**
    * 每 3 秒探测一次：进程是否活着（pidAlive）+ HTTP 端口是否可达（portReachable）。
@@ -207,6 +281,20 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         <Volume2 className="size-4" /> TTS 设置
       </div>
 
+      {activeCharacter && cardVoice && (
+        <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2">
+          当前角色「{activeCharacter.displayName ?? activeCharacter.name}」的语音由角色卡提供
+          （{activeCharacter.voice?.configRef}）。带「角色卡」标记的字段以卡为准（灰显不可编辑，
+          修改需编辑卡内配置）；其余字段为全局默认值。
+        </div>
+      )}
+      {activeCharacter?.voice?.configRef && !cardVoice && (
+        <div className="text-xs text-amber-600 dark:text-amber-400 bg-muted/30 rounded px-3 py-2">
+          当前角色的语音配置（{activeCharacter.voice.configRef}）读取失败：合成时将使用下方全局值
+          或无参考文本模式。
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <label className="text-xs font-medium text-muted-foreground">启用</label>
         <input
@@ -218,10 +306,18 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
       </div>
 
       <div>
-        <label className="text-xs font-medium text-muted-foreground">引擎</label>
+        <label className="text-xs font-medium text-muted-foreground">
+          引擎
+          {activeCharacter?.voice?.provider && (
+            <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">
+              角色卡
+            </span>
+          )}
+        </label>
         <Select
-          value={form.provider}
+          value={activeCharacter?.voice?.provider ?? form.provider}
           onValueChange={(v) => update('provider', v as TTSConfig['provider'])}
+          disabled={!!activeCharacter?.voice?.provider}
         >
           <SelectTrigger>
             <SelectValue />
@@ -239,10 +335,14 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         </div>
       )}
 
-      <label className="text-xs font-medium text-muted-foreground">后端地址</label>
+      <label className="text-xs font-medium text-muted-foreground">
+        后端地址
+        {fromCard('baseURL') && <CardTag />}
+      </label>
       <Input
-        value={form.baseURL}
+        value={String(effective('baseURL'))}
         onChange={(e) => update('baseURL', e.target.value)}
+        disabled={fromCard('baseURL')}
         placeholder={form.provider === 'genie' ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:9880'}
       />
 
@@ -250,19 +350,27 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         <>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">GPT 权重 (相对路径)</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                GPT 权重 (相对路径)
+                {fromCard('gptModelRelPath') && <CardTag />}
+              </label>
               <Input
-                value={form.gptModelRelPath}
+                value={String(effective('gptModelRelPath'))}
                 onChange={(e) => update('gptModelRelPath', e.target.value)}
-                placeholder="GPT/Neuro-e24.ckpt"
+                disabled={fromCard('gptModelRelPath')}
+                placeholder="GPT/your-model.ckpt"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">SoVITS 权重 (相对路径)</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                SoVITS 权重 (相对路径)
+                {fromCard('sovitsModelRelPath') && <CardTag />}
+              </label>
               <Input
-                value={form.sovitsModelRelPath}
+                value={String(effective('sovitsModelRelPath'))}
                 onChange={(e) => update('sovitsModelRelPath', e.target.value)}
-                placeholder="SoVITS/Neuro_e8_s7056.pth"
+                disabled={fromCard('sovitsModelRelPath')}
+                placeholder="SoVITS/your-model.pth"
               />
             </div>
           </div>
@@ -273,46 +381,66 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         <>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">角色名</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                角色名
+                {fromCard('characterName') && <CardTag />}
+              </label>
               <Input
-                value={form.characterName}
+                value={String(effective('characterName'))}
                 onChange={(e) => update('characterName', e.target.value)}
-                placeholder="neuro"
+                disabled={fromCard('characterName')}
+                placeholder="character-id"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">ONNX 模型目录 (相对路径)</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                ONNX 模型目录 (相对路径)
+                {fromCard('onnxModelDir') && <CardTag />}
+              </label>
               <Input
-                value={form.onnxModelDir}
+                value={String(effective('onnxModelDir'))}
                 onChange={(e) => update('onnxModelDir', e.target.value)}
-                placeholder="genie-onnx/neuro"
+                disabled={fromCard('onnxModelDir')}
+                placeholder="genie-onnx/character-id"
               />
             </div>
           </div>
         </>
       )}
 
-      <label className="text-xs font-medium text-muted-foreground">参考音频 (相对路径)</label>
+      <label className="text-xs font-medium text-muted-foreground">
+        参考音频 (相对路径)
+        {fromCard('referenceAudioRelPath') && <CardTag />}
+      </label>
       <Input
-        value={form.referenceAudioRelPath}
+        value={String(effective('referenceAudioRelPath'))}
         onChange={(e) => update('referenceAudioRelPath', e.target.value)}
+        disabled={fromCard('referenceAudioRelPath')}
         placeholder="reference/ref.wav"
       />
 
-      <label className="text-xs font-medium text-muted-foreground">参考文本</label>
+      <label className="text-xs font-medium text-muted-foreground">
+        参考文本
+        {fromCard('referenceText') && <CardTag />}
+      </label>
       <Input
-        value={form.referenceText}
+        value={String(effective('referenceText'))}
         onChange={(e) => update('referenceText', e.target.value)}
-        placeholder="Hello, I am Neuro!"
+        disabled={fromCard('referenceText')}
+        placeholder="Hello! （留空 = 无参考文本模式，仅 GPT-SoVITS 支持）"
       />
 
       {form.provider === 'gpt-sovits' && (
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <label className="text-xs font-medium text-muted-foreground">参考语言</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              参考语言
+              {fromCard('referenceLanguage') && <CardTag />}
+            </label>
             <Select
-              value={form.referenceLanguage}
+              value={String(effective('referenceLanguage'))}
               onValueChange={(v) => update('referenceLanguage', v as TTSConfig['referenceLanguage'])}
+              disabled={fromCard('referenceLanguage')}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -327,10 +455,14 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
             </Select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">输出语言</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              输出语言
+              {fromCard('outputLanguage') && <CardTag />}
+            </label>
             <Select
-              value={form.outputLanguage}
+              value={String(effective('outputLanguage'))}
               onValueChange={(v) => update('outputLanguage', v as TTSConfig['outputLanguage'])}
+              disabled={fromCard('outputLanguage')}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -345,14 +477,18 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
             </Select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground">语速</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              语速
+              {fromCard('speedFactor') && <CardTag />}
+            </label>
             <Input
               type="number"
               step={0.1}
               min={0.5}
               max={2}
-              value={form.speedFactor}
+              value={Number(effective('speedFactor'))}
               onChange={(e) => update('speedFactor', parseFloat(e.target.value) || 1)}
+              disabled={fromCard('speedFactor')}
             />
           </div>
         </div>
@@ -360,10 +496,14 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
       {form.provider === 'genie' && (
         <div>
-          <label className="text-xs font-medium text-muted-foreground">参考语言</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            参考语言
+            {fromCard('referenceLanguage') && <CardTag />}
+          </label>
           <Select
-            value={form.referenceLanguage}
+            value={String(effective('referenceLanguage'))}
             onValueChange={(v) => update('referenceLanguage', v as TTSConfig['referenceLanguage'])}
+            disabled={fromCard('referenceLanguage')}
           >
             <SelectTrigger>
               <SelectValue />

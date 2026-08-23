@@ -24,7 +24,17 @@ export interface PersistedUserMessage extends ChatMessage {
   userText: string
 }
 
+/** 单个角色的会话快照（切走时存档，切回来恢复） */
+interface ChatSession {
+  messages: (PersistedAssistantMessage | PersistedUserMessage)[]
+}
+
 interface ChatState {
+  /** 当前会话归属的角色 id；null 表示未选角色 */
+  sessionId: string | null
+  /** 每个角色一份的会话存档（内存态，随应用生命周期） */
+  sessions: Record<string, ChatSession>
+  /** 当前激活会话的消息视图（= sessions[sessionId] 的内容） */
   messages: (PersistedAssistantMessage | PersistedUserMessage)[]
   isSending: boolean
   error: string | null
@@ -36,9 +46,16 @@ interface ChatState {
   markSegmentTTSQueued: (index: number) => void
   finalizeStream: (rawContent?: string, toolCalls?: ToolCallRecord[]) => void
   clear: () => void
+  /**
+   * 切换会话到指定角色：把当前会话存入 sessions[旧id]，载入 sessions[新id]。
+   * 调用方需先中止在途流式（旧角色的输出不属于新会话）。
+   */
+  switchSession: (characterId: string | null) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
+  sessionId: null,
+  sessions: {},
   messages: [],
   isSending: false,
   error: null,
@@ -82,6 +99,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ streamingSegments: [] })
     }
   },
-  clear: () => set({ messages: [], error: null, streamingSegments: [] })
+  clear: () => set({ messages: [], error: null, streamingSegments: [] }),
+  switchSession: (characterId) => {
+    const { sessionId } = get()
+    if (sessionId === characterId) return
+    set((state) => {
+      // 当前会话存档（即使是空的也存，保持"切回来是离开时的样子"）
+      const sessions = { ...state.sessions }
+      if (state.sessionId) {
+        sessions[state.sessionId] = { messages: state.messages }
+      }
+      const restored = (characterId && sessions[characterId]) || { messages: [] }
+      return {
+        sessionId: characterId,
+        sessions,
+        messages: restored.messages,
+        // 流式片段/发送中/错误都属于旧角色的在途轮次，不带到新会话
+        streamingSegments: [],
+        isSending: false,
+        error: null
+      }
+    })
+  }
 }))
 

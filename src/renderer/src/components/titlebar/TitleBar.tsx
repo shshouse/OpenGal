@@ -1,11 +1,14 @@
 import * as React from 'react'
 import { Minus, Square, X, Sparkles, Copy, Terminal } from 'lucide-react'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { useCharacterStore } from '@/features/character/characterStore'
 
 export function TitleBar() {
   const [maximized, setMaximized] = React.useState(false)
   const togglePanel = useLogsStore((s) => s.setPanelOpen)
   const panelOpen = useLogsStore((s) => s.panelOpen)
+  const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
+  const characterName = character?.displayName ?? character?.name ?? null
   const errorCount = useLogsStore((s) =>
     s.entries.reduce((n, e) => (e.level === 'error' || e.level === 'warn' ? n + 1 : n), 0),
   )
@@ -35,7 +38,9 @@ export function TitleBar() {
       <div className="flex items-center gap-2 pl-3">
         <Sparkles className="size-3.5 text-primary" />
         <span className="text-xs font-semibold tracking-wide">OpenGal</span>
-        <span className="text-[10px] text-muted-foreground">Neuro</span>
+        {characterName && (
+          <span className="text-[10px] text-muted-foreground">{characterName}</span>
+        )}
       </div>
 
       <div

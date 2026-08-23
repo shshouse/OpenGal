@@ -9,7 +9,9 @@
 
 import { create } from 'zustand'
 import type { RoleCardEntry } from '@shared/types'
-import { setActiveRoleCard as wireLLMWorkerRoleCard } from '@/features/pipeline'
+import { setActiveRoleCard as wireLLMWorkerRoleCard, pipelineBus } from '@/features/pipeline'
+import { useChatStore } from '@/features/chat/chatStore'
+import { getLive2DModel } from '@/features/live2d/live2dBus'
 
 interface CharacterState {
   list: RoleCardEntry[]
@@ -44,6 +46,8 @@ export const useCharacterStore = create<CharacterState>((set, get) => ({
       null
     set({ list, activeId: active?.id ?? null, loading: false })
     if (active) {
+      // 初次选定也要切换会话归属（从 null 会话切到角色会话）
+      useChatStore.getState().switchSession(active.id)
       wireLLMWorkerRoleCard(active)
     }
   },
@@ -54,6 +58,14 @@ export const useCharacterStore = create<CharacterState>((set, get) => ({
       set({ error: `未找到角色卡: ${id}` })
       return
     }
+    if (id === get().activeId) return
+    // 在途的输出属于旧角色：先中止流式与播报，再切会话，避免旧内容落进新会话
+    const chat = useChatStore.getState()
+    if (chat.isSending || chat.streamingSegments.length > 0) {
+      pipelineBus.emit('pipeline:abort', undefined)
+      try { getLive2DModel()?.stopSpeaking() } catch { /* ignore */ }
+    }
+    chat.switchSession(id)
     set({ activeId: id, error: null })
     wireLLMWorkerRoleCard(card)
     // 持久化到 config（必须先 set 再 reset：activeCharacterId 写完后下一次 speak 才会拿到新角色）

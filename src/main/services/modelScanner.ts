@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Live2DModelConfig, RoleCardEntry } from '@shared/types'
-import { getModRoot, toModUrl } from './paths'
-
-const DEFAULT_MODEL_REL = path.join('Role', 'neuro', 'model', 'runtime', 'hiyori_free_t08.model3.json')
+import { toModUrl } from './paths'
+import { listRoleCards } from './roleCardLoader'
 
 const DEFAULT_PARAM_MAPPING: Live2DModelConfig['paramMapping'] = {
   angleX: 'ParamAngleX',
@@ -27,12 +26,16 @@ function buildConfig(absPath: string): Live2DModelConfig {
   }
 }
 
+/**
+ * 解析默认模型：不写死任何角色。
+ * 优先级：OPENGAL_DEFAULT_MODEL 环境变量 > 第一张带 live2d 配置的角色卡 > null（渲染端显示空态）。
+ */
 export function resolveDefaultModel(): Live2DModelConfig | null {
-  const overrides: string[] = []
-  if (process.env.OPENGAL_DEFAULT_MODEL) overrides.push(process.env.OPENGAL_DEFAULT_MODEL)
-  overrides.push(path.join(getModRoot(), DEFAULT_MODEL_REL))
-  for (const candidate of overrides) {
-    if (fs.existsSync(candidate)) return buildConfig(candidate)
+  const envModel = process.env.OPENGAL_DEFAULT_MODEL
+  if (envModel && fs.existsSync(envModel)) return buildConfig(envModel)
+  for (const card of listRoleCards()) {
+    const fromCard = resolveModelFromCard(card)
+    if (fromCard) return fromCard
   }
   return null
 }

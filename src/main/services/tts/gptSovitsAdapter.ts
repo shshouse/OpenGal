@@ -120,7 +120,10 @@ export class GptSovitsAdapter implements TTSAdapter {
    * 合成请求里的 TTSConfig 优先级（从高到低）：
    * 1. request.overrides
    * 2. 角色卡 voice.configRef 指向的 JSON（如 voice/gpt-sovits/config.json）
-   * 3. AppConfig.tts（globalConfig）
+   * 3. AppConfig.tts（globalConfig）——仅在无角色卡时使用
+   *
+   * 参考文本例外：它与参考音频必须成对。有角色卡时以卡为准，卡里没写就留空
+   * （无参考文本模式），不回落全局。
    *
    * 角色卡 voice 配置里的相对路径会用 resolveRoleVoiceFile 解析（相对角色目录）。
    * 缺角色卡时回退到 resolveVoicePath（全局 voice 根目录）。
@@ -160,6 +163,10 @@ export class GptSovitsAdapter implements TTSAdapter {
           merged[key] = cardVoice[key]
         }
       }
+      // 参考文本必须与参考音频来自同一张卡：卡里没写就留空（GPT-SoVITS 无参考
+      // 文本模式，TTS_pipeline 对空 prompt_text 走 no_prompt_text 分支），绝不
+      // 回落全局配置——全局文本配本卡音频等于给模型"印错的说明书"。
+      if (!cardVoice.referenceText) merged.referenceText = ''
     }
     if (req.overrides) {
       if (req.overrides.baseURL) merged.baseURL = req.overrides.baseURL
@@ -194,7 +201,8 @@ export class GptSovitsAdapter implements TTSAdapter {
     if (!fs.existsSync(refAbs)) throw new Error(`Reference audio not found: ${refAbs}`)
 
     const referenceText = String(merged.referenceText || '')
-    if (!referenceText) throw new Error('Reference text is not configured')
+    // 允许为空：无参考文本模式下服务端走 no_prompt_text 分支（质量略降但稳定），
+    // 比配错文本好。v3/v4 权重不支持该模式时服务端会返回明确错误。
 
     return {
       baseURL,

@@ -60,10 +60,23 @@ export function modUrlToAbsPath(url: string): string | null {
   return resolved
 }
 
-const VOICE_REL = path.join('Role', 'neuro', 'voice', 'gpt-sovits')
+/**
+ * 全局 voice 根目录（兜底用）：取 mods/Role 下第一个角色目录的 voice/gpt-sovits。
+ * 不写死具体角色；正常路径下语音文件按角色卡目录解析（见 roleCardLoader.resolveRoleVoiceFile），
+ * 这里只在无角色卡上下文的场景（如设置页全局测试）兜底。
+ */
+function getFirstRoleVoiceDir(): string | null {
+  const roleRoot = path.join(getModRoot(), 'Role')
+  try {
+    const first = fs.readdirSync(roleRoot, { withFileTypes: true }).find((d) => d.isDirectory())
+    return first ? path.join(roleRoot, first.name, 'voice', 'gpt-sovits') : null
+  } catch {
+    return null
+  }
+}
 
 export function getVoiceRoot(): string {
-  return path.join(getModRoot(), VOICE_REL)
+  return getFirstRoleVoiceDir() ?? path.join(getModRoot(), 'Role')
 }
 
 export function resolveVoicePath(relOrAbs: string): string {

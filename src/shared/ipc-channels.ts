@@ -29,7 +29,8 @@ export const IpcChannels = {
   },
   character: {
     list: 'character:list',
-    get: 'character:get'
+    get: 'character:get',
+    voiceConfig: 'character:voiceConfig'
   },
   tts: {
     speak: 'tts:speak',
@@ -58,6 +59,7 @@ export const IpcChannels = {
   logs: {
     list: 'logs:list',
     clear: 'logs:clear',
-    entry: 'logs:entry'
+    entry: 'logs:entry',
+    append: 'logs:append'
   }
 } as const

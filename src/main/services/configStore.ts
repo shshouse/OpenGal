@@ -1,9 +1,8 @@
 import Store from 'electron-store'
 import { safeStorage } from 'electron'
-import fs from 'node:fs'
-import path from 'node:path'
 import type { AppConfig } from '@shared/types'
-import { toModUrl, getVoiceRoot } from './paths'
+import { toModUrl } from './paths'
+import { listRoleCards, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
 
 const defaultConfig: AppConfig = {
@@ -71,7 +70,7 @@ function decryptApiKey(value: string): string {
 }
 
 /**
- * 首次启动时从 voice 模板回填 TTS 路径（仅当字段为空时）。
+ * 首次启动时从角色卡的语音配置回填 TTS 路径（仅当字段为空时）。
  *
  * 历史上这函数会无条件用 voice 文件覆盖 baseURL/referenceLanguage/outputLanguage，
  * 导致用户在设置面板里改的全局值被静默还原——尤其是用户改 baseURL 端口时。
@@ -79,24 +78,29 @@ function decryptApiKey(value: string): string {
  *
  * 角色卡感知层面，speak 路径已通过 cardVoice 覆盖 globalConfig 实现真正的
  * per-role 配置（见 gptSovitsAdapter.resolveSettings），不再需要这函数兜底。
+ * 数据来源是扫描到的第一张带语音配置的角色卡，不写死任何具体角色。
  */
 function patchTTSFromVoiceConfig(tts: AppConfig['tts']): void {
   if (tts.gptModelRelPath && tts.sovitsModelRelPath) return
   try {
-    const voiceConfigPath = path.join(getVoiceRoot(), 'config.json')
-    if (!fs.existsSync(voiceConfigPath)) return
-    const raw = JSON.parse(fs.readFileSync(voiceConfigPath, 'utf-8'))
-    if (!tts.gptModelRelPath && raw.gptModel) tts.gptModelRelPath = raw.gptModel
-    if (!tts.sovitsModelRelPath && raw.sovitsModel) tts.sovitsModelRelPath = raw.sovitsModel
-    if (!tts.referenceAudioRelPath && raw.referenceAudio) {
-      tts.referenceAudioRelPath = raw.referenceAudio
+    for (const card of listRoleCards()) {
+      const raw = readRoleVoiceConfig(card)
+      if (!raw) continue
+      if (!tts.gptModelRelPath && raw.gptModel) tts.gptModelRelPath = raw.gptModel as string
+      if (!tts.sovitsModelRelPath && raw.sovitsModel) tts.sovitsModelRelPath = raw.sovitsModel as string
+      if (!tts.referenceAudioRelPath && raw.referenceAudio) {
+        tts.referenceAudioRelPath = raw.referenceAudio as string
+      }
+      if (!tts.referenceText && raw.referenceText) tts.referenceText = raw.referenceText as string
+      if (!tts.referenceLanguage && raw.referenceLanguage) {
+        tts.referenceLanguage = raw.referenceLanguage as AppConfig['tts']['referenceLanguage']
+      }
+      if (!tts.outputLanguage && raw.outputLanguage) {
+        tts.outputLanguage = raw.outputLanguage as AppConfig['tts']['outputLanguage']
+      }
+      if (!tts.baseURL && raw.baseURL) tts.baseURL = raw.baseURL as string
+      return
     }
-    if (!tts.referenceText && raw.referenceText) tts.referenceText = raw.referenceText
-    if (!tts.referenceLanguage && raw.referenceLanguage) {
-      tts.referenceLanguage = raw.referenceLanguage
-    }
-    if (!tts.outputLanguage && raw.outputLanguage) tts.outputLanguage = raw.outputLanguage
-    if (!tts.baseURL && raw.baseURL) tts.baseURL = raw.baseURL
   } catch (err) {
     console.error('[TTS] patchTTSFromVoiceConfig failed:', err)
   }

@@ -5,6 +5,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { useChatStore, type PersistedUserMessage, type PersistedAssistantMessage } from '@/features/chat/chatStore'
+import { useCharacterStore } from '@/features/character/characterStore'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useChatPipeline } from '@/features/pipeline/useChatPipeline'
 import { pipelineBus } from '@/features/pipeline'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
@@ -31,6 +33,10 @@ export function ChatPanel() {
   const clear = useChatStore((s) => s.clear)
   const send = useChatPipeline()
   const asrPartial = useASRStore((s) => s.partial)
+  const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
+  const characters = useCharacterStore((s) => s.list)
+  const setActiveCharacter = useCharacterStore((s) => s.setActive)
+  const displayName = character?.displayName ?? character?.name ?? 'OpenGal'
   const [draft, setDraft] = React.useState('')
   const viewportRef = React.useRef<HTMLDivElement>(null)
 
@@ -77,7 +83,25 @@ export function ChatPanel() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold">Neuro</h2>
+          {characters.length > 0 ? (
+            <Select
+              value={character?.id ?? ''}
+              onValueChange={(id) => void setActiveCharacter(id)}
+            >
+              <SelectTrigger className="h-7 w-auto min-w-[120px] gap-1 px-2 py-0 text-sm font-semibold">
+                <SelectValue placeholder="选择角色" />
+              </SelectTrigger>
+              <SelectContent>
+                {characters.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.displayName ?? c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <h2 className="text-sm font-semibold">{displayName}</h2>
+          )}
           <p className="text-xs text-muted-foreground">{isMobile() ? 'OpenGal' : '对话回复会同步推送到桌宠气泡'}</p>
         </div>
         <div className="flex items-center gap-1">
@@ -116,7 +140,7 @@ export function ChatPanel() {
                 )}
               >
                 <span className="text-xs text-muted-foreground">
-                  {message.role === 'user' ? '我' : 'Neuro'}
+                  {message.role === 'user' ? '我' : displayName}
                 </span>
                 <div
                   className={cn(
@@ -140,7 +164,7 @@ export function ChatPanel() {
           )}
           {streamingDisplay && (
             <div className="flex flex-col gap-1 items-start">
-              <span className="text-xs text-muted-foreground">Neuro</span>
+              <span className="text-xs text-muted-foreground">{displayName}</span>
               <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm shadow-sm bg-secondary text-secondary-foreground">
                 {streamingDisplay}
                 <span className="inline-block w-1.5 h-4 ml-0.5 bg-foreground/60 animate-pulse rounded-sm" />

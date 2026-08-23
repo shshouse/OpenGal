@@ -19,7 +19,7 @@ export interface UserInputMessage {
  * 当前实现先按「单角色 + 情绪 + 文本」最小集落地，AVG 演出层（M3）会扩展系统关键字派发。
  */
 export interface LLMDialogMessage {
-  /** 实体名：角色名（如 Neuro）或系统关键字 */
+  /** 实体名：角色名（当前激活角色的名字）或系统关键字 */
   name: string
   /** 台词正文 */
   text: string

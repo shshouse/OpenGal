@@ -5,7 +5,7 @@ import type { LogEntry } from '@shared/log'
 import { readConfig, writeConfig } from '../services/configStore'
 import { callLLM, callLLMStream, abortStream } from '../services/llmClient'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
-import { listRoleCards, getRoleCard } from '../services/roleCardLoader'
+import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
 import { speak, pingTTS, resetTTSState } from '../services/ttsClient'
 import type { TTSSpeakRequest, TTSSpeakResponse } from '../services/ttsClient'
 import {
@@ -75,6 +75,12 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.character.list, () => wrap(() => listRoleCards()))
   ipcMain.handle(IpcChannels.character.get, (_, id: string) =>
     wrap(() => getRoleCard(id))
+  )
+  ipcMain.handle(IpcChannels.character.voiceConfig, (_, id: string) =>
+    wrap<Record<string, unknown> | null>(() => {
+      const card = getRoleCard(id)
+      return card ? readRoleVoiceConfig(card) : null
+    })
   )
 
   ipcMain.handle(IpcChannels.pet.open, () => wrap(() => windows.openPetWindow()))
@@ -153,6 +159,11 @@ export function registerIpc(windows: WindowManager): void {
     clearLogs()
     logBus.info('logs', '日志已清空')
     return { success: true }
+  })
+  // renderer 端主动写日志（单向，fire-and-forget），让关键运行时状态进主进程终端
+  ipcMain.on(IpcChannels.logs.append, (_, level: string, source: string, message: string, details?: string) => {
+    const lv = level === 'warn' || level === 'error' || level === 'debug' ? level : 'info'
+    logBus[lv](source || 'renderer', message, details)
   })
 
   // ---- Tools (function calling) ----

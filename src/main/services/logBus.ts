@@ -65,6 +65,10 @@ function push(level: LogLevel, source: string, message: string, details?: string
   }
   buffer.push(entry)
   if (buffer.length > MAX_ENTRIES) buffer.splice(0, buffer.length - MAX_ENTRIES)
+  // 同步打到主进程 stdout：npm run dev 时终端可直接看到全部日志（含 renderer 桥接的）
+  const line = `[${level}] [${source}] ${message}`
+  if (level === 'error') console.error(details ? `${line}\n${details}` : line)
+  else console.log(details ? `${line}\n${details}` : line)
   broadcast(entry)
 }
 

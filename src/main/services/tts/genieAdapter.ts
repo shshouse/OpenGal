@@ -122,6 +122,9 @@ export class GenieAdapter implements TTSAdapter {
           merged[key] = cardVoice[key]
         }
       }
+      // 参考文本必须与参考音频来自同一张卡，卡里没写就清空——不回落全局配置
+      // （全局文本配本卡音频 = 转写错配，合成质量会崩）。
+      if (!cardVoice.referenceText) merged.referenceText = ''
     }
     if (req.overrides) {
       if (req.overrides.baseURL) merged.baseURL = req.overrides.baseURL
@@ -150,7 +153,14 @@ export class GenieAdapter implements TTSAdapter {
     if (!fs.existsSync(refAbs)) throw new Error(`Reference audio not found: ${refAbs}`)
 
     const referenceText = String(merged.referenceText || '')
-    if (!referenceText) throw new Error('Reference text is not configured')
+    // Genie 不支持无参考文本模式：ReferenceAudio.set_text 无条件对参考文本跑 G2P，
+    // 空文本会产出空音素序列直接喂 encoder。卡里没写只能报错，不能留空。
+    if (!referenceText) {
+      throw new Error(
+        'Genie 需要参考音频的准确转写：请在角色卡 voice 配置里补 referenceText' +
+          '（Genie 不支持无参考文本模式，也不能使用全局配置的参考文本）',
+      )
+    }
 
     const langRaw = String(merged.referenceLanguage || 'zh')
     const referenceLanguage = GENIE_LANG_MAP[langRaw] ?? 'zh'

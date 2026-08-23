@@ -160,6 +160,7 @@ export function Live2DStage({
         registerLive2DModel(loaded as unknown as Parameters<typeof registerLive2DModel>[0])
         setStatus('ready')
         useLogsStore.getState().appendLocal('info', 'live2d', '模型加载成功')
+        debugMotionState(loaded as unknown as Parameters<typeof registerLive2DModel>[0])
       } catch (err) {
         console.error('Live2D load failed', err)
         if (!cancelled) {
@@ -378,6 +379,61 @@ function fitModel(
   model.anchor.set(0.5, 0.5)
   model.x = width * xRatio
   model.y = height * yRatio
+}
+
+/**
+ * 诊断探针：模型加载后检查动作系统状态并写主进程日志。
+ * 观测点：motionGroups 槽位（OK/FAIL/UNLOADED）、MotionState 当前状态、
+ * 强制触发一次 Idle 的结果。加载失败会通过 motionLoadError 事件暴露。
+ */
+function debugMotionState(model: Parameters<typeof registerLive2DModel>[0]): void {
+  const report = (message: string, details?: string): void => {
+    useLogsStore.getState().appendLocal('info', 'live2d', message, details)
+    window.opengal.logs.append('info', 'live2d-probe', message, details)
+  }
+  const mm = (
+    model as { internalModel?: { motionManager?: Record<string, unknown> } }
+  ).internalModel?.motionManager as
+    | {
+        definitions?: Record<string, unknown[]>
+        motionGroups?: Record<string, Array<unknown>>
+        state?: { currentGroup?: string; currentPriority?: number; reservedIdleGroup?: string }
+        startRandomMotion?: (group: string, priority: number) => Promise<boolean>
+        on?: (event: string, cb: (...args: unknown[]) => void) => void
+        isFinished?: () => boolean
+      }
+    | undefined
+  if (!mm) {
+    report('探针: motionManager 不存在')
+    return
+  }
+  mm.on?.('motionLoadError', (...args) => {
+    report(`探针: 动作加载失败 ${JSON.stringify(String(args[0]))} [${String(args[1])}]`, String(args[2]))
+  })
+  window.setTimeout(() => {
+    try {
+      const groups = Object.keys(mm.definitions ?? {})
+      const slotSummary: Record<string, string> = {}
+      for (const g of groups) {
+        const slots = mm.motionGroups?.[g] ?? []
+        slotSummary[g] =
+          slots
+            .map((m) => (m == null ? (m === null ? 'FAIL' : 'PENDING') : 'OK'))
+            .join(',') || 'EMPTY'
+      }
+      report(`探针: defs=[${groups.join('|')}] slots=${JSON.stringify(slotSummary)}`)
+      report(
+        `探针: state current=${mm.state?.currentGroup ?? '无'} prio=${mm.state?.currentPriority ?? 0}` +
+          ` reservedIdle=${mm.state?.reservedIdleGroup ?? '无'} isFinished=${mm.isFinished?.() ?? '?'}`,
+      )
+      void mm.startRandomMotion?.('Idle', 3).then(
+        (ok) => report(`探针: 强制 startRandomMotion('Idle', FORCE) => ${ok}`),
+        (err) => report(`探针: 强制 Idle 抛错: ${(err as Error).message}`),
+      )
+    } catch (err) {
+      report(`探针: 异常 ${(err as Error).message}`)
+    }
+  }, 3000)
 }
 
 function applyHeadTracking(

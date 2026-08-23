@@ -70,7 +70,9 @@ const api = {
   },
   character: {
     list: () => invoke<RoleCardEntry[]>(IpcChannels.character.list),
-    get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.character.get, id)
+    get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.character.get, id),
+    voiceConfig: (id: string) =>
+      invoke<Record<string, unknown> | null>(IpcChannels.character.voiceConfig, id)
   },
   pet: {
     open: () => invoke(IpcChannels.pet.open),
@@ -126,6 +128,9 @@ const api = {
   logs: {
     list: () => invoke<LogEntry[]>(IpcChannels.logs.list),
     clear: () => invoke(IpcChannels.logs.clear),
+    append: (level: string, source: string, message: string, details?: string) => {
+      ipcRenderer.send(IpcChannels.logs.append, level, source, message, details)
+    },
     onEntry: (listener: (entry: LogEntry) => void) => {
       const handler = (_: unknown, entry: LogEntry) => listener(entry)
       ipcRenderer.on(IpcChannels.logs.entry, handler)
