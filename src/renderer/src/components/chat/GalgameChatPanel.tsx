@@ -10,14 +10,26 @@
  */
 
 import * as React from 'react'
-import { Send, ChevronUp, ChevronDown } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { useChatStore, type PersistedUserMessage, type PersistedAssistantMessage } from '@/features/chat/chatStore'
 import { useChatPipeline } from '@/features/pipeline/useChatPipeline'
+import { pipelineBus } from '@/features/pipeline'
+import { getLive2DModel } from '@/features/live2d/live2dBus'
+import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
+import { MicButton } from './MicButton'
+
+function abortPipeline(): void {
+  pipelineBus.emit('pipeline:abort', undefined)
+  const model = getLive2DModel()
+  if (model) {
+    try { model.stopSpeaking() } catch { /* ignore */ }
+  }
+}
 
 export function GalgameChatPanel() {
   const messages = useChatStore((s) => s.messages)
@@ -46,11 +58,30 @@ export function GalgameChatPanel() {
     }
   }, [historyOpen, messages.length, streamingSegments.length])
 
+  // 语音识别结果：按配置自动发送或填入输入框（与桌面 ChatPanel 同源逻辑）
+  React.useEffect(() => {
+    setASRFinalCallback((text) => {
+      if (!text.trim()) return
+      window.opengal.config.get().then((res) => {
+        if (res.data?.asr?.autoSend !== false) {
+          send(text.trim())
+        } else {
+          setDraft((prev) => (prev ? prev + ' ' : '') + text.trim())
+        }
+      })
+    })
+    return () => setASRFinalCallback(null)
+  }, [send])
+
   function handleSend(): void {
     const trimmed = draft.trim()
     if (!trimmed || isSending) return
     setDraft('')
     send(trimmed)
+  }
+
+  function handleStop(): void {
+    abortPipeline()
   }
 
   return (
@@ -116,8 +147,12 @@ export function GalgameChatPanel() {
         {historyOpen ? '收起' : `历史 ${messages.length}`}
       </button>
 
-      {/* 底部对话框 */}
-      <div className="pointer-events-auto mx-2 mb-2 rounded-2xl border bg-background/85 shadow-lg backdrop-blur-sm">
+      {/* 底部对话框：居中限宽（galgame 式），人物在中间、对话框正下方 */}
+      <div className="pointer-events-auto relative mx-auto mb-4 w-[calc(100%-1.5rem)] max-w-3xl rounded-2xl border bg-background/85 shadow-lg backdrop-blur-sm">
+        {/* 角色名铭牌 */}
+        <span className="absolute -top-3 left-4 rounded-md border bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground shadow">
+          {displayName}
+        </span>
         {/* 台词区：点击展开历史 */}
         <button
           type="button"
@@ -147,14 +182,26 @@ export function GalgameChatPanel() {
             className="min-h-[40px] resize-none bg-muted/50 text-sm"
             rows={1}
           />
-          <Button
-            size="icon"
-            className="size-10 shrink-0"
-            onClick={handleSend}
-            disabled={!draft.trim() || isSending}
-          >
-            <Send className="size-4" />
-          </Button>
+          <MicButton />
+          {isSending ? (
+            <Button
+              size="icon"
+              className="size-10 shrink-0"
+              onClick={handleStop}
+              title="停止"
+            >
+              <Square className="size-4" />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              className="size-10 shrink-0"
+              onClick={handleSend}
+              disabled={!draft.trim()}
+            >
+              <Send className="size-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

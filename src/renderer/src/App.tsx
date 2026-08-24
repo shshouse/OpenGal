@@ -1,13 +1,12 @@
 import * as React from 'react'
-import { PanelRightOpen, PanelRightClose, Settings, Eye, EyeOff, ArrowLeft, Terminal } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { TitleBar } from '@/components/titlebar/TitleBar'
-import { ChatPanel } from '@/components/chat/ChatPanel'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
 import { LogsPanel } from '@/components/logs/LogsPanel'
+import { Sidebar, type NavView } from '@/components/nav/Sidebar'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
@@ -18,7 +17,7 @@ import { isMobile } from '@/lib/utils'
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
-  const [showSettings, setShowSettings] = React.useState(false)
+  const [view, setView] = React.useState<NavView>('home')
   const [petOpen, setPetOpen] = React.useState(false)
   const [mobile] = React.useState(() => isMobile())
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
@@ -29,6 +28,9 @@ export default function App() {
     window.addEventListener('opengal:open-settings', handler)
     return () => window.removeEventListener('opengal:open-settings', handler)
   }, [])
+
+  // 移动端设置浮层开关（桌面端用侧栏 view 切换）
+  const [showSettings, setShowSettings] = React.useState(false)
 
   // 启动流水线（LLMWorker / TTSWorker / UIWorker）
   React.useEffect(() => {
@@ -55,8 +57,7 @@ export default function App() {
               ...(cfg.data.model?.scale !== undefined ? { scale: cfg.data.model.scale } : {}),
               ...(cfg.data.model?.xRatio !== undefined ? { xRatio: cfg.data.model.xRatio } : {}),
               ...(cfg.data.model?.canvasYRatio !== undefined
-                ? { canvasYRatio: cfg.data.model.canvasYRatio }
-                : {})
+                ? { canvasYRatio: cfg.data.model.canvasYRatio } : {})
             }
             setModel(merged)
             return
@@ -86,8 +87,7 @@ export default function App() {
           ...(currentCfg?.model?.scale !== undefined ? { scale: currentCfg.model.scale } : {}),
           ...(currentCfg?.model?.xRatio !== undefined ? { xRatio: currentCfg.model.xRatio } : {}),
           ...(currentCfg?.model?.canvasYRatio !== undefined
-            ? { canvasYRatio: currentCfg.model.canvasYRatio }
-            : {})
+            ? { canvasYRatio: currentCfg.model.canvasYRatio } : {})
         }
         setModel(merged)
       } else {
@@ -130,6 +130,10 @@ export default function App() {
     await saveConfig({ showLive2D: next })
   }
 
+  function openLogs(): void {
+    useLogsStore.getState().setPanelOpen(true)
+  }
+
   // Live2DStage 从画布拖拽/滚轮调整位置/缩放的回调
   const handleModelChange = React.useCallback(
     (next: { scale: number; xRatio: number; yRatio: number }) => {
@@ -146,43 +150,9 @@ export default function App() {
     [model]
   )
 
-  return (
-    <div className="flex h-full flex-col">
-      {!mobile && <TitleBar />}
-      {!mobile && (
-        <div className="flex h-8 items-center justify-end gap-1.5 border-b bg-background/60 px-3">
-          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={togglePet}>
-            {petOpen ? (
-              <><PanelRightClose className="mr-1 size-3" />关闭桌宠</>
-            ) : (
-              <><PanelRightOpen className="mr-1 size-3" />打开桌宠</>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={toggleLive2D}
-            disabled={!config}
-          >
-            {(config?.showLive2D ?? true) ? (
-              <><Eye className="mr-1 size-3" />隐藏人物</>
-            ) : (
-              <><EyeOff className="mr-1 size-3" />显示人物</>
-            )}
-          </Button>
-          <Button
-            variant={showSettings ? 'default' : 'ghost'}
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => setShowSettings((v) => !v)}
-          >
-            <Settings className="mr-1 size-3" />设置
-          </Button>
-        </div>
-      )}
-
-      {mobile ? (
+  if (mobile) {
+    return (
+      <div className="flex h-full flex-col">
         <main className="relative flex flex-1 overflow-hidden">
           {/* 人物全屏背景 */}
           <div className="absolute inset-0">
@@ -191,7 +161,7 @@ export default function App() {
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-background">
                 <Button variant="ghost" size="sm" onClick={toggleLive2D}>
-                  <Eye className="mr-1 size-3" />显示人物
+                  <Settings className="size-4" />显示人物
                 </Button>
               </div>
             )}
@@ -202,7 +172,7 @@ export default function App() {
             <div className="absolute inset-0 z-20 flex flex-col bg-background">
               <div className="flex h-10 items-center gap-2 border-b px-3">
                 <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)}>
-                  <ArrowLeft className="size-4" /> 返回
+                  返回
                 </Button>
                 <span className="text-sm font-semibold">设置</span>
               </div>
@@ -228,31 +198,53 @@ export default function App() {
             </>
           )}
         </main>
-      ) : (
-        <main className="flex flex-1 overflow-hidden">
-          <section className="flex w-[44%] flex-col border-r">
-            <ChatPanel />
-          </section>
-          <section className="flex flex-1 flex-col">
-            <div className="flex-1 overflow-hidden">
-              {config?.showLive2D ? (
-                <Live2DStage model={model} onChange={handleModelChange} />
-              ) : (
-                <div className="h-full w-full bg-background" />
+      </div>
+    )
+  }
+
+  // 桌面端：左侧导航栏 + 主区域（首页 = 人物居中 + 底部对话框；设置 = 全页）
+  return (
+    <div className="flex h-full flex-col">
+      <TitleBar />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          view={view}
+          onViewChange={setView}
+          petOpen={petOpen}
+          onTogglePet={() => void togglePet()}
+          showLive2D={config?.showLive2D ?? true}
+          onToggleLive2D={() => void toggleLive2D()}
+          onOpenLogs={openLogs}
+        />
+        <main className="relative flex flex-1 overflow-hidden">
+          {view === 'home' ? (
+            <>
+              <div className="absolute inset-0">
+                {config?.showLive2D ? (
+                  <Live2DStage model={model} onChange={handleModelChange} />
+                ) : (
+                  <div className="h-full w-full bg-background" />
+                )}
+              </div>
+              <GalgameChatPanel />
+            </>
+          ) : (
+            <div className="flex h-full w-full flex-col">
+              <div className="flex h-10 shrink-0 items-center border-b px-4">
+                <span className="text-sm font-semibold">设置</span>
+              </div>
+              {config && (
+                <div className="flex-1 overflow-auto p-6">
+                  <div className="mx-auto max-w-3xl">
+                    <SettingsCenter config={config} model={model} onSave={saveConfig} />
+                  </div>
+                </div>
               )}
             </div>
-            {showSettings && (
-              <>
-                <Separator />
-                <div className="max-h-[40%] overflow-auto border-t bg-card/60 p-4">
-                  <SettingsCenter config={config} model={model} onSave={saveConfig} />
-                </div>
-              </>
-            )}
-          </section>
+          )}
         </main>
-      )}
-      {!mobile && <LogsPanel />}
+      </div>
+      <LogsPanel />
     </div>
   )
 }
