@@ -119,6 +119,7 @@ export function Live2DStage({
     const app = appRef.current
     if (!app || !appReady || !model) return
     let cancelled = false
+    let disposeIdleKeeper: () => void = () => {}
     setStatus('loading')
     setErrorMessage(null)
     useLogsStore.getState().appendLocal('info', 'live2d', `开始加载模型: ${model.modelUrl}`)
@@ -160,7 +161,9 @@ export function Live2DStage({
         registerLive2DModel(loaded as unknown as Parameters<typeof registerLive2DModel>[0])
         setStatus('ready')
         useLogsStore.getState().appendLocal('info', 'live2d', '模型加载成功')
-        debugMotionState(loaded as unknown as Parameters<typeof registerLive2DModel>[0])
+        disposeIdleKeeper = keepIdleAlive(
+          loaded as unknown as Parameters<typeof registerLive2DModel>[0]
+        )
       } catch (err) {
         console.error('Live2D load failed', err)
         if (!cancelled) {
@@ -173,6 +176,7 @@ export function Live2DStage({
     })()
     return () => {
       cancelled = true
+      disposeIdleKeeper()
     }
   }, [model?.modelUrl, model?.canvasYRatio, model?.scale, model?.xRatio, appReady])
 
@@ -264,6 +268,14 @@ export function Live2DStage({
         container.releasePointerCapture(e.pointerId)
       } catch {
         // ignore
+      }
+      // 位移小于阈值视为点击：从 click 组随机播一个反应动作
+      const moved = Math.max(
+        Math.abs(e.clientX - dragStartX),
+        Math.abs(e.clientY - dragStartY)
+      )
+      if (moved < 6 && modelRef.current) {
+        startMotionGroup(modelRef.current, 'click')
       }
       onChange?.({
         scale: getCurrentScale(),
@@ -382,58 +394,81 @@ function fitModel(
 }
 
 /**
- * 诊断探针：模型加载后检查动作系统状态并写主进程日志。
- * 观测点：motionGroups 槽位（OK/FAIL/UNLOADED）、MotionState 当前状态、
- * 强制触发一次 Idle 的结果。加载失败会通过 motionLoadError 事件暴露。
+ * 从指定动作组随机播一个动作，FORCE 优先级（可打断 idle）。动作文件已改为
+ * 单次播放（Loop=false），播完由 keepIdleAlive 的 motionFinish 钩子接回待机。
  */
-function debugMotionState(model: Parameters<typeof registerLive2DModel>[0]): void {
-  const report = (message: string, details?: string): void => {
-    useLogsStore.getState().appendLocal('info', 'live2d', message, details)
-    window.opengal.logs.append('info', 'live2d-probe', message, details)
+function startMotionGroup(model: Live2DModelInstance, group: string): void {
+  const mm = (
+    model.internalModel as unknown as {
+      motionManager?: {
+        startRandomMotion?: (group: string, priority: number) => Promise<boolean>
+      }
+    }
+  ).motionManager
+  try {
+    mm?.startRandomMotion?.(group, 3)?.catch(() => {})
+  } catch {
+    // ignore
   }
+}
+
+/**
+ * idle 保活巡检：库的动作续播链路在动作播完后偶发断裂（不再重新请求 idle），
+ * 表现为模型整体静止、只剩鼠标跟踪。每 2 秒检查一次，停了就以 FORCE 优先级
+ * 重启 idle 组。idle 动作文件里的头部/眼球曲线已剥离（b_idle 去掉了 8 条），
+ * 头部参数完全由鼠标跟踪接管，动作只负责身体和头发的摆动，两者互不冲突。
+ */
+function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => void {
   const mm = (
     model as { internalModel?: { motionManager?: Record<string, unknown> } }
   ).internalModel?.motionManager as
     | {
-        definitions?: Record<string, unknown[]>
-        motionGroups?: Record<string, Array<unknown>>
-        state?: { currentGroup?: string; currentPriority?: number; reservedIdleGroup?: string }
+        isFinished?: () => boolean
         startRandomMotion?: (group: string, priority: number) => Promise<boolean>
         on?: (event: string, cb: (...args: unknown[]) => void) => void
-        isFinished?: () => boolean
       }
     | undefined
-  if (!mm) {
-    report('探针: motionManager 不存在')
-    return
-  }
-  mm.on?.('motionLoadError', (...args) => {
-    report(`探针: 动作加载失败 ${JSON.stringify(String(args[0]))} [${String(args[1])}]`, String(args[2]))
+  // 动作加载失败会被库静默拉黑（槽位存 null，永不再试），必须显式暴露到日志
+  mm?.on?.('motionLoadError', (...args) => {
+    useLogsStore.getState().appendLocal(
+      'error',
+      'live2d',
+      `动作加载失败（该动作已被拉黑，不会再重试）: ${String(args[0])} [${String(args[1])}]`,
+      String(args[2] ?? '')
+    )
   })
-  window.setTimeout(() => {
+  const isFinished = mm?.isFinished
+  const startRandomMotion = mm?.startRandomMotion
+  if (!isFinished || !startRandomMotion) return () => {}
+  // 单次动作（点击反应等）播完的瞬间立刻接回 idle，不等 2 秒轮询
+  mm?.on?.('motionFinish', () => {
     try {
-      const groups = Object.keys(mm.definitions ?? {})
-      const slotSummary: Record<string, string> = {}
-      for (const g of groups) {
-        const slots = mm.motionGroups?.[g] ?? []
-        slotSummary[g] =
-          slots
-            .map((m) => (m == null ? (m === null ? 'FAIL' : 'PENDING') : 'OK'))
-            .join(',') || 'EMPTY'
-      }
-      report(`探针: defs=[${groups.join('|')}] slots=${JSON.stringify(slotSummary)}`)
-      report(
-        `探针: state current=${mm.state?.currentGroup ?? '无'} prio=${mm.state?.currentPriority ?? 0}` +
-          ` reservedIdle=${mm.state?.reservedIdleGroup ?? '无'} isFinished=${mm.isFinished?.() ?? '?'}`,
-      )
-      void mm.startRandomMotion?.('Idle', 3).then(
-        (ok) => report(`探针: 强制 startRandomMotion('Idle', FORCE) => ${ok}`),
-        (err) => report(`探针: 强制 Idle 抛错: ${(err as Error).message}`),
-      )
-    } catch (err) {
-      report(`探针: 异常 ${(err as Error).message}`)
+      void startRandomMotion('Idle', 3)
+    } catch {
+      // ignore
     }
-  }, 3000)
+  })
+  let stopped = false
+  const timer = window.setInterval(() => {
+    if (stopped) return
+    try {
+      if (!isFinished()) return
+      void startRandomMotion('Idle', 3).then(
+        (ok) => {
+          if (ok && !stopped) {
+            useLogsStore.getState().appendLocal('info', 'live2d', 'idle 动作已停止，自动重启')
+          }
+        },
+        () => {}
+      )
+    } catch {
+      stopped = true
+    }
+  }, 2000)
+  return () => {
+    stopped = true
+    window.clearInterval(timer)
+  }
 }
 
 function applyHeadTracking(
