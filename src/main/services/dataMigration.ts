@@ -41,20 +41,32 @@ function migrateConfig(dataRoot: string): void {
   const target = path.join(dataRoot, 'opengal-config.json')
   if (fs.existsSync(target)) return // 已有数据，绝不覆盖
 
-  // 候选里挑 mtime 最新的那份
-  let picked: { file: string; mtime: number } | null = null
-  for (const dir of legacySources()) {
-    const file = path.join(dir, 'opengal-config.json')
+  // 按字段合并：最新那份做基底，它为空/缺失的字段由更旧的候选补上。
+  // 整份选最新的做法会把「旧版独有的功能配置」（如 Electron 的 Vosk 路径，
+  // Tauri 版没有 ASR、存的是空串）静默清掉，这里改为非空优先。
+  const candidates = legacySources()
+    .map((dir) => {
+      const file = path.join(dir, 'opengal-config.json')
+      try {
+        return { file, mtime: fs.statSync(file).mtimeMs }
+      } catch {
+        return null // 不存在，跳过
+      }
+    })
+    .filter((c): c is { file: string; mtime: number } => c !== null)
+    .sort((a, b) => b.mtime - a.mtime)
+  if (candidates.length === 0) return
+
+  const config = JSON.parse(
+    fs.readFileSync(candidates[0].file, 'utf-8')
+  ) as Record<string, unknown>
+  for (const c of candidates.slice(1)) {
     try {
-      const mtime = fs.statSync(file).mtimeMs
-      if (!picked || mtime > picked.mtime) picked = { file, mtime }
+      mergeInto(config, JSON.parse(fs.readFileSync(c.file, 'utf-8')))
     } catch {
-      // 不存在，跳过
+      // 候选损坏则跳过，不影响基底
     }
   }
-  if (!picked) return
-
-  const config = JSON.parse(fs.readFileSync(picked.file, 'utf-8')) as Record<string, unknown>
   rewriteModelPaths(config)
   const llm = (config.llm ?? {}) as Record<string, unknown>
   const key = typeof llm.apiKey === 'string' ? llm.apiKey : ''
@@ -65,13 +77,13 @@ function migrateConfig(dataRoot: string): void {
       llm.apiKey = safeStorage.isEncryptionAvailable()
         ? safeStorage.encryptString(plain).toString('base64')
         : plain
-      logBus.info('config', `已迁移旧配置并保留 API Key: ${picked.file}`)
+      logBus.info('config', `已迁移旧配置并保留 API Key: ${candidates[0].file}`)
     } else {
       llm.apiKey = ''
       logBus.warn('config', '旧配置已迁移，但 API Key 无法解密，请在设置里重新填写')
     }
   } else {
-    logBus.info('config', `已迁移旧配置: ${picked.file}`)
+    logBus.info('config', `已迁移旧配置: ${candidates[0].file}`)
   }
   fs.mkdirSync(dataRoot, { recursive: true })
   fs.writeFileSync(target, JSON.stringify(config, null, 2), 'utf-8')
@@ -156,6 +168,24 @@ function migrateChatHistory(dataRoot: string): void {
       fs.mkdirSync(targetDir, { recursive: true })
       fs.copyFileSync(path.join(srcDir, entry.name), target)
       logBus.info('chat', `已迁移会话历史: ${entry.name}`)
+    }
+  }
+}
+
+/**
+ * 把 fallback 的字段填进 base：只补 base 里 undefined / null / 空串的位置，
+ * 递归对象；数组不合并（整体以最新为准）。用于多份旧配置的按字段合并。
+ */
+function mergeInto(base: unknown, fallback: unknown): void {
+  if (typeof base !== 'object' || base === null) return
+  if (typeof fallback !== 'object' || fallback === null || Array.isArray(base)) return
+  const target = base as Record<string, unknown>
+  for (const [key, value] of Object.entries(fallback as Record<string, unknown>)) {
+    const cur = target[key]
+    if (cur === undefined || cur === null || cur === '') {
+      target[key] = value
+    } else {
+      mergeInto(cur, value)
     }
   }
 }

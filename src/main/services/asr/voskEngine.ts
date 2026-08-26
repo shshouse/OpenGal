@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import { logBus } from '../logBus'
 import { readConfig } from '../configStore'
+import { getModRoot } from '../paths'
 
 export type ASRResultCallback = (text: string, partial: boolean) => void
 
@@ -21,9 +23,12 @@ export async function startASR(): Promise<void> {
   if (!config.modelPath) {
     throw new Error('ASR modelPath 未配置。请在设置中指定 Vosk 模型目录路径。')
   }
+  // 相对路径按 mods 根解析（STT 模型随 mods 便携存放）；找不到再按应用根兜底
   const modelPath = path.isAbsolute(config.modelPath)
     ? config.modelPath
-    : path.join(app.getAppPath(), config.modelPath)
+    : [path.join(getModRoot(), config.modelPath), path.join(app.getAppPath(), config.modelPath)].find(
+        (p) => fs.existsSync(p)
+      ) ?? path.join(getModRoot(), config.modelPath)
   const script = VOSK_WORKER_SCRIPT
   child = spawn('python', ['-u', '-c', script, modelPath, String(config.sampleRate)], {
     stdio: ['pipe', 'pipe', 'pipe'],
