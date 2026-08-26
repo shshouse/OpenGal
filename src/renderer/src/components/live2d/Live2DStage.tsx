@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as PIXI from 'pixi.js'
 import { Loader2, AlertCircle } from 'lucide-react'
 import type { Live2DModelConfig } from '@shared/types'
-import { registerLive2DModel } from '@/features/live2d/live2dBus'
+import { registerLive2DModel, playMotionGroup, resetPose } from '@/features/live2d/live2dBus'
 import { useLogsStore } from '@/features/logs/logsStore'
 
 // Set PIXI on window BEFORE pixi-live2d-display is imported.
@@ -61,9 +61,10 @@ export function Live2DStage({
   const getCurrentYRatio = (): number =>
     userYRatioRef.current ?? model?.canvasYRatio ?? 0.6
 
-  // Sync user refs when model prop changes with explicit values — only on initial load.
+  // 切换模型（含换角色）时把用户变换引用重置为新模型的值。
+  // 否则上一角色拖拽/缩放留下的旧值会沿用到新模型，导致人物错位。
   React.useEffect(() => {
-    if (model && userScaleRef.current === null) {
+    if (model) {
       userScaleRef.current = model.scale
       userXRatioRef.current = model.xRatio
       userYRatioRef.current = model.canvasYRatio
@@ -246,8 +247,21 @@ export function Live2DStage({
       const rect = container.getBoundingClientRect()
       const dx = (e.clientX - dragStartX) / rect.width
       const dy = (e.clientY - dragStartY) / rect.height
-      const nextX = Math.max(0, Math.min(1, startXRatio + dx))
-      const nextY = Math.max(0, Math.min(1, startYRatio + dy))
+      // 边界按模型当前实际尺寸动态计算（getDragBounds）：模型每侧至少在画布边缘
+      // 留出可抓取的一截。放大时能推出画面更多（只露头部），缩小时自动收紧，
+      // 不会整个消失找不回来——替代之前固定 0..1.5 的写死范围
+      const app = appRef.current
+      const currentModel = modelRef.current
+      let nextX: number
+      let nextY: number
+      if (app && currentModel) {
+        const b = getDragBounds(app, currentModel)
+        nextX = Math.max(b.minX, Math.min(b.maxX, startXRatio + dx))
+        nextY = Math.max(b.minY, Math.min(b.maxY, startYRatio + dy))
+      } else {
+        nextX = Math.max(0, Math.min(1, startXRatio + dx))
+        nextY = Math.max(0, Math.min(1, startYRatio + dy))
+      }
       userXRatioRef.current = nextX
       userYRatioRef.current = nextY
       if (modelRef.current && appRef.current) {
@@ -275,7 +289,7 @@ export function Live2DStage({
         Math.abs(e.clientY - dragStartY)
       )
       if (moved < 6 && modelRef.current) {
-        startMotionGroup(modelRef.current, 'click')
+        playMotionGroup('click')
       }
       onChange?.({
         scale: getCurrentScale(),
@@ -375,6 +389,39 @@ export function Live2DStage({
   )
 }
 
+/** 可抓取安全边：模型在画布每一侧至少保留的可见高度/宽度占画布的比例 */
+const GRAB_MARGIN_RATIO = 0.12
+
+/**
+ * 按模型当前实际渲染尺寸计算中心点比例的可拖动范围。
+ *
+ * 边界随缩放动态变化：halfH/H 是模型半高占画布高的比例，模型放大后这个值
+ * 变大，maxY 随之外扩（人物可以推出画面更多，只剩头部在边缘）；缩小后收紧，
+ * 保证至少有一截模型留在画布内可被抓住拖回。固定比例上限做不到这一点：
+ * 同样的 1.5 对放大的模型只到肩膀、对缩小的模型却让人物整个消失。
+ */
+function getDragBounds(
+  app: PIXI.Application,
+  model: Live2DModelInstance
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const { width, height } = app.screen
+  if (width <= 0 || height <= 0) return { minX: 0, maxX: 1, minY: 0, maxY: 1 }
+  const bounds = model.getLocalBounds()
+  const halfW = (bounds.width * model.scale.x) / 2
+  const halfH = (bounds.height * model.scale.y) / 2
+  if (!Number.isFinite(halfW) || !Number.isFinite(halfH)) {
+    return { minX: 0, maxX: 1, minY: 0, maxY: 1 }
+  }
+  const marginW = width * GRAB_MARGIN_RATIO
+  const marginH = height * GRAB_MARGIN_RATIO
+  return {
+    minX: (marginW - halfW) / width,
+    maxX: (width - marginW + halfW) / width,
+    minY: (marginH - halfH) / height,
+    maxY: (height - marginH + halfH) / height
+  }
+}
+
 function fitModel(
   app: PIXI.Application,
   model: Live2DModelInstance,
@@ -389,27 +436,13 @@ function fitModel(
   const finalScale = baseScale * scale
   model.scale.set(finalScale)
   model.anchor.set(0.5, 0.5)
-  model.x = width * xRatio
-  model.y = height * yRatio
-}
-
-/**
- * 从指定动作组随机播一个动作，FORCE 优先级（可打断 idle）。动作文件已改为
- * 单次播放（Loop=false），播完由 keepIdleAlive 的 motionFinish 钩子接回待机。
- */
-function startMotionGroup(model: Live2DModelInstance, group: string): void {
-  const mm = (
-    model.internalModel as unknown as {
-      motionManager?: {
-        startRandomMotion?: (group: string, priority: number) => Promise<boolean>
-      }
-    }
-  ).motionManager
-  try {
-    mm?.startRandomMotion?.(group, 3)?.catch(() => {})
-  } catch {
-    // ignore
-  }
+  // 位置在应用缩放后按动态边界 clamp：历史配置里超界的值（比如先放大拖到
+  // 边缘再缩小模型）不会把人物放到完全抓不到的地方
+  const b = getDragBounds(app, model)
+  const x = Math.max(b.minX, Math.min(b.maxX, xRatio))
+  const y = Math.max(b.minY, Math.min(b.maxY, yRatio))
+  model.x = width * x
+  model.y = height * y
 }
 
 /**
@@ -424,8 +457,12 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
   ).internalModel?.motionManager as
     | {
         isFinished?: () => boolean
+        /** 动作组定义。模型销毁后被库置为 undefined，是判活的关键依据 */
+        definitions?: Record<string, unknown>
         startRandomMotion?: (group: string, priority: number) => Promise<boolean>
         on?: (event: string, cb: (...args: unknown[]) => void) => void
+        /** 正在播放的语音（speak 时存在）。用于避免 FORCE 重启 idle 时切断在播音频 */
+        currentAudio?: { ended: boolean }
       }
     | undefined
   // 动作加载失败会被库静默拉黑（槽位存 null，永不再试），必须显式暴露到日志
@@ -437,13 +474,27 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
       String(args[2] ?? '')
     )
   })
-  const isFinished = mm?.isFinished
-  const startRandomMotion = mm?.startRandomMotion
-  if (!isFinished || !startRandomMotion) return () => {}
-  // 单次动作（点击反应等）播完的瞬间立刻接回 idle，不等 2 秒轮询
-  mm?.on?.('motionFinish', () => {
+  if (!mm || !mm.isFinished || !mm.startRandomMotion) return () => {}
+  // 重启 idle。必须以 mm.xxx(...) 的方式调用——把方法摘下来单独调用会让
+  // this 为 undefined，库内部第一行读 this.definitions 就抛 TypeError
+  // （旧版保活正是这么静默失效的，idle 一直靠库自带续播兜底）。
+  // 音频播放中不能用 FORCE——库的 startMotion 在 FORCE 且有在播音频时
+  // 会 dispose 掉那段音频（切断语音），所以此时降级为 IDLE 优先级（会被在播音频拒绝，
+  // 等音频结束后再由本巡检或库自带的 IDLE 续播接回）。无音频时才用 FORCE 强制保活。
+  const restartIdle = (): Promise<boolean> | undefined => {
+    // React StrictMode 双挂载会销毁首个模型（definitions 被置 undefined），跳过即可
+    if (!mm.definitions) return undefined
+    const audioPlaying = !!(mm.currentAudio && !mm.currentAudio.ended)
+    return mm.startRandomMotion?.('Idle', audioPlaying ? 1 : 3)
+  }
+  // 单次动作（点击反应 / LLM 动作等）播完的瞬间立刻接回 idle，不等 2 秒轮询；
+  // 播完先把动作残留的参数复位（含黑头套 ParamTK、被冻结的角度），再接 idle。
+  // 打断动作时库会补发一次 motionFinish，那次复位发生在新动作播放中——无害，
+  // 动作每帧重写自己驱动的参数，复位只清没有驱动的残留。
+  mm.on?.('motionFinish', () => {
     try {
-      void startRandomMotion('Idle', 3)
+      resetPose()
+      void restartIdle()?.catch(() => {})
     } catch {
       // ignore
     }
@@ -452,8 +503,8 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
   const timer = window.setInterval(() => {
     if (stopped) return
     try {
-      if (!isFinished()) return
-      void startRandomMotion('Idle', 3).then(
+      if (!mm.isFinished?.()) return
+      void restartIdle()?.then(
         (ok) => {
           if (ok && !stopped) {
             useLogsStore.getState().appendLocal('info', 'live2d', 'idle 动作已停止，自动重启')

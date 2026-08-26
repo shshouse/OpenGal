@@ -16,6 +16,35 @@ export const STANDARD_EMOTIONS = [
 ] as const
 
 /**
+ * 动作组名 → 给 LLM 看的中文说明。组名来自各角色 model3.json 的 Motions，
+ * 命名随模型而异（多为拼音/英文）。命中不了映射就回退为组名本身，LLM 仍可用。
+ */
+const MOTION_GROUP_LABELS: Record<string, string> = {
+  Idle: '待机、平静（一般无需主动触发）',
+  talk: '说话时的自然肢体摆动',
+  click: '一个随机的小动作（被点到时的反应）',
+  kaixin: '开心',
+  shengqi: '生气',
+  nanguo: '难过',
+  haixiu: '害羞',
+  chijing: '吃惊',
+  bizui: '抿嘴、沉默',
+  happy: '开心',
+  angry: '生气',
+  sad: '难过',
+  shy: '害羞',
+  surprised: '吃惊',
+}
+
+function formatMotionMenu(motionGroups: string[]): string[] {
+  // Idle 是内部待机循环（自动管理），不放进菜单；LLM 给平淡台词选到它
+  // 会白白浪费一次动作位（实测「嗯……你叫我？」被配了 Idle）
+  return motionGroups
+    .filter((g) => g !== 'Idle')
+    .map((g) => `- "${g}"：${MOTION_GROUP_LABELS[g] ?? g}`)
+}
+
+/**
  * 构造引导 LLM 走 DeepSeek/OpenAI 官方 JSON Mode 的 system prompt。
  *
  * 协议（单一合法 JSON，可被 response_format: json_object 强约束）：
@@ -32,7 +61,7 @@ export const STANDARD_EMOTIONS = [
  *
  * 代价：失去边收边吐的逐段流式（要等整个 JSON 收完才能 parse），TTS 必须等一整轮。
  */
-export function buildSystemPrompt(card: RoleCard): string {
+export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = []): string {
   const persona = card.persona
   const userIdentity = persona.userIdentity ?? '用户'
   const userTerm = persona.userTerm ?? card.name
@@ -47,13 +76,13 @@ export function buildSystemPrompt(card: RoleCard): string {
   lines.push('说话风格（应用级规则，对所有角色生效，优先于角色设定中的书面化表达）：')
   lines.push('- 台词必须写成自然的口语，像面对面说话；不要书面语、公文腔和括号注释。')
   lines.push('- 允许适度使用语气词与停顿（如「嗯……」「哈啊」「那个……」），每条 segment 会被逐句合成语音，真实的呼吸感能让语气更活。')
-  lines.push('- 短句优先，一句一个呼吸；动作和情绪放 emotion 字段，不要写进 text。')
+  lines.push('- 短句优先，一句一个呼吸；情绪放 emotion 字段、肢体动作放 action 字段，都不要写进 text。')
   lines.push('')
   lines.push('输出格式（必须严格遵守，否则解析会失败）：')
   lines.push('每次回复必须是一个合法的 JSON 对象，结构如下：')
   lines.push('{')
   lines.push('  "segments": [')
-  lines.push('    { "text": "一句台词", "emotion": "对应情绪" },')
+  lines.push('    { "text": "一句台词", "emotion": "对应情绪", "action": "可选的动作组名" },')
   lines.push('    { "text": "下一句台词", "emotion": "对应情绪" }')
   lines.push('  ]')
   lines.push('}')
@@ -62,19 +91,43 @@ export function buildSystemPrompt(card: RoleCard): string {
   lines.push('- 每条 segment 是一句独立台词或一段语气连贯的小段，便于逐句播放语音。')
   lines.push('- segments 数组必须包含至少 2 条；遇到很短的回复也要拆成 2 条（如「嗯。」+「怎么了？」）。')
   lines.push(`- emotion 必须从以下集合中取一个：${STANDARD_EMOTIONS.join(', ')}；不确定就用 "neutral"。`)
+  if (motionGroups.length > 0) {
+    lines.push('- action 是可选的肢体动作：在情绪强烈的句子上填一个，让人物动起来更生动；平淡的过渡句可以不填。必须从下面"可用动作"里挑一个组名。')
+    lines.push('- emotion 管面部表情，action 管身体动作，两者可以搭配使用（如 emotion=happy 同时 action=kaixin）。')
+  } else {
+    lines.push('- 不要输出 action 字段。')
+  }
   lines.push('- 不要输出 JSON 以外的任何字符（包括 Markdown 代码块、解释性文字、问候语）。')
+  if (motionGroups.length > 0) {
+    lines.push('')
+    lines.push('可用动作（action 只能从这里选，逐条是「组名：含义」）：')
+    lines.push(...formatMotionMenu(motionGroups))
+  }
   lines.push('')
   lines.push('EXAMPLE INPUT:')
   lines.push('你好呀！')
   lines.push('')
   lines.push('EXAMPLE JSON OUTPUT:')
-  lines.push('{')
-  lines.push('  "segments": [')
-  lines.push('    { "text": "嗨～", "emotion": "happy" },')
-  lines.push('    { "text": "你今天看起来心情不错呢。", "emotion": "happy" },')
-  lines.push('    { "text": "想聊点什么？", "emotion": "neutral" }')
-  lines.push('  ]')
-  lines.push('}')
+  if (motionGroups.length > 0) {
+    // 示例动作挑一个真正的情绪/手势组，避免用 Idle/talk/click 这类无意义占位
+    const exampleAction =
+      motionGroups.find((g) => !/^(idle|talk|click)$/i.test(g)) ?? motionGroups[0]
+    lines.push('{')
+    lines.push('  "segments": [')
+    lines.push(`    { "text": "嗨～", "emotion": "happy", "action": "${exampleAction}" },`)
+    lines.push('    { "text": "你今天看起来心情不错呢。", "emotion": "happy" },')
+    lines.push('    { "text": "想聊点什么？", "emotion": "neutral" }')
+    lines.push('  ]')
+    lines.push('}')
+  } else {
+    lines.push('{')
+    lines.push('  "segments": [')
+    lines.push('    { "text": "嗨～", "emotion": "happy" },')
+    lines.push('    { "text": "你今天看起来心情不错呢。", "emotion": "happy" },')
+    lines.push('    { "text": "想聊点什么？", "emotion": "neutral" }')
+    lines.push('  ]')
+    lines.push('}')
+  }
   return lines.join('\n')
 }
 

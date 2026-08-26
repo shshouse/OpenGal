@@ -27,6 +27,8 @@ export interface LLMDialogMessage {
   assetId?: string | number
   /** 情绪标签（neutral/happy/sad/...），驱动 Live2D 表情或立绘切图 */
   emotion?: string
+  /** 动作组名（对应 model3.json 的 Motions 组），驱动 Live2D 身体动作；由 LLM 自主决定 */
+  motion?: string
   /** 特效名（fade/zoom/...），具体含义由演出后端决定 */
   effect?: string
   /** 可选翻译，若存在则 TTS 用翻译文本而非原文 */
@@ -50,6 +52,8 @@ export interface TTSOutputMessage {
   assetId?: string | number
   /** 情绪标签 */
   emotion?: string
+  /** 动作组名，驱动 Live2D 身体动作 */
+  motion?: string
   /** 特效名 */
   effect?: string
   /** 是否为系统类消息（COT/BGM/CG 等不进对话气泡） */

@@ -20,6 +20,7 @@ import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
 import { pipelineBus } from './pipelineBus'
 
 let counter = 0
@@ -103,7 +104,9 @@ export function startLLMWorker(): () => void {
     // 取最新 chat history 快照，避免和 abort 中途被覆盖的版本混淆
     const history = useChatStore.getState().messages
 
-    const systemContent = buildSystemPrompt(activeRoleCard!)
+    // 把当前模型可用的动作组注入 system prompt，让 LLM 能自主决定每句台词的肢体动作
+    const motionGroups = getAvailableMotionGroups()
+    const systemContent = buildSystemPrompt(activeRoleCard!, motionGroups)
 
     let messagesForLLM: ChatMessage[] = [
       { role: 'system', content: systemContent },
@@ -409,6 +412,8 @@ function toDialogMessage(item: LLMDialogueItem): LLMDialogMessage {
     text: item.text,
   }
   if (typeof item.emotion === 'string' && item.emotion) msg.emotion = item.emotion
-  if (typeof item.action === 'string' && item.action) msg.effect = item.action
+  if (typeof item.action === 'string' && item.action) {
+    msg.motion = item.action
+  }
   return msg
 }

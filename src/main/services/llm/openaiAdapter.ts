@@ -55,8 +55,10 @@ function buildChatBody(
     // 默认 8192 兼顾普通对话模型与思考模型。
     max_tokens: config.maxTokens ?? 8192,
     // OpenAI 兼容协议的官方 JSON Mode：强制模型返回单个合法 JSON。
-    // 注意：当启用 tools 时关闭 JSON Mode（OpenAI 不允许两者同时使用）。
-    response_format: tools ? undefined : { type: 'json_object' },
+    // 注意：启用 tools 时关闭 JSON Mode（OpenAI 不允许两者同时使用）。
+    // 必须判 tools?.length：空数组是真值，漏判会让 JSON Mode 在「没有注册任何
+    // 工具」时被静默关闭，输出格式完全退化为靠提示词约束
+    response_format: tools?.length ? undefined : { type: 'json_object' },
   }
   if (stream) body.stream = true
   if (config.thinking === false) {

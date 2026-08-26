@@ -13,7 +13,7 @@ import sys
 import os
 
 # Add Genie-TTS source to path
-GENIE_SRC = os.path.join(os.path.dirname(__file__), '..', 'ref', 'Genie-TTS-master', 'src')
+GENIE_SRC = os.path.join(os.path.dirname(__file__), '..', 'ref', '文本转语音方案', 'Genie-TTS-master', 'src')
 sys.path.insert(0, os.path.abspath(GENIE_SRC))
 
 import genie_tts as genie

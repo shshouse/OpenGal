@@ -34,6 +34,31 @@ const GENIE_LANG_MAP: Record<string, string> = {
   all_zh: 'zh', all_ja: 'ja', all_yue: 'zh', all_ko: 'ko',
 }
 
+/**
+ * Genie 的 /tts 流返回裸 int16 PCM（服务端虽标 audio/wav，但
+ * Core/TTSPlayer.py 的 _preprocess_for_playback 只发裸采样，不带 RIFF 头）：
+ * 单声道 16bit、32000Hz（TTSPlayer 默认采样率）。这里补 44 字节 WAV 头。
+ */
+function wrapPcmAsWav(buffer: Buffer): Buffer {
+  if (buffer.subarray(0, 4).toString('latin1') === 'RIFF') return buffer
+  const sampleRate = 32_000
+  const header = Buffer.alloc(44)
+  header.write('RIFF', 0, 'ascii')
+  header.writeUInt32LE(36 + buffer.length, 4)
+  header.write('WAVE', 8, 'ascii')
+  header.write('fmt ', 12, 'ascii')
+  header.writeUInt32LE(16, 16)
+  header.writeUInt16LE(1, 20)
+  header.writeUInt16LE(1, 22)
+  header.writeUInt32LE(sampleRate, 24)
+  header.writeUInt32LE(sampleRate * 2, 28)
+  header.writeUInt16LE(2, 32)
+  header.writeUInt16LE(16, 34)
+  header.write('data', 36, 'ascii')
+  header.writeUInt32LE(buffer.length, 40)
+  return Buffer.concat([header, buffer])
+}
+
 export class GenieAdapter implements TTSAdapter {
   readonly provider = 'genie'
 
@@ -91,7 +116,7 @@ export class GenieAdapter implements TTSAdapter {
         const errText = await res.text()
         throw new Error(`TTS error ${res.status}: ${errText.slice(0, 500)}`)
       }
-      const buffer = Buffer.from(await res.arrayBuffer())
+      const buffer = wrapPcmAsWav(Buffer.from(await res.arrayBuffer()))
       return {
         audioBase64: buffer.toString('base64'),
         mimeType: 'audio/wav',

@@ -9,7 +9,7 @@
  */
 
 import type { TTSOutputMessage } from '@shared/messages'
-import { applyEmotion, getLive2DModel } from '@/features/live2d/live2dBus'
+import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useASRStore } from '@/features/asr/asrStore'
 import type { MessageHandler } from './handlerChain'
 
@@ -35,8 +35,10 @@ export function stopFallbackAudio(): void {
  * 这样文本落盘不会被 audio 播放阻塞，避免 finalize 早于 segments 累积。
  *
  * 流程：
- * 1. applyEmotion 切 Live2D 表情
- * 2. 有音频 → model.speak 驱动 lipsync；无音频 → 跳过
+ * 1. applyEmotion 切 Live2D 表情（面部）
+ * 2. playMotionGroup 播 LLM 自主决定的肢体动作（身体），在 speak 前触发，
+ *    此刻上一句音频已播完（链路串行），FORCE 不会切到在播音频
+ * 3. 有音频 → model.speak 驱动 lipsync；无音频 → 跳过
  */
 export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> {
   canHandle(msg: TTSOutputMessage): boolean {
@@ -45,6 +47,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
 
   async handle(msg: TTSOutputMessage): Promise<void> {
     if (msg.emotion) applyEmotion(msg.emotion)
+    if (msg.motion) playMotionGroup(msg.motion)
 
     if (!msg.audioUrl) return
 

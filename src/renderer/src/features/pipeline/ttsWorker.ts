@@ -65,10 +65,25 @@ async function drainQueue(): Promise<void> {
       const msg = queue.shift()!
       const out = await synthesize(msg)
       pipelineBus.emit('tts:output', out)
+      // 无音频时的节奏补偿：真实语音会占掉台词长度对应的时长，动作在此期间
+      // 完整播放。TTS 失败/关闭时若不补偿，多段台词会在几百毫秒内连发，
+      // 每段的动作刚起手就被下一段 FORCE 打断（表现为「动作只闪一下就没了」）
+      if (!out.audioUrl && out.text) {
+        await sleepSilentSegment(out.text)
+      }
     }
   } finally {
     processing = false
   }
+}
+
+/**
+ * 静音片段的停留时长：按中文朗读约 4 字/秒估算（250ms/字），下限保证一个
+ * 反应动作（约 2s）能播完，上限防止超长台词把队列卡住太久。
+ */
+function sleepSilentSegment(text: string): Promise<void> {
+  const estimated = Math.min(12000, Math.max(1800, text.length * 250))
+  return new Promise((resolve) => setTimeout(resolve, estimated))
 }
 
 /**
@@ -86,6 +101,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
       text: msg.text || '',
       assetId: msg.assetId ?? '-1',
       emotion: msg.emotion,
+      motion: msg.motion,
       effect: msg.effect,
       isSystem: false,
       isFinalSegment: true,
@@ -112,6 +128,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
     text: msg.text,
     assetId: msg.assetId ?? '-1',
     emotion: msg.emotion,
+    motion: msg.motion,
     effect: msg.effect,
     isSystem: false,
     isFinalSegment: true,

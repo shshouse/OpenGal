@@ -5,8 +5,9 @@ import { TitleBar } from '@/components/titlebar/TitleBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
+import { SettingsOverlay } from '@/components/settings/SettingsOverlay'
 import { LogsPanel } from '@/components/logs/LogsPanel'
-import { Sidebar, type NavView } from '@/components/nav/Sidebar'
+import { Sidebar } from '@/components/nav/Sidebar'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
@@ -14,10 +15,29 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { isMobile } from '@/lib/utils'
 
+/**
+ * 把全局持久化的变换（scale/xRatio/canvasYRatio）合并到角色卡解析出的模型配置上。
+ * 仅当持久化值属于同一个模型（modelPath 相同）时才套用——否则上一个角色调的位置/缩放
+ * 会串到当前角色，导致人物被放大到只剩局部、头被裁掉。不同角色时用角色卡自带默认值。
+ */
+function mergeSavedTransform(
+  cardConfig: Live2DModelConfig,
+  saved: Live2DModelConfig | null | undefined
+): Live2DModelConfig {
+  const sameModel = !!saved?.modelPath && saved.modelPath === cardConfig.modelPath
+  return {
+    ...cardConfig,
+    ...(sameModel && saved?.scale !== undefined ? { scale: saved.scale } : {}),
+    ...(sameModel && saved?.xRatio !== undefined ? { xRatio: saved.xRatio } : {}),
+    ...(sameModel && saved?.canvasYRatio !== undefined
+      ? { canvasYRatio: saved.canvasYRatio }
+      : {})
+  }
+}
+
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
-  const [view, setView] = React.useState<NavView>('home')
   const [petOpen, setPetOpen] = React.useState(false)
   const [mobile] = React.useState(() => isMobile())
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
@@ -29,7 +49,7 @@ export default function App() {
     return () => window.removeEventListener('opengal:open-settings', handler)
   }, [])
 
-  // 移动端设置浮层开关（桌面端用侧栏 view 切换）
+  // 设置浮层开关：桌面端为居中窗口浮层，移动端为全屏浮层（均覆盖在当前页之上）
   const [showSettings, setShowSettings] = React.useState(false)
 
   // 启动流水线（LLMWorker / TTSWorker / UIWorker）
@@ -52,14 +72,7 @@ export default function App() {
         if (active) {
           const fromCard = await window.opengal.model.resolveFromCard(active.id)
           if (fromCard.success && fromCard.data) {
-            const merged: Live2DModelConfig = {
-              ...fromCard.data,
-              ...(cfg.data.model?.scale !== undefined ? { scale: cfg.data.model.scale } : {}),
-              ...(cfg.data.model?.xRatio !== undefined ? { xRatio: cfg.data.model.xRatio } : {}),
-              ...(cfg.data.model?.canvasYRatio !== undefined
-                ? { canvasYRatio: cfg.data.model.canvasYRatio } : {})
-            }
-            setModel(merged)
+            setModel(mergeSavedTransform(fromCard.data, cfg.data.model))
             return
           }
         }
@@ -82,14 +95,7 @@ export default function App() {
       const fromCard = await window.opengal.model.resolveFromCard(activeId)
       if (fromCard.success && fromCard.data) {
         const currentCfg = (await window.opengal.config.get()).data
-        const merged: Live2DModelConfig = {
-          ...fromCard.data,
-          ...(currentCfg?.model?.scale !== undefined ? { scale: currentCfg.model.scale } : {}),
-          ...(currentCfg?.model?.xRatio !== undefined ? { xRatio: currentCfg.model.xRatio } : {}),
-          ...(currentCfg?.model?.canvasYRatio !== undefined
-            ? { canvasYRatio: currentCfg.model.canvasYRatio } : {})
-        }
-        setModel(merged)
+        setModel(mergeSavedTransform(fromCard.data, currentCfg?.model))
       } else {
         // 角色卡无 live2d 配置时回退到全局配置
         const cfg = await window.opengal.config.get()
@@ -202,14 +208,13 @@ export default function App() {
     )
   }
 
-  // 桌面端：左侧导航栏 + 主区域（首页 = 人物居中 + 底部对话框；设置 = 全页）
+  // 桌面端：左侧导航栏 + 主区域（人物居中 + 底部对话框）。设置为覆盖浮层，不切换主页面。
   return (
     <div className="flex h-full flex-col">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
-          view={view}
-          onViewChange={setView}
+          onOpenSettings={() => setShowSettings(true)}
           petOpen={petOpen}
           onTogglePet={() => void togglePet()}
           showLive2D={config?.showLive2D ?? true}
@@ -217,31 +222,21 @@ export default function App() {
           onOpenLogs={openLogs}
         />
         <main className="relative flex flex-1 overflow-hidden">
-          {view === 'home' ? (
-            <>
-              <div className="absolute inset-0">
-                {config?.showLive2D ? (
-                  <Live2DStage model={model} onChange={handleModelChange} />
-                ) : (
-                  <div className="h-full w-full bg-background" />
-                )}
-              </div>
-              <GalgameChatPanel />
-            </>
-          ) : (
-            <div className="flex h-full w-full flex-col">
-              <div className="flex h-10 shrink-0 items-center border-b px-4">
-                <span className="text-sm font-semibold">设置</span>
-              </div>
-              {config && (
-                <div className="flex-1 overflow-auto p-6">
-                  <div className="mx-auto max-w-3xl">
-                    <SettingsCenter config={config} model={model} onSave={saveConfig} />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="absolute inset-0">
+            {config?.showLive2D ? (
+              <Live2DStage model={model} onChange={handleModelChange} />
+            ) : (
+              <div className="h-full w-full bg-background" />
+            )}
+          </div>
+          <GalgameChatPanel />
+          <SettingsOverlay
+            open={showSettings}
+            onClose={() => setShowSettings(false)}
+            config={config}
+            model={model}
+            onSave={saveConfig}
+          />
         </main>
       </div>
       <LogsPanel />
