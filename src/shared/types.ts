@@ -114,9 +114,25 @@ export interface AppConfig {
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'
 
+/** OpenAI 兼容的多模态内容片段：文本 / 图片（image_url 承载 data:base64 或 http URL） */
+export interface TextContentPart {
+  type: 'text'
+  text: string
+}
+export interface ImageContentPart {
+  type: 'image_url'
+  image_url: { url: string }
+}
+export type MessageContentPart = TextContentPart | ImageContentPart
+/**
+ * 消息内容。assistant/tool/system 恒为 string；user 在携带图片时为
+ * 多模态片段数组（OpenAI 兼容格式）。Anthropic 适配器负责把它转成 image block。
+ */
+export type MessageContent = string | MessageContentPart[]
+
 export interface ChatMessage {
   role: ChatRole
-  content: string
+  content: MessageContent
   /** assistant 消息携带的工具调用请求 */
   tool_calls?: ToolCall[]
   /** tool 角色消息对应的 tool_call id */

@@ -32,6 +32,11 @@ export const IpcChannels = {
     get: 'character:get',
     voiceConfig: 'character:voiceConfig'
   },
+  chatHistory: {
+    load: 'chatHistory:load',
+    save: 'chatHistory:save',
+    clear: 'chatHistory:clear'
+  },
   tts: {
     speak: 'tts:speak',
     ping: 'tts:ping',

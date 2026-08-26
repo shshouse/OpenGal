@@ -70,18 +70,19 @@ export function useChatPipeline() {
   }, [appendUser, finalizeStream, replaceError, setSending])
 
   return useCallback(
-    function send(userContent: string): void {
+    function send(userContent: string, images?: string[]): void {
       const trimmed = userContent.trim()
-      if (!trimmed) return
+      // 有图片时允许正文为空（纯图提问）
+      if (!trimmed && (!images || images.length === 0)) return
       replaceError(null)
-      appendUser(trimmed)
+      appendUser(trimmed, images)
       setSending(true)
       useLogsStore
         .getState()
         .appendLocal(
           'info',
           'chat',
-          `用户输入: ${trimmed.slice(0, 200)}`
+          `用户输入: ${trimmed.slice(0, 200)}${images && images.length > 0 ? ` [图片×${images.length}]` : ''}`
         )
       pipelineBus.emit('user:input', { text: trimmed, source: 'user' })
     },

@@ -26,8 +26,15 @@ function resolveSettings(request: LLMRequest): LLMConfig {
 }
 
 function describeMessages(messages: LLMRequest['messages']): string {
+  // 多模态消息的 content 是片段数组：文本片段拼出预览，图片折叠成 [图片] 标记
   return messages
-    .map((m, i) => `[${i}] ${m.role}: ${m.content.slice(0, 200)}${m.content.length > 200 ? '…' : ''}`)
+    .map((m, i) => {
+      const text =
+        typeof m.content === 'string'
+          ? m.content
+          : m.content.map((p) => (p.type === 'text' ? p.text : '[图片]')).join(' ')
+      return `[${i}] ${m.role}: ${text.slice(0, 200)}${text.length > 200 ? '…' : ''}`
+    })
     .join('\n')
 }
 

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
 import type {
   AppConfig,
+  ChatMessage,
   IpcResult,
   LLMRequest,
   LLMResponse,
@@ -73,6 +74,12 @@ const api = {
     get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.character.get, id),
     voiceConfig: (id: string) =>
       invoke<Record<string, unknown> | null>(IpcChannels.character.voiceConfig, id)
+  },
+  chatHistory: {
+    load: (characterId: string) => invoke<ChatMessage[]>(IpcChannels.chatHistory.load, characterId),
+    save: (characterId: string, messages: ChatMessage[]) =>
+      invoke<boolean>(IpcChannels.chatHistory.save, characterId, messages),
+    clear: (characterId: string) => invoke<boolean>(IpcChannels.chatHistory.clear, characterId)
   },
   pet: {
     open: () => invoke(IpcChannels.pet.open),

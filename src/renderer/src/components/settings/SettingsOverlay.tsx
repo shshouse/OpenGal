@@ -38,7 +38,7 @@ export function SettingsOverlay({ open, onClose, config, model, onSave }: Settin
       onClick={onClose}
     >
       <div
-        className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
+        className="flex h-[720px] max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex h-11 shrink-0 items-center justify-between border-b px-4">
@@ -52,7 +52,7 @@ export function SettingsOverlay({ open, onClose, config, model, onSave }: Settin
             <X className="size-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <SettingsCenter config={config} model={model} onSave={onSave} />
         </div>
       </div>

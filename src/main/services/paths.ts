@@ -26,6 +26,52 @@ export function getModRoot(): string {
   return candidates[0]
 }
 
+/**
+ * 便携数据根目录：配置 / 会话历史等用户数据统一落在这里——
+ * 装在哪放哪，不写进 C 盘系统目录。
+ *
+ * 解析顺序：
+ * 1. OPENGAL_DATA_DIR 环境变量（测试/多实例用）
+ * 2. dev：仓库根 data/
+ * 3. 安装目录旁 data/（实测可写才认，Program Files 只读时探针失败）
+ * 4. userData 兜底（极少数只读安装位）
+ */
+let cachedDataRoot: string | null = null
+
+export function getDataRoot(): string {
+  if (cachedDataRoot) return cachedDataRoot
+  const candidates: string[] = []
+  if (process.env.OPENGAL_DATA_DIR) candidates.push(process.env.OPENGAL_DATA_DIR)
+  candidates.push(
+    app.isPackaged
+      ? path.join(path.dirname(app.getPath('exe')), 'data')
+      : path.join(app.getAppPath(), 'data')
+  )
+  for (const candidate of candidates) {
+    if (ensureWritableDir(candidate)) {
+      cachedDataRoot = candidate
+      return candidate
+    }
+  }
+  const fallback = path.join(app.getPath('userData'), 'data')
+  ensureWritableDir(fallback)
+  cachedDataRoot = fallback
+  return fallback
+}
+
+/** 确认目录可写：递归建目录 + 探针文件写删。失败返回 false（如 Program Files 只读）。 */
+function ensureWritableDir(dir: string): boolean {
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    const probe = path.join(dir, '.write-probe')
+    fs.writeFileSync(probe, '1')
+    fs.rmSync(probe)
+    return true
+  } catch {
+    return false
+  }
+}
+
 const CUSTOM_SCHEME = 'opengal'
 const MOD_HOST = 'mods'
 

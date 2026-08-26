@@ -1,9 +1,10 @@
 import Store from 'electron-store'
 import { safeStorage } from 'electron'
 import type { AppConfig } from '@shared/types'
-import { toModUrl } from './paths'
+import { toModUrl, getDataRoot } from './paths'
 import { listRoleCards, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
+import { migrateLegacyData } from './dataMigration'
 
 const defaultConfig: AppConfig = {
   uiLanguage: 'zh',
@@ -42,15 +43,25 @@ const defaultConfig: AppConfig = {
   showLive2D: true
 }
 
-const store = new Store<Record<string, unknown>>({
-  name: 'opengal-config',
-  defaults: { ...defaultConfig } as unknown as Record<string, unknown>
-})
+// 惰性初始化：首次访问时才定位便携数据根（依赖 app 路径解析，生产环境需等 app 就绪）
+// 并先把散落在 AppData 的旧数据一次性迁移过来（幂等，见 dataMigration.ts）。
+let store: Store<Record<string, unknown>> | null = null
 
-// One-time migration: bump old default maxTokens 2048 -> 4096
-const storedLlm = (store.store as Record<string, unknown>).llm as Record<string, unknown> | undefined
-if (storedLlm && storedLlm.maxTokens === 2048) {
-  store.set('llm.maxTokens' as never, 4096 as never)
+function getStore(): Store<Record<string, unknown>> {
+  if (!store) {
+    migrateLegacyData()
+    store = new Store<Record<string, unknown>>({
+      name: 'opengal-config',
+      cwd: getDataRoot(),
+      defaults: { ...defaultConfig } as unknown as Record<string, unknown>
+    })
+    // One-time migration: bump old default maxTokens 2048 -> 4096
+    const storedLlm = (store.store as Record<string, unknown>).llm as Record<string, unknown> | undefined
+    if (storedLlm && storedLlm.maxTokens === 2048) {
+      store.set('llm.maxTokens' as never, 4096 as never)
+    }
+  }
+  return store
 }
 
 function encryptApiKey(key: string): string {
@@ -107,7 +118,7 @@ function patchTTSFromVoiceConfig(tts: AppConfig['tts']): void {
 }
 
 export function readConfig(): AppConfig {
-  const raw = store.store as unknown as AppConfig
+  const raw = getStore().store as unknown as AppConfig
   const merged: AppConfig = {
     ...defaultConfig,
     ...raw,
@@ -149,13 +160,13 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
     ...next,
     llm: { ...next.llm, apiKey: encryptApiKey(next.llm.apiKey) }
   }
-  store.set(persisted as unknown as Record<string, unknown>)
+  getStore().set(persisted as unknown as Record<string, unknown>)
   logBus.info('config', `配置更新: ${summarizePatch(patch)}`)
   return next
 }
 
 export function resetConfig(): AppConfig {
-  store.clear()
+  getStore().clear()
   logBus.warn('config', '配置已重置为默认值')
   return readConfig()
 }

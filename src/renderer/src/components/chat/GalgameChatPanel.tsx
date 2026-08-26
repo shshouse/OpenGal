@@ -10,7 +10,7 @@
  */
 
 import * as React from 'react'
-import { Send, ChevronUp, ChevronDown, Square } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, Square, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -22,6 +22,7 @@ import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { MicButton } from './MicButton'
+import { usePendingImages, PendingImagesBar } from './imageAttachments'
 
 function abortPipeline(): void {
   pipelineBus.emit('pipeline:abort', undefined)
@@ -38,6 +39,8 @@ export function GalgameChatPanel() {
   const streamingSegments = useChatStore((s) => s.streamingSegments)
   const send = useChatPipeline()
   const [draft, setDraft] = React.useState('')
+  const pendingImages = usePendingImages()
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [historyOpen, setHistoryOpen] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
@@ -48,7 +51,7 @@ export function GalgameChatPanel() {
   // 显示最后一句（历史模式显示全部）
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
   const displayText = streamingDisplay
-    || (lastAssistant ? extractAssistantDisplayText(lastAssistant.content) : '')
+    || (lastAssistant ? extractAssistantDisplayText(lastAssistant.content as string) : '')
   const displayName = character?.displayName ?? character?.name ?? 'OpenGal'
 
   // 历史展开时自动滚到底
@@ -74,10 +77,12 @@ export function GalgameChatPanel() {
   }, [send])
 
   function handleSend(): void {
-    const trimmed = draft.trim()
-    if (!trimmed || isSending) return
+    const text = draft.trim()
+    if ((!text && pendingImages.images.length === 0) || isSending) return
+    const images = pendingImages.images
     setDraft('')
-    send(trimmed)
+    pendingImages.clear()
+    send(text, images.length > 0 ? images : undefined)
   }
 
   function handleStop(): void {
@@ -115,8 +120,22 @@ export function GalgameChatPanel() {
                       : 'bg-secondary text-secondary-foreground'
                   )}
                 >
+                  {message.role === 'user' &&
+                    (message as PersistedUserMessage).images &&
+                    (message as PersistedUserMessage).images!.length > 0 && (
+                      <div className="mb-1.5 flex flex-wrap gap-1.5">
+                        {(message as PersistedUserMessage).images!.map((url, i) => (
+                          <img
+                            key={i}
+                            src={url}
+                            alt={`图片 ${i + 1}`}
+                            className="max-h-32 max-w-full rounded-md border border-white/20 object-cover"
+                          />
+                        ))}
+                      </div>
+                    )}
                   {message.role === 'assistant'
-                    ? extractAssistantDisplayText(message.content)
+                    ? extractAssistantDisplayText(message.content as string)
                     : (message as PersistedUserMessage).userText}
                 </div>
               </div>
@@ -169,40 +188,64 @@ export function GalgameChatPanel() {
         </button>
 
         {/* 输入区 */}
-        <div className="flex items-end gap-2 px-3 pb-3 pt-1">
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-            placeholder="输入消息..."
-            className="min-h-[40px] resize-none bg-muted/50 text-sm"
-            rows={1}
-          />
-          <MicButton />
-          {isSending ? (
+        <div className="px-3 pb-3 pt-1">
+          <PendingImagesBar pending={pendingImages} />
+          <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                pendingImages.handleFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              onPaste={pendingImages.handlePaste}
+              placeholder="输入消息，可粘贴图片..."
+              className="min-h-[40px] resize-none bg-muted/50 text-sm"
+              rows={1}
+            />
             <Button
+              variant="ghost"
               size="icon"
               className="size-10 shrink-0"
-              onClick={handleStop}
-              title="停止"
+              title="添加图片"
+              onClick={() => fileInputRef.current?.click()}
             >
-              <Square className="size-4" />
+              <ImagePlus className="size-4" />
             </Button>
-          ) : (
-            <Button
-              size="icon"
-              className="size-10 shrink-0"
-              onClick={handleSend}
-              disabled={!draft.trim()}
-            >
-              <Send className="size-4" />
-            </Button>
-          )}
+            <MicButton />
+            {isSending ? (
+              <Button
+                size="icon"
+                className="size-10 shrink-0"
+                onClick={handleStop}
+                title="停止"
+              >
+                <Square className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                size="icon"
+                className="size-10 shrink-0"
+                onClick={handleSend}
+                disabled={!draft.trim() && pendingImages.images.length === 0}
+              >
+                <Send className="size-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -7,6 +7,8 @@ import {
   registerModProtocolSchemes
 } from './services/modProtocol'
 import { registerTTSServerCleanup, stopTTSServer } from './services/ttsServer'
+import { getDataRoot, getModRoot } from './services/paths'
+import { logBus } from './services/logBus'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
@@ -30,6 +32,9 @@ app.whenReady().then(() => {
   // Re-instantiate after ready so app.getAppPath resolves in production
   windows = createWindowManager('../renderer/index.html')
   registerIpc(windows)
+  logBus.info('app', 'OpenGal 主进程启动')
+  logBus.info('app', `mods 根目录: ${getModRoot()}`)
+  logBus.info('app', `数据目录: ${getDataRoot()}`)
   windows.createMainWindow()
 
   app.on('activate', () => {

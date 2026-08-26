@@ -110,7 +110,7 @@ export function startLLMWorker(): () => void {
 
     let messagesForLLM: ChatMessage[] = [
       { role: 'system', content: systemContent },
-      ...history,
+      ...sanitizeHistoryForLLM(history),
     ]
 
     // 工具定义：注册到主进程工具表
@@ -400,6 +400,34 @@ export function stopLLMWorker(): void {
   unsubscribers = []
   bound = false
   currentStreamId = null
+}
+
+/**
+ * 多模态历史净化：user 消息的多模态 content（含 data:base64 图片）体积大，
+ * 若随历史每轮全量回传会让请求体无限膨胀。这里只保留「最新一条带图消息」的
+ * 图片，更早的图片消息降级为「文本 + [图片×N] 标记」——模型仍能知道当时发过图，
+ * 但不再重复传输 base64。assistant/tool/system 消息原样保留。
+ */
+function sanitizeHistoryForLLM(messages: ChatMessage[]): ChatMessage[] {
+  const hasImages = (m: ChatMessage): boolean =>
+    Array.isArray(m.content) &&
+    m.content.some((p) => p.type === 'image_url')
+  // 定位最后一条带图的 user 消息
+  let lastImageIdx = -1
+  messages.forEach((m, i) => {
+    if (m.role === 'user' && hasImages(m)) lastImageIdx = i
+  })
+  return messages.map((m, i) => {
+    if (m.role !== 'user' || !Array.isArray(m.content)) return m
+    if (i === lastImageIdx) return m // 最新的带图消息原样保留
+    // 更早的：拆出文本片段，图片折叠成标记
+    const parts = m.content
+    const texts = parts.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text)
+    const imageCount = parts.filter((p) => p.type === 'image_url').length
+    const marker = imageCount > 0 ? `[图片×${imageCount}]` : ''
+    const text = [...texts, marker].filter(Boolean).join('\n')
+    return { ...m, content: text }
+  })
 }
 
 /**

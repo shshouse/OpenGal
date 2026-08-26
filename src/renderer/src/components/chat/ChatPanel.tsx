@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, Eraser, Square, Settings } from 'lucide-react'
+import { Send, Eraser, Square, Settings, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,6 +16,7 @@ import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { MicButton } from './MicButton'
 import { BusyBar } from './BusyBar'
 import { ToolCallList } from './ToolCallList'
+import { usePendingImages, PendingImagesBar } from './imageAttachments'
 
 function abortPipeline(): void {
   pipelineBus.emit('pipeline:abort', undefined)
@@ -38,6 +39,8 @@ export function ChatPanel() {
   const setActiveCharacter = useCharacterStore((s) => s.setActive)
   const displayName = character?.displayName ?? character?.name ?? 'OpenGal'
   const [draft, setDraft] = React.useState('')
+  const pendingImages = usePendingImages()
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const viewportRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -60,10 +63,12 @@ export function ChatPanel() {
   }, [messages.length, streamingSegments.length])
 
   function handleSend(): void {
-    if (!draft.trim() || isSending) return
-    const userText = draft
+    const text = draft.trim()
+    if ((!text && pendingImages.images.length === 0) || isSending) return
+    const images = pendingImages.images
     setDraft('')
-    send(userText)
+    pendingImages.clear()
+    send(text, images.length > 0 ? images : undefined)
   }
 
   function handleStop(): void {
@@ -150,8 +155,22 @@ export function ChatPanel() {
                       : 'bg-secondary text-secondary-foreground'
                   )}
                 >
+                  {message.role === 'user' &&
+                    (message as PersistedUserMessage).images &&
+                    (message as PersistedUserMessage).images!.length > 0 && (
+                      <div className="mb-1.5 flex flex-wrap gap-1.5">
+                        {(message as PersistedUserMessage).images!.map((url, i) => (
+                          <img
+                            key={i}
+                            src={url}
+                            alt={`图片 ${i + 1}`}
+                            className="max-h-40 max-w-full rounded-md border border-white/20 object-cover"
+                          />
+                        ))}
+                      </div>
+                    )}
                   {message.role === 'assistant'
-                    ? extractAssistantDisplayText(message.content)
+                    ? extractAssistantDisplayText(message.content as string)
                     : (message as PersistedUserMessage).userText}
                 </div>
                 {message.role === 'assistant' &&
@@ -186,23 +205,46 @@ export function ChatPanel() {
 
       <div className="border-t p-3">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
+          <PendingImagesBar pending={pendingImages} />
           <div className="flex items-end gap-2">
+            {/* 隐藏的文件选择器：点图片按钮触发，与粘贴共用同一读取路径 */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                pendingImages.handleFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
             <Textarea
               value={asrPartial || draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Shift + Enter 换行，Enter 发送"
+              onPaste={pendingImages.handlePaste}
+              placeholder="Shift + Enter 换行，Enter 发送，可直接粘贴图片"
               className="min-h-[44px] resize-none"
               rows={2}
               readOnly={!!asrPartial}
             />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              title="添加图片"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImagePlus className="size-4" />
+            </Button>
             <MicButton />
             {isSending ? (
               <Button onClick={handleStop} variant="destructive">
                 <Square className="size-4" /> 停止
               </Button>
             ) : (
-              <Button onClick={handleSend} disabled={!draft.trim()}>
+              <Button onClick={handleSend} disabled={!draft.trim() && pendingImages.images.length === 0}>
                 <Send className="size-4" /> 发送
               </Button>
             )}

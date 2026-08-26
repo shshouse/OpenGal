@@ -19,19 +19,68 @@ import type { LLMAdapter, LLMChatRequest, LLMStreamCallbacks } from './types'
 const DEFAULT_BASE_URL = 'https://api.anthropic.com'
 const API_VERSION = '2023-06-01'
 
+/** Anthropic 多模态 content block：文本 / 图片（base64 source 或 url source）。 */
+type AnthropicContentBlock =
+  | { type: 'text'; text: string }
+  | {
+      type: 'image'
+      source:
+        | { type: 'base64'; media_type: string; data: string }
+        | { type: 'url'; url: string }
+    }
+
+/**
+ * 把 OpenAI 兼容的 content 转成 Anthropic block 数组。
+ * string 原样返回；多模态数组里 text 片段直通，image_url 转 image block：
+ * data:base64 URL -> base64 source，http(s) URL -> url source。
+ */
+function convertContent(content: ChatMessage['content']): string | AnthropicContentBlock[] {
+  if (!Array.isArray(content)) return content
+  const blocks: AnthropicContentBlock[] = []
+  for (const part of content) {
+    if (part.type === 'text') {
+      if (part.text) blocks.push({ type: 'text', text: part.text })
+    } else if (part.type === 'image_url') {
+      const url = part.image_url.url
+      const data = parseDataImageUrl(url)
+      if (data) {
+        blocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: data[0], data: data[1] }
+        })
+      } else if (url.startsWith('http://') || url.startsWith('https://')) {
+        blocks.push({ type: 'image', source: { type: 'url', url } })
+      }
+    }
+  }
+  return blocks
+}
+
+/** 解析 `data:image/png;base64,xxxx` -> [mediaType, data]；非 data URL 返回 null。 */
+function parseDataImageUrl(url: string): [string, string] | null {
+  if (!url.startsWith('data:')) return null
+  const rest = url.slice('data:'.length)
+  const commaIdx = rest.indexOf(',')
+  if (commaIdx === -1) return null
+  const meta = rest.slice(0, commaIdx)
+  const data = rest.slice(commaIdx + 1)
+  const media = meta.endsWith(';base64') ? meta.slice(0, -';base64'.length) : meta
+  return [media, data]
+}
+
 function splitMessages(messages: ChatMessage[]): {
   system: string
-  conv: Array<{ role: 'user' | 'assistant'; content: string }>
+  conv: Array<{ role: 'user' | 'assistant'; content: string | AnthropicContentBlock[] }>
 } {
   const systemParts: string[] = []
-  const conv: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  const conv: Array<{ role: 'user' | 'assistant'; content: string | AnthropicContentBlock[] }> = []
   for (const m of messages) {
     if (m.role === 'system') {
-      systemParts.push(m.content)
+      if (typeof m.content === 'string') systemParts.push(m.content)
     } else if (m.role === 'user' || m.role === 'assistant') {
       // tool 消息目前 Anthropic 适配器不实现 tool_use 回传，
       // 把 tool 结果作为 user 消息注入（折中方案，后续补齐 tool_use blocks）
-      conv.push({ role: m.role, content: m.content })
+      conv.push({ role: m.role, content: convertContent(m.content) })
     }
     // role === 'tool' 暂时被丢弃：当前未实现 Anthropic tool_use 协议
   }

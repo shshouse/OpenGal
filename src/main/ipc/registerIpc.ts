@@ -1,8 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
-import type { AppConfig, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
+import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
 import { readConfig, writeConfig } from '../services/configStore'
+import { loadHistory, saveHistory, clearHistory } from '../services/chatHistory'
 import { callLLM, callLLMStream, abortStream } from '../services/llmClient'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
@@ -80,6 +81,23 @@ export function registerIpc(windows: WindowManager): void {
     wrap<Record<string, unknown> | null>(() => {
       const card = getRoleCard(id)
       return card ? readRoleVoiceConfig(card) : null
+    })
+  )
+
+  // ---- 会话历史持久化（按角色一份 JSON，落便携数据根）----
+  ipcMain.handle(IpcChannels.chatHistory.load, (_, characterId: string) =>
+    wrap<ChatMessage[]>(() => loadHistory(characterId))
+  )
+  ipcMain.handle(IpcChannels.chatHistory.save, (_, characterId: string, messages: ChatMessage[]) =>
+    wrap<boolean>(() => {
+      saveHistory(characterId, messages)
+      return true
+    })
+  )
+  ipcMain.handle(IpcChannels.chatHistory.clear, (_, characterId: string) =>
+    wrap<boolean>(() => {
+      clearHistory(characterId)
+      return true
     })
   )
 

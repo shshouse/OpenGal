@@ -49,6 +49,8 @@ export const useCharacterStore = create<CharacterState>((set, get) => ({
       // 初次选定也要切换会话归属（从 null 会话切到角色会话）
       useChatStore.getState().switchSession(active.id)
       wireLLMWorkerRoleCard(active)
+      // 重启后从磁盘恢复该角色的历史会话
+      void useChatStore.getState().ensureHydrated(active.id)
     }
   },
 
@@ -68,6 +70,8 @@ export const useCharacterStore = create<CharacterState>((set, get) => ({
     chat.switchSession(id)
     set({ activeId: id, error: null })
     wireLLMWorkerRoleCard(card)
+    // 从磁盘恢复该角色历史（幂等，首次切换才真正拉取）
+    void useChatStore.getState().ensureHydrated(id)
     // 持久化到 config（必须先 set 再 reset：activeCharacterId 写完后下一次 speak 才会拿到新角色）
     await window.opengal.config.set({ activeCharacterId: id })
     // 清掉主进程 TTS 适配器缓存的 weights：角色切换通常意味着模型也要切

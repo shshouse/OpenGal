@@ -182,7 +182,7 @@ export default function App() {
                 </Button>
                 <span className="text-sm font-semibold">设置</span>
               </div>
-              <div className="flex-1 overflow-auto p-4">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <SettingsCenter config={config} model={model} onSave={saveConfig} />
               </div>
             </div>

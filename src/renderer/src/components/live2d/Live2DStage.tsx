@@ -249,7 +249,7 @@ export function Live2DStage({
       const dy = (e.clientY - dragStartY) / rect.height
       // 边界按模型当前实际尺寸动态计算（getDragBounds）：模型每侧至少在画布边缘
       // 留出可抓取的一截。放大时能推出画面更多（只露头部），缩小时自动收紧，
-      // 不会整个消失找不回来——替代之前固定 0..1.5 的写死范围
+      // 不会整个消失找不回来——替代之前固定 0..1 的写死范围
       const app = appRef.current
       const currentModel = modelRef.current
       let nextX: number
@@ -291,11 +291,14 @@ export function Live2DStage({
       if (moved < 6 && modelRef.current) {
         playMotionGroup('click')
       }
-      onChange?.({
-        scale: getCurrentScale(),
-        xRatio: getCurrentXRatio(),
-        yRatio: getCurrentYRatio()
-      })
+      // 只有真正拖动过才持久化变换（点击时位置未变，旧版无差别写盘纯属浪费）
+      if (moved >= 6) {
+        onChange?.({
+          scale: getCurrentScale(),
+          xRatio: getCurrentXRatio(),
+          yRatio: getCurrentYRatio()
+        })
+      }
     }
 
     const onWheel = (e: WheelEvent): void => {
@@ -398,7 +401,7 @@ const GRAB_MARGIN_RATIO = 0.12
  * 边界随缩放动态变化：halfH/H 是模型半高占画布高的比例，模型放大后这个值
  * 变大，maxY 随之外扩（人物可以推出画面更多，只剩头部在边缘）；缩小后收紧，
  * 保证至少有一截模型留在画布内可被抓住拖回。固定比例上限做不到这一点：
- * 同样的 1.5 对放大的模型只到肩膀、对缩小的模型却让人物整个消失。
+ * 同样的固定上限对放大的模型只到肩膀、对缩小的模型却让人物整个消失。
  */
 function getDragBounds(
   app: PIXI.Application,
