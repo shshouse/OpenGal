@@ -38,10 +38,16 @@ let audioCtx: AudioContext | null = null
 let workletNode: AudioWorkletNode | null = null
 let analyser: AnalyserNode | null = null
 
-export async function startMicCapture(targetRate: number): Promise<void> {
+export async function listAudioInputs(): Promise<MediaDeviceInfo[]> {
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  return devices.filter((d) => d.kind === 'audioinput')
+}
+
+export async function startMicCapture(targetRate: number, deviceId?: string): Promise<void> {
   if (stream) return
   stream = await navigator.mediaDevices.getUserMedia({
     audio: {
+      deviceId: deviceId ? { exact: deviceId } : undefined,
       channelCount: 1,
       echoCancellation: true,
       noiseSuppression: true

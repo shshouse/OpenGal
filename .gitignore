@@ -2,12 +2,7 @@ node_modules
 out
 .env
 mods
-ref
-apps/mobile/dist
-
-# TypeScript build cache
 *.tsbuildinfo
-
-# 便携数据目录（配置/会话历史）
-/data
+data
 temp
+build

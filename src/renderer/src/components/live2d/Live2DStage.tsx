@@ -5,12 +5,8 @@ import type { Live2DModelConfig } from '@shared/types'
 import { registerLive2DModel, playMotionGroup, resetPose } from '@/features/live2d/live2dBus'
 import { useLogsStore } from '@/features/logs/logsStore'
 
-// Set PIXI on window BEFORE pixi-live2d-display is imported.
-// The library checks window.PIXI at module init time for Ticker integration.
 ;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
 
-// Lazy-loaded Live2DModel class. We use dynamic import so the module evaluates
-// AFTER window.PIXI and window.Live2DCubismCore are available.
 let Live2DModelClass:
   | typeof import('pixi-live2d-display-lipsyncpatch/cubism4').Live2DModel
   | null = null
@@ -46,10 +42,8 @@ export function Live2DStage({
   const modelRef = React.useRef<Live2DModelInstance | null>(null)
   const [status, setStatus] = React.useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
-  // PIXI 应用创建完成标记：模型加载 effect 依赖它，避免 app 未就绪时跳过加载
   const [appReady, setAppReady] = React.useState(false)
 
-  // Tracks user-adjusted position & scale. Falls back to model props when unchanged.
   const userScaleRef = React.useRef<number | null>(null)
   const userXRatioRef = React.useRef<number | null>(null)
   const userYRatioRef = React.useRef<number | null>(null)
@@ -61,8 +55,6 @@ export function Live2DStage({
   const getCurrentYRatio = (): number =>
     userYRatioRef.current ?? model?.canvasYRatio ?? 0.6
 
-  // 切换模型（含换角色）时把用户变换引用重置为新模型的值。
-  // 否则上一角色拖拽/缩放留下的旧值会沿用到新模型，导致人物错位。
   React.useEffect(() => {
     if (model) {
       userScaleRef.current = model.scale
@@ -71,8 +63,6 @@ export function Live2DStage({
     }
   }, [model?.modelUrl])
 
-  // Create the pixi application once.
-  // Delay creation by one frame so Electron GPU context is fully initialised.
   React.useEffect(() => {
     if (!canvasRef.current || appRef.current) return
     let disposed = false
@@ -115,7 +105,6 @@ export function Live2DStage({
     }
   }, [transparent])
 
-  // Load / reload the live2d model whenever the url changes or app becomes ready.
   React.useEffect(() => {
     const app = appRef.current
     if (!app || !appReady || !model) return
@@ -181,7 +170,6 @@ export function Live2DStage({
     }
   }, [model?.modelUrl, model?.canvasYRatio, model?.scale, model?.xRatio, appReady])
 
-  // Resize handling.
   React.useEffect(() => {
     const container = containerRef.current
     const app = appRef.current
@@ -208,17 +196,13 @@ export function Live2DStage({
     return () => observer.disconnect()
   }, [model?.modelUrl, appReady])
 
-  // Lip-sync is handled internally by pixi-live2d-display-lipsyncpatch's
-  // model.speak() API, driven from ttsPlayer via the live2dBus.
 
-  // Unregister the model from the global bus on unmount to avoid stale refs.
   React.useEffect(() => {
     return () => {
       registerLive2DModel(null)
     }
   }, [])
 
-  // Drag & wheel: adjust character position and scale with pointer + wheel.
   React.useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -231,7 +215,6 @@ export function Live2DStage({
 
     const onPointerDown = (e: PointerEvent): void => {
       if (!modelRef.current) return
-      // Only left button (button === 0) triggers dragging.
       if (e.button !== 0) return
       isDragging = true
       dragStartX = e.clientX
@@ -247,9 +230,6 @@ export function Live2DStage({
       const rect = container.getBoundingClientRect()
       const dx = (e.clientX - dragStartX) / rect.width
       const dy = (e.clientY - dragStartY) / rect.height
-      // 边界按模型当前实际尺寸动态计算（getDragBounds）：模型每侧至少在画布边缘
-      // 留出可抓取的一截。放大时能推出画面更多（只露头部），缩小时自动收紧，
-      // 不会整个消失找不回来——替代之前固定 0..1 的写死范围
       const app = appRef.current
       const currentModel = modelRef.current
       let nextX: number
@@ -283,7 +263,6 @@ export function Live2DStage({
       } catch {
         // ignore
       }
-      // 位移小于阈值视为点击：从 click 组随机播一个反应动作
       const moved = Math.max(
         Math.abs(e.clientX - dragStartX),
         Math.abs(e.clientY - dragStartY)
@@ -291,7 +270,6 @@ export function Live2DStage({
       if (moved < 6 && modelRef.current) {
         playMotionGroup('click')
       }
-      // 只有真正拖动过才持久化变换（点击时位置未变，旧版无差别写盘纯属浪费）
       if (moved >= 6) {
         onChange?.({
           scale: getCurrentScale(),
@@ -314,7 +292,6 @@ export function Live2DStage({
         getCurrentXRatio(),
         getCurrentYRatio()
       )
-      // Debounce persistence — emit on next frame.
       requestAnimationFrame(() => {
         onChange?.({
           scale: next,
@@ -339,7 +316,6 @@ export function Live2DStage({
     }
   }, [onChange])
 
-  // Mouse tracking -> head / eye params.
   React.useEffect(() => {
     if (!interactive) return
     const container = containerRef.current
@@ -392,17 +368,8 @@ export function Live2DStage({
   )
 }
 
-/** 可抓取安全边：模型在画布每一侧至少保留的可见高度/宽度占画布的比例 */
 const GRAB_MARGIN_RATIO = 0.12
 
-/**
- * 按模型当前实际渲染尺寸计算中心点比例的可拖动范围。
- *
- * 边界随缩放动态变化：halfH/H 是模型半高占画布高的比例，模型放大后这个值
- * 变大，maxY 随之外扩（人物可以推出画面更多，只剩头部在边缘）；缩小后收紧，
- * 保证至少有一截模型留在画布内可被抓住拖回。固定比例上限做不到这一点：
- * 同样的固定上限对放大的模型只到肩膀、对缩小的模型却让人物整个消失。
- */
 function getDragBounds(
   app: PIXI.Application,
   model: Live2DModelInstance
@@ -434,13 +401,10 @@ function fitModel(
 ): void {
   const { width, height } = app.screen
   const naturalHeight = model.getLocalBounds().height
-  // Base scale = fill 92% of canvas height, then apply user scale multiplier.
   const baseScale = naturalHeight > 0 ? (height * 0.92) / naturalHeight : 1
   const finalScale = baseScale * scale
   model.scale.set(finalScale)
   model.anchor.set(0.5, 0.5)
-  // 位置在应用缩放后按动态边界 clamp：历史配置里超界的值（比如先放大拖到
-  // 边缘再缩小模型）不会把人物放到完全抓不到的地方
   const b = getDragBounds(app, model)
   const x = Math.max(b.minX, Math.min(b.maxX, xRatio))
   const y = Math.max(b.minY, Math.min(b.maxY, yRatio))
@@ -448,27 +412,18 @@ function fitModel(
   model.y = height * y
 }
 
-/**
- * idle 保活巡检：库的动作续播链路在动作播完后偶发断裂（不再重新请求 idle），
- * 表现为模型整体静止、只剩鼠标跟踪。每 2 秒检查一次，停了就以 FORCE 优先级
- * 重启 idle 组。idle 动作文件里的头部/眼球曲线已剥离（b_idle 去掉了 8 条），
- * 头部参数完全由鼠标跟踪接管，动作只负责身体和头发的摆动，两者互不冲突。
- */
 function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => void {
   const mm = (
     model as { internalModel?: { motionManager?: Record<string, unknown> } }
   ).internalModel?.motionManager as
     | {
         isFinished?: () => boolean
-        /** 动作组定义。模型销毁后被库置为 undefined，是判活的关键依据 */
         definitions?: Record<string, unknown>
         startRandomMotion?: (group: string, priority: number) => Promise<boolean>
         on?: (event: string, cb: (...args: unknown[]) => void) => void
-        /** 正在播放的语音（speak 时存在）。用于避免 FORCE 重启 idle 时切断在播音频 */
         currentAudio?: { ended: boolean }
       }
     | undefined
-  // 动作加载失败会被库静默拉黑（槽位存 null，永不再试），必须显式暴露到日志
   mm?.on?.('motionLoadError', (...args) => {
     useLogsStore.getState().appendLocal(
       'error',
@@ -478,22 +433,11 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
     )
   })
   if (!mm || !mm.isFinished || !mm.startRandomMotion) return () => {}
-  // 重启 idle。必须以 mm.xxx(...) 的方式调用——把方法摘下来单独调用会让
-  // this 为 undefined，库内部第一行读 this.definitions 就抛 TypeError
-  // （旧版保活正是这么静默失效的，idle 一直靠库自带续播兜底）。
-  // 音频播放中不能用 FORCE——库的 startMotion 在 FORCE 且有在播音频时
-  // 会 dispose 掉那段音频（切断语音），所以此时降级为 IDLE 优先级（会被在播音频拒绝，
-  // 等音频结束后再由本巡检或库自带的 IDLE 续播接回）。无音频时才用 FORCE 强制保活。
   const restartIdle = (): Promise<boolean> | undefined => {
-    // React StrictMode 双挂载会销毁首个模型（definitions 被置 undefined），跳过即可
     if (!mm.definitions) return undefined
     const audioPlaying = !!(mm.currentAudio && !mm.currentAudio.ended)
     return mm.startRandomMotion?.('Idle', audioPlaying ? 1 : 3)
   }
-  // 单次动作（点击反应 / LLM 动作等）播完的瞬间立刻接回 idle，不等 2 秒轮询；
-  // 播完先把动作残留的参数复位（含黑头套 ParamTK、被冻结的角度），再接 idle。
-  // 打断动作时库会补发一次 motionFinish，那次复位发生在新动作播放中——无害，
-  // 动作每帧重写自己驱动的参数，复位只清没有驱动的残留。
   mm.on?.('motionFinish', () => {
     try {
       resetPose()

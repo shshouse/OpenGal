@@ -45,12 +45,6 @@ export const useLogsStore = create<LogsState>((set) => ({
   setPanelOpen: (v) => set({ panelOpen: v }),
 }))
 
-/**
- * 启动渲染端日志桥接：拉取历史 + 订阅 main 推送。返回取消订阅函数。
- *
- * 调用时机：App 顶层 useEffect 一次。重复调用是幂等的（store 会接收所有重复推送
- * 但 main 端不会重复发，所以问题不大）。
- */
 export function startLogsBridge(): () => void {
   const off = window.opengal.logs.onEntry((entry) => {
     useLogsStore.getState().append(entry)

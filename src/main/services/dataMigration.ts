@@ -1,17 +1,3 @@
-/**
- * 一次性数据迁移：把散落在系统 AppData 的旧数据搬到便携数据根（copy 不删原件）。
- *
- * 触发条件：数据根下 opengal-config.json 不存在（首次用便携目录启动）。
- * 来源候选（按 mtime 最新者胜）：
- * - 旧 Electron（electron-store 默认位置）：userData/opengal-config.json
- * - 旧 Tauri 版：appData/com.opengal.desktop/opengal-config.json
- *
- * apiKey 密文兼容性：旧 Tauri 用裸 DPAPI blob，Electron safeStorage 是 v10 前缀
- * 格式；Chromium 解密对无前缀字节走 legacy CryptUnprotectData 直解，理论上互通。
- * 这里迁移时主动尝试解密并重加密成 v10，失败则清空并提示重填（幂等，不阻塞启动）。
- * chat_history 目录同理逐文件拷贝（目标已存在则跳过，不覆盖新数据）。
- */
-
 import { safeStorage, app } from 'electron'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -19,11 +5,10 @@ import path from 'node:path'
 import { getDataRoot, getModRoot } from './paths'
 import { logBus } from './logBus'
 
-/** 旧数据可能的所在地（不同历史版本写过的位置）。 */
 function legacySources(): string[] {
   return [
-    path.join(app.getPath('appData'), 'com.opengal.desktop'), // 旧 Tauri 版
-    app.getPath('userData') // 旧 Electron（electron-store 默认）
+    path.join(app.getPath('appData'), 'com.opengal.desktop'),
+    app.getPath('userData')
   ]
 }
 
@@ -39,18 +24,15 @@ export function migrateLegacyData(): void {
 
 function migrateConfig(dataRoot: string): void {
   const target = path.join(dataRoot, 'opengal-config.json')
-  if (fs.existsSync(target)) return // 已有数据，绝不覆盖
+  if (fs.existsSync(target)) return
 
-  // 按字段合并：最新那份做基底，它为空/缺失的字段由更旧的候选补上。
-  // 整份选最新的做法会把「旧版独有的功能配置」（如 Electron 的 Vosk 路径，
-  // Tauri 版没有 ASR、存的是空串）静默清掉，这里改为非空优先。
   const candidates = legacySources()
     .map((dir) => {
       const file = path.join(dir, 'opengal-config.json')
       try {
         return { file, mtime: fs.statSync(file).mtimeMs }
       } catch {
-        return null // 不存在，跳过
+        return null
       }
     })
     .filter((c): c is { file: string; mtime: number } => c !== null)
@@ -73,7 +55,6 @@ function migrateConfig(dataRoot: string): void {
   if (key) {
     const plain = tryDecrypt(key)
     if (plain !== null) {
-      // 重加密成本机 safeStorage 格式，之后读写走正常路径
       llm.apiKey = safeStorage.isEncryptionAvailable()
         ? safeStorage.encryptString(plain).toString('base64')
         : plain
@@ -89,12 +70,6 @@ function migrateConfig(dataRoot: string): void {
   fs.writeFileSync(target, JSON.stringify(config, null, 2), 'utf-8')
 }
 
-/**
- * 旧 Tauri 版写进配置的模型绝对路径穿过 OpenGal-Tauri 仓库（如
- * `...\OpenGal-Tauri\src-tauri\..\..\OpenGal\mods\Role\...`），仓库删除后路径失效。
- * 这里把 `/mods/` 之后的相对部分重挂到当前 mods 根；modelUrl 则清空，
- * 让 readConfig 按新路径重新生成（两版的 mod URL 协议格式不同）。
- */
 function rewriteModelPaths(config: Record<string, unknown>): void {
   const model = config.model as Record<string, unknown> | null | undefined
   if (!model || typeof model !== 'object') return
@@ -115,20 +90,16 @@ function rewriteModelPaths(config: Record<string, unknown>): void {
   }
 }
 
-/** 尝试把旧密文解回明文；失败返回 null（明文 / 空 / 跨机器密文都按失败处理）。 */
 function tryDecrypt(value: string): string | null {
   if (!value) return null
-  if (!safeStorage.isEncryptionAvailable()) return value // 一直没加密过，明文即原文
+  if (!safeStorage.isEncryptionAvailable()) return value
   try {
     return safeStorage.decryptString(Buffer.from(value, 'base64'))
   } catch {
-    // 旧 Tauri 版存的是裸 DPAPI blob（无 safeStorage 的 v10 前缀），
-    // 借 .NET ProtectedData 直解（同用户作用域），密文走 stdin 避免进命令行
     return dpapiUnprotect(value)
   }
 }
 
-/** PowerShell 调 .NET CryptUnprotectData；仅 Windows，一次性迁移用。 */
 function dpapiUnprotect(base64: string): string | null {
   if (process.platform !== 'win32') return null
   const script =
@@ -159,12 +130,12 @@ function migrateChatHistory(dataRoot: string): void {
     try {
       entries = fs.readdirSync(srcDir, { withFileTypes: true })
     } catch {
-      continue // 不存在，跳过
+      continue
     }
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.json')) continue
       const target = path.join(targetDir, entry.name)
-      if (fs.existsSync(target)) continue // 不覆盖新数据
+      if (fs.existsSync(target)) continue
       fs.mkdirSync(targetDir, { recursive: true })
       fs.copyFileSync(path.join(srcDir, entry.name), target)
       logBus.info('chat', `已迁移会话历史: ${entry.name}`)
@@ -172,10 +143,6 @@ function migrateChatHistory(dataRoot: string): void {
   }
 }
 
-/**
- * 把 fallback 的字段填进 base：只补 base 里 undefined / null / 空串的位置，
- * 递归对象；数组不合并（整体以最新为准）。用于多份旧配置的按字段合并。
- */
 function mergeInto(base: unknown, fallback: unknown): void {
   if (typeof base !== 'object' || base === null) return
   if (typeof fallback !== 'object' || fallback === null || Array.isArray(base)) return

@@ -1,13 +1,3 @@
-/**
- * LLM 客户端 facade：把 IPC 层抽象的 LLMRequest 路由到具体适配器。
- *
- * 现在只负责：
- * - 合并全局 config.llm + request.overrides → 最终 LLMConfig
- * - 选 adapter（OpenAI 兼容 vs Anthropic）
- * - 维护 streamId → AbortController 映射用于 abort
- * - 把适配器的 onContent / onReasoning 回调桥接到 webContents.send
- */
-
 import type { LLMConfig, LLMRequest, LLMResponse } from '@shared/types'
 import type { BrowserWindow } from 'electron'
 import { readConfig } from './configStore'
@@ -26,7 +16,6 @@ function resolveSettings(request: LLMRequest): LLMConfig {
 }
 
 function describeMessages(messages: LLMRequest['messages']): string {
-  // 多模态消息的 content 是片段数组：文本片段拼出预览，图片折叠成 [图片] 标记
   return messages
     .map((m, i) => {
       const text =

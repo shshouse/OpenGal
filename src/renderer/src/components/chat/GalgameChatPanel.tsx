@@ -1,14 +1,3 @@
-/**
- * 移动端 Galgame 式对话组件。
- *
- * 布局：
- * - 全屏人物（Live2D 由外层 App 渲染，本组件只负责底部对话框）
- * - 底部半透明对话框：角色名 + 最后一句台词 + 输入框
- * - 点击对话框区域可展开历史对话（上滑查看更多）
- *
- * 复用 chatStore + pipeline，与桌面端 ChatPanel 同源。
- */
-
 import * as React from 'react'
 import { Send, ChevronUp, ChevronDown, Square, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +8,7 @@ import { useChatPipeline } from '@/features/pipeline/useChatPipeline'
 import { pipelineBus } from '@/features/pipeline'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
 import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
+import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directorWorker'
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { MicButton } from './MicButton'
@@ -45,35 +35,40 @@ export function GalgameChatPanel() {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
 
-  // 流式内容：拼成当前显示文本
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
 
-  // 显示最后一句（历史模式显示全部）
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
   const displayText = streamingDisplay
     || (lastAssistant ? extractAssistantDisplayText(lastAssistant.content as string) : '')
   const displayName = character?.displayName ?? character?.name ?? 'OpenGal'
 
-  // 历史展开时自动滚到底
   React.useEffect(() => {
     if (historyOpen && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [historyOpen, messages.length, streamingSegments.length])
 
-  // 语音识别结果：按配置自动发送或填入输入框（与桌面 ChatPanel 同源逻辑）
   React.useEffect(() => {
     setASRFinalCallback((text) => {
       if (!text.trim()) return
       window.opengal.config.get().then((res) => {
-        if (res.data?.asr?.autoSend !== false) {
+        const asr = res.data?.asr
+        if (asr?.directorEnabled) {
+          offerUtterance(text)
+          return
+        }
+        if (asr?.autoSend !== false) {
           send(text.trim())
         } else {
           setDraft((prev) => (prev ? prev + ' ' : '') + text.trim())
         }
       })
     })
-    return () => setASRFinalCallback(null)
+    setDirectorDispatch((input) => send(input.text))
+    return () => {
+      setASRFinalCallback(null)
+      setDirectorDispatch(null)
+    }
   }, [send])
 
   function handleSend(): void {

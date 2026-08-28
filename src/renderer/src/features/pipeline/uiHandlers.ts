@@ -1,13 +1,3 @@
-/**
- * UIWorker 的默认 handler 集合。对齐 RachelForster `core/handlers/ui_message_handler.py`。
- *
- * 当前最小实现：
- * - DefaultDialogUiHandler：把对话片段送到 chatStore + 触发 Live2D 表情 + 通过 model.speak 播放音频
- *
- * 后续（M3 AVG 演出层）会增加：
- * - ChainOfThoughtUiHandler / OptionsUiHandler / BgmUiHandler / SceneUiHandler 等
- */
-
 import type { TTSOutputMessage } from '@shared/messages'
 import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useASRStore } from '@/features/asr/asrStore'
@@ -27,19 +17,6 @@ export function stopFallbackAudio(): void {
   }
 }
 
-/**
- * 默认对话 handler：处理所有「非系统消息」的演出部分。
- *
- * 注意：streamingSegments 的累积**不在这里**做——它由 `startChatStreamBridge`
- * 在 emit('llm:dialog') 时同步完成。这里只负责"演出"：切表情 + 播放 audio。
- * 这样文本落盘不会被 audio 播放阻塞，避免 finalize 早于 segments 累积。
- *
- * 流程：
- * 1. applyEmotion 切 Live2D 表情（面部）
- * 2. playMotionGroup 播 LLM 自主决定的肢体动作（身体），在 speak 前触发，
- *    此刻上一句音频已播完（链路串行），FORCE 不会切到在播音频
- * 3. 有音频 → model.speak 驱动 lipsync；无音频 → 跳过
- */
 export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> {
   canHandle(msg: TTSOutputMessage): boolean {
     return !msg.isSystem

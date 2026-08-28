@@ -1,11 +1,3 @@
-/**
- * 左侧导航栏（桌面端）。
- *
- * 竖排图标 + 文字标签：设置 / 日志 + 快捷开关（桌宠、人物显隐）。
- * 设置是覆盖在当前页上的浮层（App 渲染 SettingsOverlay），点击只负责唤起；
- * 日志是全局模态浮层（LogsPanel），点击只负责唤起。两者都不切换主页面。
- */
-
 import * as React from 'react'
 import { Settings, Terminal, Cat, Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'

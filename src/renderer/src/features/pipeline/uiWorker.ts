@@ -1,11 +1,3 @@
-/**
- * UIWorker：消费 `tts:output`，按 handler chain 派发到具体的演出器（对话气泡 / Live2D / 立绘 / BGM ...）。
- *
- * 对齐 RachelForster 的 `UIWorker` (`core/runtime/workers.py`) + `ui_message_handler.py`：
- * - 当前最小实现只挂一个 DefaultDialogUiHandler
- * - 串行执行：保证音频按入队顺序播放（与 RachelForster 的 audio_path_queue 等价）
- */
-
 import type { TTSOutputMessage } from '@shared/messages'
 import { HandlerChain, type MessageHandler } from './handlerChain'
 import { pipelineBus } from './pipelineBus'
@@ -35,7 +27,6 @@ export function startUIWorker(extraHandlers: MessageHandler<TTSOutputMessage>[] 
     queue = []
     processing = false
     stopFallbackAudio()
-    // Live2D 的 stopSpeaking 由 ChatPanel 的 stopTTS 显式触发
   })
 
   unsubscribers = [offOutput, offAbort]

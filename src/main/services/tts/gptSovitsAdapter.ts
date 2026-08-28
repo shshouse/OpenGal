@@ -1,16 +1,3 @@
-/**
- * GPT-SoVITS TTS 适配器。
- *
- * 协议：GPT-SoVITS api_v2.py
- * - GET /set_gpt_weights?weights_path=... 切换 GPT .ckpt
- * - GET /set_sovits_weights?weights_path=... 切换 SoVITS .pth
- * - POST /tts 合成（body 含 ref_audio_path / prompt_text / text 等）
- *
- * 与原 ttsClient.ts 的差异：
- * - 增加角色卡感知：当请求附带 RoleCardEntry 时，从角色目录解析 weights / 参考音频
- * - 角色卡 voice.configRef 指向的 JSON 与全局 TTSConfig 合并（角色级覆盖全局）
- */
-
 import fs from 'node:fs'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
@@ -35,10 +22,6 @@ interface ResolvedTTSSettings {
 
 export class GptSovitsAdapter implements TTSAdapter {
   readonly provider = 'gpt-sovits'
-
-  /**
-   * Map<baseURL, {gpt, sovits}>：记录每个 server 上当前加载的权重，避免重复 set。
-   */
   private appliedWeights = new Map<string, { gpt?: string; sovits?: string }>()
 
   reset(): void {
@@ -115,27 +98,12 @@ export class GptSovitsAdapter implements TTSAdapter {
       clearTimeout(timer)
     }
   }
-
-  /**
-   * 合成请求里的 TTSConfig 优先级（从高到低）：
-   * 1. request.overrides
-   * 2. 角色卡 voice.configRef 指向的 JSON（如 voice/gpt-sovits/config.json）
-   * 3. AppConfig.tts（globalConfig）——仅在无角色卡时使用
-   *
-   * 参考文本例外：它与参考音频必须成对。有角色卡时以卡为准，卡里没写就留空
-   * （无参考文本模式），不回落全局。
-   *
-   * 角色卡 voice 配置里的相对路径会用 resolveRoleVoiceFile 解析（相对角色目录）。
-   * 缺角色卡时回退到 resolveVoicePath（全局 voice 根目录）。
-   */
   private resolveSettings(req: TTSGenerateRequest): ResolvedTTSSettings {
     const cfg = req.globalConfig
     if (!cfg.enabled) throw new Error('TTS is disabled')
 
     const card = req.card
     const cardVoice = card ? readRoleVoiceConfig(card) : null
-
-    // 合并：global → card voice → request overrides
     const merged: Record<string, unknown> = {
       baseURL: cfg.baseURL,
       gptModel: cfg.gptModelRelPath,
@@ -163,9 +131,6 @@ export class GptSovitsAdapter implements TTSAdapter {
           merged[key] = cardVoice[key]
         }
       }
-      // 参考文本必须与参考音频来自同一张卡：卡里没写就留空（GPT-SoVITS 无参考
-      // 文本模式，TTS_pipeline 对空 prompt_text 走 no_prompt_text 分支），绝不
-      // 回落全局配置——全局文本配本卡音频等于给模型"印错的说明书"。
       if (!cardVoice.referenceText) merged.referenceText = ''
     }
     if (req.overrides) {
@@ -201,8 +166,6 @@ export class GptSovitsAdapter implements TTSAdapter {
     if (!fs.existsSync(refAbs)) throw new Error(`Reference audio not found: ${refAbs}`)
 
     const referenceText = String(merged.referenceText || '')
-    // 允许为空：无参考文本模式下服务端走 no_prompt_text 分支（质量略降但稳定），
-    // 比配错文本好。v3/v4 权重不支持该模式时服务端会返回明确错误。
 
     return {
       baseURL,
@@ -242,14 +205,6 @@ export class GptSovitsAdapter implements TTSAdapter {
 function normalizeBaseURL(url: string): string {
   return (url || '').replace(/\/+$/, '')
 }
-
-/**
- * 包装 fetch：当连接失败时，把 Node 隐藏在 `cause` 里的底层错误码（ECONNREFUSED /
- * ETIMEDOUT / ENOTFOUND 等）抽到 message 顶层，并附上 baseURL，方便排错。
- *
- * Node fetch 在连接被拒/超时/DNS 失败时只会抛出 `TypeError: fetch failed`，
- * 真正的原因藏在 `error.cause.code`，外层日志看不到，常被误判为"代码 bug"。
- */
 async function fetchReadable(
   input: string,
   init: RequestInit,

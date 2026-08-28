@@ -61,6 +61,9 @@ export const IpcChannels = {
     error: 'asr:error',
     status: 'asr:status'
   },
+  screen: {
+    capture: 'screen:capture'
+  },
   logs: {
     list: 'logs:list',
     clear: 'logs:clear',

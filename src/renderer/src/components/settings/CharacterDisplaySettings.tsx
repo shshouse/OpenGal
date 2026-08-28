@@ -1,14 +1,3 @@
-/**
- * 角色显示设置：调整 Live2D 模型的缩放与位置。
- *
- * - scale: 0.2 – 3.0，相对 92% 画布高度的乘数
- * - xRatio: 0 – 1，水平位置比例
- * - yRatio: 0 – 1，垂直位置比例
- *
- * 这些值通过 config.model 持久化到 electron-store。
- * 也支持在右侧面板直接拖拽移动 + 滚轮缩放（由 Live2DStage 驱动）。
- */
-
 import * as React from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -70,8 +59,6 @@ export function CharacterDisplaySettings({
   const [yRatio, setYRatio] = React.useState(model?.canvasYRatio ?? DEFAULTS.yRatio)
   const [saving, setSaving] = React.useState(false)
 
-  // Sync from external changes (e.g., when user drags on the canvas,
-  // the parent updates model props).
   React.useEffect(() => {
     if (model) {
       setScale(model.scale)
@@ -85,7 +72,6 @@ export function CharacterDisplaySettings({
     nextX: number,
     nextY: number
   ): Promise<void> {
-    // 优先使用已解析的 model（来自角色卡），其次回退到 config.model
     const base = model ?? config?.model
     if (!base) return
     const updated: Live2DModelConfig = {

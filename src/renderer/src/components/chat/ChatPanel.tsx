@@ -13,6 +13,7 @@ import { getLive2DModel } from '@/features/live2d/live2dBus'
 import { isMobile } from '@/lib/utils'
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
+import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directorWorker'
 import { MicButton } from './MicButton'
 import { BusyBar } from './BusyBar'
 import { ToolCallList } from './ToolCallList'
@@ -47,14 +48,23 @@ export function ChatPanel() {
     setASRFinalCallback((text) => {
       if (!text.trim()) return
       window.opengal.config.get().then((res) => {
-        if (res.data?.asr?.autoSend !== false) {
+        const asr = res.data?.asr
+        if (asr?.directorEnabled) {
+          offerUtterance(text)
+          return
+        }
+        if (asr?.autoSend !== false) {
           send(text.trim())
         } else {
           setDraft((prev) => (prev ? prev + ' ' : '') + text.trim())
         }
       })
     })
-    return () => setASRFinalCallback(null)
+    setDirectorDispatch((input) => send(input.text))
+    return () => {
+      setASRFinalCallback(null)
+      setDirectorDispatch(null)
+    }
   }, [send])
 
   React.useEffect(() => {

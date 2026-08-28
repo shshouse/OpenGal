@@ -1,27 +1,16 @@
-/**
- * 图片附件：粘贴 / 选图 → data:base64 URL 暂存，发送时随 user 消息进多模态 content。
- *
- * 复用于桌面 ChatPanel 与移动 GalgameChatPanel：
- * - usePendingImages：管理待发送图片列表 + 粘贴/文件读取
- * - PendingImagesBar：输入框上方的待发送缩略图条（可单张移除）
- */
-
 import * as React from 'react'
 import { X } from 'lucide-react'
 
 const MAX_IMAGES = 6
-/** 单张图片超过该体积（字节）则提示过大（base64 会再膨胀 ~33%） */
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_IMAGE_DIMENSION = 1568
 
 export interface PendingImages {
   images: string[]
-  /** 粘贴事件处理：直接挂在 Textarea 的 onPaste 上 */
   handlePaste: (e: React.ClipboardEvent) => void
-  /** 文件选择处理：挂在隐藏 <input type="file"> 的 onChange 上 */
   handleFiles: (files: FileList | null) => void
   remove: (index: number) => void
   clear: () => void
-  /** 读取错误/超限提示（短暂展示） */
   notice: string | null
 }
 
@@ -36,6 +25,19 @@ export function usePendingImages(): PendingImages {
     noticeTimer.current = setTimeout(() => setNotice(null), 2500)
   }, [])
 
+  const appendImage = React.useCallback(
+    (url: string) => {
+      setImages((prev) => {
+        if (prev.length >= MAX_IMAGES) {
+          flash(`最多附带 ${MAX_IMAGES} 张图片`)
+          return prev
+        }
+        return [...prev, url]
+      })
+    },
+    [flash]
+  )
+
   const readFile = React.useCallback(
     (file: File) => {
       if (!file.type.startsWith('image/')) return
@@ -45,18 +47,26 @@ export function usePendingImages(): PendingImages {
       }
       const reader = new FileReader()
       reader.onload = () => {
-        const url = reader.result as string
-        setImages((prev) => {
-          if (prev.length >= MAX_IMAGES) {
-            flash(`最多附带 ${MAX_IMAGES} 张图片`)
-            return prev
+        const raw = reader.result as string
+        const img = new Image()
+        img.onload = () => {
+          const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.width, img.height))
+          if (scale === 1 && file.size <= 512 * 1024) {
+            appendImage(raw)
+            return
           }
-          return [...prev, url]
-        })
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.round(img.width * scale)
+          canvas.height = Math.round(img.height * scale)
+          canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height)
+          appendImage(canvas.toDataURL('image/jpeg', 0.85))
+        }
+        img.onerror = () => appendImage(raw)
+        img.src = raw
       }
       reader.readAsDataURL(file)
     },
-    [flash]
+    [flash, appendImage]
   )
 
   const handlePaste = React.useCallback(
@@ -71,7 +81,6 @@ export function usePendingImages(): PendingImages {
           if (file) readFile(file)
         }
       }
-      // 有图片时才拦截默认粘贴（避免抢占纯文本粘贴）
       if (hasImage) e.preventDefault()
     },
     [readFile]
@@ -94,7 +103,6 @@ export function usePendingImages(): PendingImages {
   return { images, handlePaste, handleFiles, remove, clear, notice }
 }
 
-/** 待发送图片预览条：缩略图 + 单张移除按钮 */
 export function PendingImagesBar({ pending }: { pending: PendingImages }) {
   if (pending.images.length === 0 && !pending.notice) return null
   return (

@@ -1,11 +1,3 @@
-/**
- * 设置浮层：以窗口形式覆盖在当前页面之上，而不是切换整个主区域。
- *
- * - 半透明背板 + 居中窗口，点击背板或按 Esc 关闭
- * - 窗口内复用 SettingsCenter（Tabs 组织的各设置分页）
- * - 桌面端主页面（人物 + 对话框）始终保持在底层可见
- */
-
 import * as React from 'react'
 import { X } from 'lucide-react'
 import { SettingsCenter } from './SettingsCenter'
@@ -20,7 +12,6 @@ interface SettingsOverlayProps {
 }
 
 export function SettingsOverlay({ open, onClose, config, model, onSave }: SettingsOverlayProps) {
-  // Esc 关闭
   React.useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent): void => {

@@ -132,6 +132,9 @@ const api = {
       return () => ipcRenderer.off(IpcChannels.asr.final, handler)
     }
   },
+  screen: {
+    capture: () => invoke<string>(IpcChannels.screen.capture)
+  },
   logs: {
     list: () => invoke<LogEntry[]>(IpcChannels.logs.list),
     clear: () => invoke(IpcChannels.logs.clear),
@@ -151,6 +154,5 @@ export type OpenGalAPI = typeof api
 if (process.contextIsolated) {
   contextBridge.exposeInMainWorld('opengal', api)
 } else {
-  // Fallback for non-isolated contexts (not used in production)
   ;(globalThis as unknown as { opengal: OpenGalAPI }).opengal = api
 }

@@ -1,10 +1,3 @@
-/**
- * LLM 全局设置面板。
- *
- * 角色卡可以通过 `RoleCard.llm` 字段覆盖这里设置的任何字段；
- * 这里维护的是所有未在角色卡上指定字段的回退默认值。
- */
-
 import * as React from 'react'
 import { Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -72,7 +65,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   function handleProviderChange(next: string): void {
     const value = next as LLMProvider
     setProvider(value)
-    // 切 provider 时若 baseURL 是另一供应商的默认值，则自动替换为新供应商默认值
     const matchedDefault = PROVIDER_PRESETS.some((p) => p.defaultBaseURL === baseURL)
     if (!baseURL || matchedDefault) {
       const preset = PROVIDER_PRESETS.find((p) => p.value === value)

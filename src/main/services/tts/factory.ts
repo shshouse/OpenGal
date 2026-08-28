@@ -1,7 +1,3 @@
-/**
- * TTS 适配器工厂。按 provider 选具体适配器，缺省走 gpt-sovits。
- */
-
 import type { TTSAdapter } from './types'
 import { GptSovitsAdapter } from './gptSovitsAdapter'
 import { GenieAdapter } from './genieAdapter'

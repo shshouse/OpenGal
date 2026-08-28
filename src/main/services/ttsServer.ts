@@ -94,8 +94,6 @@ export async function startTTSServer(): Promise<TTSServerStatus> {
     appendLog(`Process error: ${err.message}`)
     logBus.error('tts-server', `进程错误: ${err.message}`)
   })
-
-  // Wait for port to be ready (max 90s)
   const deadline = Date.now() + 90_000
   while (Date.now() < deadline) {
     if (!childProcess || childProcess.exitCode !== null) {
@@ -129,7 +127,6 @@ export async function stopTTSServer(): Promise<TTSServerStatus> {
   const proc = childProcess
   try {
     if (process.platform === 'win32' && proc.pid) {
-      // Kill the whole process tree (python may spawn workers)
       spawn('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { windowsHide: true })
     } else {
       proc.kill('SIGTERM')
@@ -140,8 +137,6 @@ export async function stopTTSServer(): Promise<TTSServerStatus> {
   childProcess = null
   return { running: false }
 }
-
-// Ensure cleanup on app quit
 export function registerTTSServerCleanup(): void {
   const cleanup = (): void => {
     if (childProcess && childProcess.exitCode === null && childProcess.pid) {

@@ -1,25 +1,8 @@
-/**
- * Anthropic Claude 适配器。
- *
- * 参考协议：https://docs.anthropic.com/en/api/messages-streaming
- *
- * 与 OpenAI 协议差异：
- * - endpoint：/v1/messages
- * - 请求头：x-api-key + anthropic-version
- * - 系统提示作为顶层 `system` 字段，不在 messages 数组中
- * - messages 只能交替 user/assistant，第一条必须是 user
- * - 流式 SSE 多种 event：message_start / content_block_start / content_block_delta /
- *   content_block_stop / message_delta / message_stop / ping
- * - thinking content block（Claude 4 思考模式）走 `thinking` 类型
- */
-
 import type { ChatMessage, LLMResponse } from '@shared/types'
 import type { LLMAdapter, LLMChatRequest, LLMStreamCallbacks } from './types'
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com'
 const API_VERSION = '2023-06-01'
-
-/** Anthropic 多模态 content block：文本 / 图片（base64 source 或 url source）。 */
 type AnthropicContentBlock =
   | { type: 'text'; text: string }
   | {
@@ -28,12 +11,6 @@ type AnthropicContentBlock =
         | { type: 'base64'; media_type: string; data: string }
         | { type: 'url'; url: string }
     }
-
-/**
- * 把 OpenAI 兼容的 content 转成 Anthropic block 数组。
- * string 原样返回；多模态数组里 text 片段直通，image_url 转 image block：
- * data:base64 URL -> base64 source，http(s) URL -> url source。
- */
 function convertContent(content: ChatMessage['content']): string | AnthropicContentBlock[] {
   if (!Array.isArray(content)) return content
   const blocks: AnthropicContentBlock[] = []
@@ -55,8 +32,6 @@ function convertContent(content: ChatMessage['content']): string | AnthropicCont
   }
   return blocks
 }
-
-/** 解析 `data:image/png;base64,xxxx` -> [mediaType, data]；非 data URL 返回 null。 */
 function parseDataImageUrl(url: string): [string, string] | null {
   if (!url.startsWith('data:')) return null
   const rest = url.slice('data:'.length)
@@ -78,13 +53,9 @@ function splitMessages(messages: ChatMessage[]): {
     if (m.role === 'system') {
       if (typeof m.content === 'string') systemParts.push(m.content)
     } else if (m.role === 'user' || m.role === 'assistant') {
-      // tool 消息目前 Anthropic 适配器不实现 tool_use 回传，
-      // 把 tool 结果作为 user 消息注入（折中方案，后续补齐 tool_use blocks）
       conv.push({ role: m.role, content: convertContent(m.content) })
     }
-    // role === 'tool' 暂时被丢弃：当前未实现 Anthropic tool_use 协议
   }
-  // Claude 要求第一条必须是 user，并且 user/assistant 交替；这里只保证第一条不是 assistant。
   while (conv.length > 0 && conv[0].role === 'assistant') {
     conv.shift()
   }
@@ -171,16 +142,12 @@ export class AnthropicAdapter implements LLMAdapter {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
-    // Claude 流通过 content_block_start 声明当前块的 type，content_block_delta 才是增量。
-    // 我们记录当前块是 text 还是 thinking。
     let currentBlockType: 'text' | 'thinking' | 'other' = 'other'
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
-
-      // SSE 事件以 "\n\n" 分隔；每个事件可能有 "event: xxx\ndata: {...}" 两行
       const events = buffer.split('\n\n')
       buffer = events.pop() ?? ''
 
@@ -204,7 +171,6 @@ export class AnthropicAdapter implements LLMAdapter {
           } else if (evt.type === 'content_block_delta') {
             const d = evt.delta
             if (!d) continue
-            // text_delta -> 正文；thinking_delta -> reasoning
             if (d.type === 'text_delta' && d.text) {
               callbacks.onContent(d.text)
             } else if (d.type === 'thinking_delta' && d.thinking) {

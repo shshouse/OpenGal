@@ -5,7 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// ponytail: 移动端检测。Capacitor UA / 窗口宽度 < 768 / URL 参数 ?mobile=1
 export function isMobile(): boolean {
   if (typeof window === 'undefined') return false
   if (new URLSearchParams(window.location.search).get('mobile') === '1') return true

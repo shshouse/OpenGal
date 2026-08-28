@@ -1,17 +1,3 @@
-/**
- * main 进程的日志总线。
- *
- * 设计目标：
- * - 所有 main 端关键操作（LLM 请求/响应/错误、TTS 服务进程 stdout、IPC 失败等）
- *   都走 logBus.log()，统一打入环形缓冲；并广播到已注册的 webContents，让
- *   renderer 端 UI 实时显示。
- * - 现有 console.log/error 不强制改造（保留 IDE 终端体验），关键节点显式
- *   logBus 调用即可。
- * - 环形缓冲限制 2000 条，超出从头丢弃，避免长跑应用内存膨胀。
- *
- * Renderer 端通过 logs:list 拉一次历史，logs:entry push 接收实时增量。
- */
-
 import type { WebContents } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { LogEntry, LogLevel } from '@shared/log'
@@ -65,7 +51,6 @@ function push(level: LogLevel, source: string, message: string, details?: string
   }
   buffer.push(entry)
   if (buffer.length > MAX_ENTRIES) buffer.splice(0, buffer.length - MAX_ENTRIES)
-  // 同步打到主进程 stdout：npm run dev 时终端可直接看到全部日志（含 renderer 桥接的）
   const line = `[${level}] [${source}] ${message}`
   if (level === 'error') console.error(details ? `${line}\n${details}` : line)
   else console.log(details ? `${line}\n${details}` : line)

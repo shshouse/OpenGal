@@ -24,8 +24,9 @@ export const useASRStore = create<ASRState>((set, get) => ({
     }
     const config = await window.opengal.config.get()
     const sampleRate = config.data?.asr?.sampleRate ?? 16000
+    const deviceId = config.data?.asr?.deviceId || undefined
     try {
-      await startMicCapture(sampleRate)
+      await startMicCapture(sampleRate, deviceId)
     } catch (e) {
       await window.opengal.asr.stop()
       set({ error: (e as Error).message })

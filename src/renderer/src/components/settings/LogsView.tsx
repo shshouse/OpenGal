@@ -1,8 +1,3 @@
-/**
- * 内嵌日志视图：设置页内的日志查看面板。
- * 复用 useLogsStore，移动端/桌面端通用。无浮动遮罩，适合嵌在设置 Tab 里。
- */
-
 import * as React from 'react'
 import { Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -44,10 +39,9 @@ export function LogsView() {
     })
   }, [entries, levels, query])
 
-  // 自动滚到底
   React.useEffect(() => {
     const el = viewportRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (el) el.scrollTop = 0
   }, [filtered.length])
 
   function toggleLevel(level: LogLevel): void {
@@ -110,7 +104,10 @@ export function LogsView() {
         {filtered.length === 0 ? (
           <div className="py-6 text-center text-muted-foreground">暂无日志</div>
         ) : (
-          filtered.map((e) => (
+          filtered
+            .slice()
+            .reverse()
+            .map((e) => (
             <div key={e.id} className="flex gap-1.5 py-0.5">
               <span className="shrink-0 text-muted-foreground/70">{formatLogTimestamp(e.timestamp)}</span>
               <span className={cn('w-8 shrink-0 text-right font-semibold', levelStyles[e.level])}>

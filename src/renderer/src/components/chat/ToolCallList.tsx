@@ -1,13 +1,3 @@
-/**
- * 工具调用折叠块：嵌在 assistant 气泡下方，列出本轮所有 LLM 主动发起的工具调用。
- *
- * 数据来源是 message.toolCalls（落盘快照），不是全局 store——
- * 这样历史 turn 也能查看；store 仅用于"还在跑"的当前轮（由 ToolCallLive 组件订阅）。
- *
- * 设计：常驻可见的紧凑头部（"调用了 N 个工具"），点击展开每条调用的
- * 工具名 / 参数 / 返回 / 耗时 / 错误状态。颜色与成功失败状态关联。
- */
-
 import * as React from 'react'
 import { ChevronDown, ChevronRight, Wrench, CircleAlert, CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -32,10 +22,6 @@ interface ToolCallCardProps {
   record: ToolCallRecord
 }
 
-/**
- * 折叠块的展开状态独立于 store，存组件内即可
- * （每条 message 一次性挂载，不需要跨消息共享）。
- */
 function ToolCallCard({ record }: ToolCallCardProps): React.ReactElement {
   const [expanded, setExpanded] = React.useState(false)
   const StatusIcon = record.ok ? CircleCheck : CircleAlert

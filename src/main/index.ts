@@ -12,9 +12,6 @@ import { logBus } from './services/logBus'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
-
-// 调试用：OPENGAL_CDP_PORT=9223 npm run dev 可开启远程调试端口，
-// 便于外部脚本通过 CDP 驱动/检查渲染层（不设置则完全无影响）
 if (process.env.OPENGAL_CDP_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.OPENGAL_CDP_PORT)
 }
@@ -28,8 +25,6 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_event, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  // Re-instantiate after ready so app.getAppPath resolves in production
   windows = createWindowManager('../renderer/index.html')
   registerIpc(windows)
   logBus.info('app', 'OpenGal 主进程启动')

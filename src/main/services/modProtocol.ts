@@ -25,11 +25,6 @@ function mimeFromPath(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
   return MIME_MAP[ext] ?? 'application/octet-stream'
 }
-
-/**
- * Must be called BEFORE app.whenReady() to privilege the scheme so it can be
- * treated as standard/secure and used with fetch/XHR by the renderer.
- */
 export function registerModProtocolSchemes(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -45,10 +40,6 @@ export function registerModProtocolSchemes(): void {
     }
   ])
 }
-
-/**
- * Must be called AFTER app.whenReady() to wire up the handler.
- */
 export function registerModProtocolHandler(): void {
   protocol.handle(CUSTOM_SCHEME, async (request) => {
     const absPath = modUrlToAbsPath(request.url)

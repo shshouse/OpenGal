@@ -1,10 +1,3 @@
-/**
- * 工具注册表：定义（OpenAI function schema）+ 执行器（本地副作用）。
- *
- * 工具必须是无状态或可重入的；执行器签名 (args) => Promise<string>，
- * 返回字符串会作为 role: 'tool' 消息回传给 LLM。
- */
-
 import { logBus } from '../logBus'
 import type { ToolDefinition } from '@shared/types'
 

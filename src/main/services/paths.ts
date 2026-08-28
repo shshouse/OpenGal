@@ -1,12 +1,6 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-
-/**
- * Resolve the repo root where `mods/` lives.
- * Dev: app.getAppPath() is the project root.
- * Packaged: assets ship via extraResources -> process.resourcesPath.
- */
 export function getModRoot(): string {
   if (process.env.OPENGAL_MOD_ROOT && fs.existsSync(process.env.OPENGAL_MOD_ROOT)) {
     return process.env.OPENGAL_MOD_ROOT
@@ -25,17 +19,6 @@ export function getModRoot(): string {
   }
   return candidates[0]
 }
-
-/**
- * 便携数据根目录：配置 / 会话历史等用户数据统一落在这里——
- * 装在哪放哪，不写进 C 盘系统目录。
- *
- * 解析顺序：
- * 1. OPENGAL_DATA_DIR 环境变量（测试/多实例用）
- * 2. dev：仓库根 data/
- * 3. 安装目录旁 data/（实测可写才认，Program Files 只读时探针失败）
- * 4. userData 兜底（极少数只读安装位）
- */
 let cachedDataRoot: string | null = null
 
 export function getDataRoot(): string {
@@ -58,8 +41,6 @@ export function getDataRoot(): string {
   cachedDataRoot = fallback
   return fallback
 }
-
-/** 确认目录可写：递归建目录 + 探针文件写删。失败返回 false（如 Program Files 只读）。 */
 function ensureWritableDir(dir: string): boolean {
   try {
     fs.mkdirSync(dir, { recursive: true })
@@ -84,11 +65,6 @@ export function toModUrl(absPath: string): string {
     .join('/')
   return `${CUSTOM_SCHEME}://${MOD_HOST}/${encoded}`
 }
-
-/**
- * Resolve an absolute filesystem path from the custom URL.
- * Returns null if the URL doesn't belong to this scheme or escapes the root.
- */
 export function modUrlToAbsPath(url: string): string | null {
   let parsed: URL
   try {
@@ -105,12 +81,6 @@ export function modUrlToAbsPath(url: string): string | null {
   if (resolved !== root && !resolved.startsWith(rootWithSep)) return null
   return resolved
 }
-
-/**
- * 全局 voice 根目录（兜底用）：取 mods/Role 下第一个角色目录的 voice/gpt-sovits。
- * 不写死具体角色；正常路径下语音文件按角色卡目录解析（见 roleCardLoader.resolveRoleVoiceFile），
- * 这里只在无角色卡上下文的场景（如设置页全局测试）兜底。
- */
 function getFirstRoleVoiceDir(): string | null {
   const roleRoot = path.join(getModRoot(), 'Role')
   try {

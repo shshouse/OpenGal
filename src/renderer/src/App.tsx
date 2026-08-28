@@ -15,11 +15,6 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { isMobile } from '@/lib/utils'
 
-/**
- * 把全局持久化的变换（scale/xRatio/canvasYRatio）合并到角色卡解析出的模型配置上。
- * 仅当持久化值属于同一个模型（modelPath 相同）时才套用——否则上一个角色调的位置/缩放
- * 会串到当前角色，导致人物被放大到只剩局部、头被裁掉。不同角色时用角色卡自带默认值。
- */
 function mergeSavedTransform(
   cardConfig: Live2DModelConfig,
   saved: Live2DModelConfig | null | undefined
@@ -49,10 +44,8 @@ export default function App() {
     return () => window.removeEventListener('opengal:open-settings', handler)
   }, [])
 
-  // 设置浮层开关：桌面端为居中窗口浮层，移动端为全屏浮层（均覆盖在当前页之上）
   const [showSettings, setShowSettings] = React.useState(false)
 
-  // 启动流水线（LLMWorker / TTSWorker / UIWorker）
   React.useEffect(() => {
     const handle = startPipeline()
     return () => handle.dispose()
@@ -65,9 +58,7 @@ export default function App() {
       const cfg = await window.opengal.config.get()
       if (cfg.success && cfg.data) {
         setConfig(cfg.data)
-        // 加载角色卡列表，按 config.activeCharacterId 选中（缺省自动取第一张）
         await loadCharacters(cfg.data.activeCharacterId)
-        // 模型加载优先级：角色卡 live2d 配置 + 用户持久化覆盖 > 全局配置 > 默认模型
         const active = useCharacterStore.getState().getActive()
         if (active) {
           const fromCard = await window.opengal.model.resolveFromCard(active.id)
@@ -88,7 +79,6 @@ export default function App() {
     })()
   }, [loadCharacters])
 
-  // 切换角色时从角色卡 live2d 配置重新解析模型
   React.useEffect(() => {
     if (!activeId) return
     void (async () => {
@@ -97,7 +87,6 @@ export default function App() {
         const currentCfg = (await window.opengal.config.get()).data
         setModel(mergeSavedTransform(fromCard.data, currentCfg?.model))
       } else {
-        // 角色卡无 live2d 配置时回退到全局配置
         const cfg = await window.opengal.config.get()
         if (cfg.success && cfg.data?.model?.modelUrl) {
           setModel(cfg.data.model)
@@ -110,7 +99,6 @@ export default function App() {
     const res = await window.opengal.config.set(patch)
     if (!res.success || !res.data) throw new Error(res.error || 'save failed')
     setConfig(res.data)
-    // 如果 patch 包含 model，同步到本地 model 状态，让 Live2DStage 立即重绘
     if (patch.model && model) {
       setModel({
         ...model,
@@ -140,7 +128,6 @@ export default function App() {
     useLogsStore.getState().setPanelOpen(true)
   }
 
-  // Live2DStage 从画布拖拽/滚轮调整位置/缩放的回调
   const handleModelChange = React.useCallback(
     (next: { scale: number; xRatio: number; yRatio: number }) => {
       if (!model) return
@@ -208,7 +195,6 @@ export default function App() {
     )
   }
 
-  // 桌面端：左侧导航栏 + 主区域（人物居中 + 底部对话框）。设置为覆盖浮层，不切换主页面。
   return (
     <div className="flex h-full flex-col">
       <TitleBar />

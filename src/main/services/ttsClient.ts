@@ -1,14 +1,3 @@
-/**
- * TTS 客户端 facade：把 IPC 层抽象的 TTSSpeakRequest 路由到具体适配器。
- *
- * 与改造前相比，把"GPT-SoVITS only"的硬编码搬到 GptSovitsAdapter，
- * 让上层（IPC / pipeline）不再耦合具体引擎。
- *
- * 角色卡感知：
- * - 上层可以传入 `roleCardId`，由 facade 通过 roleCardLoader 拉出 RoleCardEntry
- * - 适配器由 RoleCard.voice.provider 决定（缺省 gpt-sovits）
- */
-
 import type { TTSConfig } from '@shared/types'
 import { readConfig } from './configStore'
 import { getRoleCard } from './roleCardLoader'
@@ -17,7 +6,6 @@ import { logBus } from './logBus'
 
 export interface TTSSpeakRequest {
   text: string
-  /** 显式角色 ID；不传则用 AppConfig.activeCharacterId */
   roleCardId?: string
   overrides?: Partial<TTSConfig>
 }

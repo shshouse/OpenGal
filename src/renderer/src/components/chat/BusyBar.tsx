@@ -1,10 +1,3 @@
-/**
- * 底栏式思维链 / 工具调用进度预览。对齐 RachelForster 的 busy bar：
- * - 模型 reasoning 增量到来时，单行展示（去标签、去多余空白、超长省略）
- * - 一轮 LLM 结束后自动消失
- * - 后续可扩展显示 TTS / 工具调用等其它阶段提示
- */
-
 import * as React from 'react'
 import { Brain } from 'lucide-react'
 import { pipelineBus } from '@/features/pipeline'

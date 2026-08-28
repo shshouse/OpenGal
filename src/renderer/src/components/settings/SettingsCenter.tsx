@@ -1,21 +1,3 @@
-/**
- * 设置中心：左侧导航栏 + 右侧内容区（TraeCode 风格布局）。
- *
- * 当前分页：
- * - 角色：列出 mods/role-card 下的角色卡，切换激活
- * - 显示：人物缩放 / 位置 / 显示开关
- * - LLM：全局供应商 / Base URL / API Key / 模型名
- * - TTS：GPT-SoVITS 服务和参考音频参数（沿用现有 TTSSettings）
- * - STT：ASR 设置
- * - 日志：运行日志查看（复用 LogsPanel 的数据，移动端内嵌）
- *
- * 布局说明：根节点要求父级给出确定高度（flex-1 + min-h-0），
- * 左栏导航不滚动，右栏头部固定、内容区独立滚动。
- * 窄屏（移动端）左栏收起为纯图标。
- *
- * 后续可加：Live2D / 主题 / 快捷键 / 数据导入导出
- */
-
 import * as React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users, Monitor, Sparkles, Volume2, Mic, ScrollText } from 'lucide-react'

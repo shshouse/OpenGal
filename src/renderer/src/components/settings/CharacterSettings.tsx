@@ -1,17 +1,3 @@
-/**
- * 角色管理面板：列出 mods/role-card 下所有角色卡，支持切换激活角色。
- *
- * 当前阶段（M2）只读：
- * - 列出所有 character.json 解析成功的卡
- * - 单选切换激活角色
- * - 展示角色 persona / voice provider / llm provider 简要
- *
- * 后续阶段：
- * - 导入 .char 包（解压到 mods/role-card/）
- * - 在线编辑 persona / voice 配置
- * - 角色间快速切换的全局快捷键
- */
-
 import * as React from 'react'
 import { Users, RefreshCw, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'

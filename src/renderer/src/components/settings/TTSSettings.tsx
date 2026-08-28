@@ -30,10 +30,6 @@ const OUT_LANG_OPTIONS: Array<{ value: string; label: string }> = [
   ...REF_LANG_OPTIONS
 ]
 
-/**
- * TTSConfig 字段 -> 角色卡 voice 配置里的键名。
- * 卡里有该键时，设置界面显示卡值（禁用编辑）；合成时适配器同样以卡优先。
- */
 const CARD_FIELD_MAP: Partial<Record<keyof TTSConfig, string>> = {
   baseURL: 'baseURL',
   gptModelRelPath: 'gptModel',
@@ -48,7 +44,6 @@ const CARD_FIELD_MAP: Partial<Record<keyof TTSConfig, string>> = {
   textSplitMethod: 'textSplitMethod'
 }
 
-/** 标注"该字段来自角色卡"的小标签 */
 function CardTag() {
   return (
     <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">角色卡</span>
@@ -79,18 +74,10 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
   const [serverBusy, setServerBusy] = React.useState(false)
-  /**
-   * 真实健康状态而非仅看 child process pid：
-   * - unknown: 还没探测过
-   * - stopped: 进程未运行
-   * - starting: 进程在但 HTTP 端口还不可达（启动中或已挂死）
-   * - ready:   进程在且 HTTP 端口可达
-   */
   const [health, setHealth] = React.useState<'unknown' | 'stopped' | 'starting' | 'ready'>(
     'unknown',
   )
   const [healthDetail, setHealthDetail] = React.useState<string | null>(null)
-  /** server 进程当前实际监听的端口（启动时绑定的端口），用来检测 baseURL 改了但没重启 */
   const [serverPort, setServerPort] = React.useState<number | null>(null)
   const [logVisible, setLogVisible] = React.useState(false)
   const [logText, setLogText] = React.useState('')
@@ -101,7 +88,6 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
     }
   }, [config])
 
-  // 当前激活角色卡：设置面板要显示"生效值"（卡优先），而不是只显示全局配置
   const activeCharacter = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
   const activeVoiceRef = activeCharacter?.voice?.configRef
   const [cardVoice, setCardVoice] = React.useState<Record<string, unknown> | null>(null)
@@ -125,7 +111,6 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
     }
   }, [activeCharacter?.id, activeVoiceRef])
 
-  /** 该字段是否由角色卡提供（有卡且卡里显式配置了该键） */
   const fromCard = React.useCallback(
     (key: keyof TTSConfig): boolean => {
       if (!cardVoice) return false
@@ -137,7 +122,6 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
     [cardVoice],
   )
 
-  /** 生效值：卡里有就用卡值，否则用全局表单值 */
   const effective = React.useCallback(
     (key: keyof TTSConfig): string | number => {
       const cardKey = CARD_FIELD_MAP[key]
@@ -149,11 +133,6 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
     [cardVoice, form, fromCard],
   )
 
-  /**
-   * 每 3 秒探测一次：进程是否活着（pidAlive）+ HTTP 端口是否可达（portReachable）。
-   * 这样可以正确区分「进程在但服务挂了」的状态——只看进程会被误判为运行中。
-   * 之前 UI 同时显示「运行中」+「连接成功」却 fetch failed 就是这个误判。
-   */
   const probeHealth = React.useCallback(async () => {
     const statusResult = await window.opengal.tts.serverStatus()
     const pidAlive = statusResult.success && statusResult.data?.running === true
@@ -182,11 +161,6 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
   const serverRunning = health === 'ready' || health === 'starting'
 
-  /**
-   * 检测 baseURL 端口和 server 实际监听端口是否一致。不一致意味着用户改了
-   * baseURL 但没有「停止 + 启动」服务让 python 重新 bind——会导致 fetch
-   * 永远连到无人监听的端口（控制台报 ECONNREFUSED）。
-   */
   const formPort = React.useMemo(() => {
     try {
       return Number(new URL(form.baseURL).port) || 9880

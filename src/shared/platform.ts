@@ -1,10 +1,3 @@
-/**
- * 平台抽象层：定义桌面端 (Electron IPC) 和移动端 (HTTP/本地) 共享的 API 接口。
- *
- * renderer 代码通过 getPlatform() 获取当前平台实现，不直接调用 window.opengal。
- * 桌面端在 preload 注入 electron 实现，移动端在 Capacitor 注入 http 实现。
- */
-
 import type {
   AppConfig,
   IpcResult,
@@ -74,6 +67,9 @@ export interface PlatformAPI {
     onPartial(listener: (text: string) => void): () => void
     onFinal(listener: (text: string) => void): () => void
   }
+  screen: {
+    capture(): Promise<IpcResult<string>>
+  }
   logs: {
     list(): Promise<IpcResult<LogEntry[]>>
     clear(): Promise<IpcResult<unknown>>
@@ -89,7 +85,6 @@ export function setPlatform(p: PlatformAPI): void {
 
 export function getPlatform(): PlatformAPI {
   if (!_platform) {
-    // ponytail: 自动检测桌面端 preload 注入。移动端必须在 Capacitor 初始化前调用 setPlatform。
     const w = globalThis as unknown as { opengal?: PlatformAPI }
     if (w.opengal) {
       _platform = w.opengal

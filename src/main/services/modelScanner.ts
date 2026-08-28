@@ -25,11 +25,6 @@ function buildConfig(absPath: string): Live2DModelConfig {
     paramMapping: DEFAULT_PARAM_MAPPING
   }
 }
-
-/**
- * 解析默认模型：不写死任何角色。
- * 优先级：OPENGAL_DEFAULT_MODEL 环境变量 > 第一张带 live2d 配置的角色卡 > null（渲染端显示空态）。
- */
 export function resolveDefaultModel(): Live2DModelConfig | null {
   const envModel = process.env.OPENGAL_DEFAULT_MODEL
   if (envModel && fs.existsSync(envModel)) return buildConfig(envModel)
@@ -45,11 +40,6 @@ export function scanModel(folderPath: string, modelJsonFile: string): Live2DMode
   if (!fs.existsSync(fullPath)) return null
   return buildConfig(fullPath)
 }
-
-/**
- * 从角色卡的 performance.live2d.modelPath 解析 Live2D 模型配置。
- * modelPath 相对于角色卡目录 (card.rootPath)。
- */
 export function resolveModelFromCard(card: RoleCardEntry): Live2DModelConfig | null {
   const live2d = card.performance?.live2d
   if (!live2d?.modelPath) return null

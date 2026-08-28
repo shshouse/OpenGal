@@ -1,17 +1,3 @@
-/**
- * Genie-TTS 适配器。
- *
- * 协议：Genie-TTS FastAPI Server (src/genie_tts/Server.py)
- * - POST /load_character {character_name, onnx_model_dir, language}
- * - POST /set_reference_audio {character_name, audio_path, audio_text, language}
- * - POST /tts {character_name, text, split_sentence} -> StreamingResponse audio/wav
- *
- * 与 GptSovitsAdapter 的差异：
- * - 模型格式：ONNX 目录（非 .pth/.ckpt）
- * - 角色加载：一次性 load_character + set_reference_audio，后续 /tts 只传角色名
- * - 无 speed_factor / text_split_method，仅有 split_sentence 布尔
- */
-
 import fs from 'node:fs'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
@@ -27,18 +13,12 @@ interface ResolvedGenieSettings {
   referenceLanguage: string
 }
 
-/** Genie language map: TTSLanguage -> Genie normalize_language input */
 const GENIE_LANG_MAP: Record<string, string> = {
   zh: 'zh', en: 'en', ja: 'ja', ko: 'ko', yue: 'zh',
   auto: 'zh', auto_yue: 'zh',
   all_zh: 'zh', all_ja: 'ja', all_yue: 'zh', all_ko: 'ko',
 }
 
-/**
- * Genie 的 /tts 流返回裸 int16 PCM（服务端虽标 audio/wav，但
- * Core/TTSPlayer.py 的 _preprocess_for_playback 只发裸采样，不带 RIFF 头）：
- * 单声道 16bit、32000Hz（TTSPlayer 默认采样率）。这里补 44 字节 WAV 头。
- */
 function wrapPcmAsWav(buffer: Buffer): Buffer {
   if (buffer.subarray(0, 4).toString('latin1') === 'RIFF') return buffer
   const sampleRate = 32_000
@@ -62,7 +42,6 @@ function wrapPcmAsWav(buffer: Buffer): Buffer {
 export class GenieAdapter implements TTSAdapter {
   readonly provider = 'genie'
 
-  /** Map<baseURL, Set<characterName>>：记录每个 server 上已加载+已设参考音频的角色 */
   private loadedCharacters = new Map<string, Set<string>>()
 
   reset(): void {
@@ -147,8 +126,6 @@ export class GenieAdapter implements TTSAdapter {
           merged[key] = cardVoice[key]
         }
       }
-      // 参考文本必须与参考音频来自同一张卡，卡里没写就清空——不回落全局配置
-      // （全局文本配本卡音频 = 转写错配，合成质量会崩）。
       if (!cardVoice.referenceText) merged.referenceText = ''
     }
     if (req.overrides) {
@@ -178,8 +155,6 @@ export class GenieAdapter implements TTSAdapter {
     if (!fs.existsSync(refAbs)) throw new Error(`Reference audio not found: ${refAbs}`)
 
     const referenceText = String(merged.referenceText || '')
-    // Genie 不支持无参考文本模式：ReferenceAudio.set_text 无条件对参考文本跑 G2P，
-    // 空文本会产出空音素序列直接喂 encoder。卡里没写只能报错，不能留空。
     if (!referenceText) {
       throw new Error(
         'Genie 需要参考音频的准确转写：请在角色卡 voice 配置里补 referenceText' +
@@ -201,7 +176,6 @@ export class GenieAdapter implements TTSAdapter {
     }
     if (loaded.has(settings.characterName)) return
 
-    // 1. Load character
     const loadBody = {
       character_name: settings.characterName,
       onnx_model_dir: settings.onnxModelAbs,
@@ -216,7 +190,6 @@ export class GenieAdapter implements TTSAdapter {
       throw new Error(`load_character failed (${loadRes.status}): ${await loadRes.text()}`)
     }
 
-    // 2. Set reference audio
     const refBody = {
       character_name: settings.characterName,
       audio_path: settings.refAudioAbs,

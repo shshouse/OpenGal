@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, desktopCapturer } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
@@ -83,8 +83,6 @@ export function registerIpc(windows: WindowManager): void {
       return card ? readRoleVoiceConfig(card) : null
     })
   )
-
-  // ---- 会话历史持久化（按角色一份 JSON，落便携数据根）----
   ipcMain.handle(IpcChannels.chatHistory.load, (_, characterId: string) =>
     wrap<ChatMessage[]>(() => loadHistory(characterId))
   )
@@ -169,6 +167,20 @@ export function registerIpc(windows: WindowManager): void {
     return { success: true, data: { running: isASRRunning() } }
   })
 
+  ipcMain.handle(IpcChannels.screen.capture, async () => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1280, height: 1280 }
+      })
+      const primary = sources.find((s) => s.display_id !== '') ?? sources[0]
+      if (!primary) return { success: false, error: 'no screen source' }
+      return { success: true, data: primary.thumbnail.toPNG().toString('base64') }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
   ipcMain.handle(IpcChannels.logs.list, (event) => {
     addLogSubscriber(event.sender)
     return { success: true, data: getAllLogs() } as IpcResult<LogEntry[]>
@@ -178,13 +190,10 @@ export function registerIpc(windows: WindowManager): void {
     logBus.info('logs', '日志已清空')
     return { success: true }
   })
-  // renderer 端主动写日志（单向，fire-and-forget），让关键运行时状态进主进程终端
   ipcMain.on(IpcChannels.logs.append, (_, level: string, source: string, message: string, details?: string) => {
     const lv = level === 'warn' || level === 'error' || level === 'debug' ? level : 'info'
     logBus[lv](source || 'renderer', message, details)
   })
-
-  // ---- Tools (function calling) ----
   ipcMain.handle(IpcChannels.tools.list, () => wrap(() => getToolDefinitions()))
   ipcMain.handle(IpcChannels.tools.execute, (_, name: string, argsJson: string) =>
     wrap(() => executeTool(name, argsJson))

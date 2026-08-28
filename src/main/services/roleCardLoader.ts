@@ -1,11 +1,3 @@
-/**
- * 角色卡加载器：扫描 mods/role-card 下每个子目录的 character.json，验证 + 归一化后返回。
- *
- * - 仅识别 character.json（M2 阶段不支持 yaml；后续可加导入工具把旧格式转 json）
- * - 目录名作为回退 id（character.json 里的 id 字段缺失时启用）
- * - 加载失败不抛错，记入日志后跳过该卡，保证一张坏卡不影响其它角色可用
- */
-
 import fs from 'node:fs'
 import path from 'node:path'
 import type { RoleCard, RoleCardEntry } from '@shared/types'
@@ -77,11 +69,6 @@ export function listRoleCards(): RoleCardEntry[] {
 export function getRoleCard(id: string): RoleCardEntry | null {
   return listRoleCards().find((c) => c.id === id) ?? null
 }
-
-/**
- * 解析角色卡 voice configRef 指向的 voice 配置文件（如 gpt-sovits 的 config.json）。
- * 返回原始 JSON 对象，由各 TTS 适配器自行解释字段。
- */
 export function readRoleVoiceConfig(card: RoleCardEntry): Record<string, unknown> | null {
   if (!card.voice?.configRef) return null
   const abs = path.isAbsolute(card.voice.configRef)
@@ -95,15 +82,9 @@ export function readRoleVoiceConfig(card: RoleCardEntry): Record<string, unknown
     return null
   }
 }
-
-/**
- * 把角色卡 voice 配置中 model/audio 的相对路径解析为绝对路径。
- * 各角色卡的 model/audio 文件位于角色目录下，而非全局 voice 根目录。
- */
 export function resolveRoleVoiceFile(card: RoleCardEntry, relOrAbs: string): string {
   if (!relOrAbs) return ''
   if (path.isAbsolute(relOrAbs)) return relOrAbs
-  // 优先相对 voice 配置文件目录，否则相对角色根目录
   const voiceConfigRef = card.voice?.configRef
   if (voiceConfigRef) {
     const voiceConfigDir = path.dirname(
