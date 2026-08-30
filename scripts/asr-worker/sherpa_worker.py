@@ -19,7 +19,6 @@ VAD_SILENCE_MS = int(sys.argv[5]) if len(sys.argv) > 5 else 600
 HOTWORDS_FILE = sys.argv[6] if len(sys.argv) > 6 else ""
 NUM_THREADS = int(sys.argv[7]) if len(sys.argv) > 7 else 2
 
-# 目录名前缀 -> 模型类型；接入新模型 = 在此加一行 + build_recognizer 加一个分支
 KIND_BY_PREFIX = [
     ("sherpa-onnx-qwen3-asr-", "qwen3"),
     ("sherpa-onnx-sense-voice-", "sensevoice"),

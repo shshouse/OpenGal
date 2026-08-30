@@ -144,9 +144,7 @@ export function playMotionGroup(group: string): void {
   useLogsStore.getState().appendLocal('info', 'live2d', `播放动作组: ${group}`)
   resetPose()
   try {
-    void mm.startRandomMotion(group, 3).catch(() => {
-      // startRandomMotion 拒绝视为可忽略（如动作文件加载失败已被 motionLoadError 记录）
-    })
+    void mm.startRandomMotion(group, 3).catch(() => {})
   } catch {
     // ignore
   }
@@ -170,7 +168,6 @@ if (import.meta.env.DEV) {
       try {
         paramTK = core.getParameterValueById?.('ParamTK')
       } catch {
-        // 模型没有该参数
       }
       return {
         paramCount: count,

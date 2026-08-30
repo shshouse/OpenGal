@@ -46,7 +46,6 @@ function migrateConfig(dataRoot: string): void {
     try {
       mergeInto(config, JSON.parse(fs.readFileSync(c.file, 'utf-8')))
     } catch {
-      // 候选损坏则跳过，不影响基底
     }
   }
   rewriteModelPaths(config)

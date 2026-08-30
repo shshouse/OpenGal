@@ -15,7 +15,7 @@ export function startUIWorker(extraHandlers: MessageHandler<TTSOutputMessage>[] 
 
   chain = new HandlerChain<TTSOutputMessage>([
     ...extraHandlers,
-    new DefaultDialogUiHandler(), // 兜底：所有非系统消息
+    new DefaultDialogUiHandler(),
   ])
 
   const offOutput = pipelineBus.on('tts:output', (out) => {

@@ -140,7 +140,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return { sessions }
       })
     } catch {
-      // 读取失败按空会话处理，不阻断使用
     }
   }
 }))
