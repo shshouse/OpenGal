@@ -135,6 +135,11 @@ const api = {
   screen: {
     capture: () => invoke<string>(IpcChannels.screen.capture)
   },
+  director: {
+    log: (entry: Record<string, unknown>) => {
+      ipcRenderer.send(IpcChannels.director.log, entry)
+    }
+  },
   logs: {
     list: () => invoke<LogEntry[]>(IpcChannels.logs.list),
     clear: () => invoke(IpcChannels.logs.clear),

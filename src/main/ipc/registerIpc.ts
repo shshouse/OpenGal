@@ -1,4 +1,6 @@
 import { ipcMain, BrowserWindow, desktopCapturer } from 'electron'
+import fs from 'node:fs'
+import path from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
@@ -16,7 +18,8 @@ import {
   getTTSServerLog
 } from '../services/ttsServer'
 import type { TTSServerStatus } from '../services/ttsServer'
-import { startASR, stopASR, feedAudio, isASRRunning, setResultCallback } from '../services/asr/voskEngine'
+import { getEngine } from '../services/asr/factory'
+import { getDataRoot } from '../services/paths'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import type { WindowManager } from '../windows/windowManager'
@@ -146,25 +149,35 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.asr.start, (event) => {
     const sender = BrowserWindow.fromWebContents(event.sender)?.webContents
     if (!sender) return { success: false, error: 'No window' }
-    setResultCallback((text, partial) => {
+    getEngine().setResultCallback((text, partial) => {
       if (sender.isDestroyed()) return
       sender.send(partial ? IpcChannels.asr.partial : IpcChannels.asr.final, text)
     })
-    return wrap(() => startASR())
+    return wrap(() => getEngine().start())
   })
 
   ipcMain.handle(IpcChannels.asr.stop, () => {
-    setResultCallback(null)
-    stopASR()
+    getEngine().setResultCallback(null)
+    getEngine().stop()
     return { success: true }
   })
 
   ipcMain.on(IpcChannels.asr.feed, (_, buffer: ArrayBuffer) => {
-    feedAudio(Buffer.from(buffer))
+    getEngine().feed(Buffer.from(buffer))
   })
 
   ipcMain.handle(IpcChannels.asr.status, () => {
-    return { success: true, data: { running: isASRRunning() } }
+    return { success: true, data: { running: getEngine().isRunning() } }
+  })
+
+  ipcMain.on(IpcChannels.director.log, (_, entry: Record<string, unknown>) => {
+    const dir = path.join(getDataRoot(), 'logs')
+    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const file = path.join(dir, `director-${day}.ndjson`)
+    fs.promises
+      .mkdir(dir, { recursive: true })
+      .then(() => fs.promises.appendFile(file, `${JSON.stringify(entry)}\n`, 'utf-8'))
+      .catch((err) => logBus.warn('director', `决策日志写入失败: ${(err as Error).message}`))
   })
 
   ipcMain.handle(IpcChannels.screen.capture, async () => {

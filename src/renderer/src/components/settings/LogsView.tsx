@@ -41,7 +41,7 @@ export function LogsView() {
 
   React.useEffect(() => {
     const el = viewportRef.current
-    if (el) el.scrollTop = 0
+    if (el) el.scrollTop = el.scrollHeight
   }, [filtered.length])
 
   function toggleLevel(level: LogLevel): void {
@@ -104,10 +104,7 @@ export function LogsView() {
         {filtered.length === 0 ? (
           <div className="py-6 text-center text-muted-foreground">暂无日志</div>
         ) : (
-          filtered
-            .slice()
-            .reverse()
-            .map((e) => (
+          filtered.map((e) => (
             <div key={e.id} className="flex gap-1.5 py-0.5">
               <span className="shrink-0 text-muted-foreground/70">{formatLogTimestamp(e.timestamp)}</span>
               <span className={cn('w-8 shrink-0 text-right font-semibold', levelStyles[e.level])}>

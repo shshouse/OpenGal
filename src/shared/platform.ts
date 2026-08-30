@@ -70,6 +70,9 @@ export interface PlatformAPI {
   screen: {
     capture(): Promise<IpcResult<string>>
   }
+  director: {
+    log(entry: Record<string, unknown>): void
+  }
   logs: {
     list(): Promise<IpcResult<LogEntry[]>>
     clear(): Promise<IpcResult<unknown>>

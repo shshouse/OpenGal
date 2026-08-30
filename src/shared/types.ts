@@ -75,11 +75,14 @@ export interface TTSConfig {
 
 export interface ASRConfig {
   enabled: boolean
+  engine: 'vosk' | 'sherpa'
   modelPath: string
-  language: 'zh' | 'en' | 'ja'
+  language: 'auto' | 'zh' | 'en' | 'ja' | 'ko' | 'yue'
   sampleRate: number
   autoSend: boolean
   deviceId: string
+  hotwords: string[]
+  vadSilenceMs: number
   directorEnabled: boolean
   directorScreenContext: boolean
   directorCooldownSec: number

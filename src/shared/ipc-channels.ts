@@ -59,7 +59,11 @@ export const IpcChannels = {
     partial: 'asr:partial',
     final: 'asr:final',
     error: 'asr:error',
-    status: 'asr:status'
+    status: 'asr:status',
+    event: 'asr:event'
+  },
+  director: {
+    log: 'director:log'
   },
   screen: {
     capture: 'screen:capture'

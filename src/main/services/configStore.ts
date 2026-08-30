@@ -5,6 +5,7 @@ import { toModUrl, getDataRoot } from './paths'
 import { listRoleCards, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
 import { migrateLegacyData } from './dataMigration'
+import { normalizeAsrEngine } from '../../shared/asrKinds'
 
 const defaultConfig: AppConfig = {
   uiLanguage: 'zh',
@@ -33,11 +34,14 @@ const defaultConfig: AppConfig = {
   },
   asr: {
     enabled: false,
+    engine: 'sherpa',
     modelPath: '',
     language: 'zh',
     sampleRate: 16000,
     autoSend: true,
     deviceId: '',
+    hotwords: [],
+    vadSilenceMs: 600,
     directorEnabled: false,
     directorScreenContext: true,
     directorCooldownSec: 20
@@ -116,6 +120,7 @@ export function readConfig(): AppConfig {
     tts: { ...defaultConfig.tts, ...(raw.tts ?? {}) },
     asr: { ...defaultConfig.asr, ...(raw.asr ?? {}) }
   }
+  merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
   if (merged.model && !merged.model.modelUrl && merged.model.modelPath) {
     merged.model.modelUrl = toModUrl(merged.model.modelPath)

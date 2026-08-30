@@ -162,10 +162,18 @@ export function extractAssistantDisplayText(content: string): string {
   const t = content.trim()
   if (!t) return ''
   const parsed = tryParseJson(t) ?? tryParseJson(stripMarkdownFence(t)) ?? tryParseJson(extractJsonSubstring(t))
-  if (!parsed) return content
-  const segs = extractSegments(parsed)
+  const segs = parsed ? extractSegments(parsed) : salvageSegments(t)
   if (segs.length === 0) return content
   return segs.map((s) => s.text).join('')
+}
+
+function salvageSegments(text: string): LLMDialogueItem[] {
+  const items: LLMDialogueItem[] = []
+  for (const m of text.matchAll(/\{[^{}]*\}/g)) {
+    const parsed = tryParseJson(m[0])
+    if (isDialogueItem(parsed)) items.push(parsed as unknown as LLMDialogueItem)
+  }
+  return items
 }
 
 function tryParseJson(text: string): unknown {

@@ -6,3 +6,8 @@ mods
 data
 temp
 build
+docs
+dist
+__pycache__/
+*.pyc
+*.spec

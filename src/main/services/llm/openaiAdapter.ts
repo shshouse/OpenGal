@@ -1,4 +1,5 @@
 import type { LLMConfig, LLMResponse, ToolCall } from '@shared/types'
+import { logBus } from '../logBus'
 import type { LLMAdapter, LLMChatRequest, LLMStreamCallbacks } from './types'
 function isDeepSeek(config: LLMConfig): boolean {
   return /deepseek/i.test(config.modelName) || /(?:^|\/\/)(?:[^/]*\.)?deepseek\.com/i.test(config.baseURL)
@@ -195,6 +196,7 @@ export class OpenAIAdapter implements LLMAdapter {
         }
         if (choice?.finish_reason === 'length') {
           truncated = true
+          logBus.warn('llm', 'LLM 输出被 max_tokens 截断，回复不完整。设置里调高 maxTokens')
           callbacks.onWarning?.('LLM 输出被 max_tokens 截断，回复可能不完整。建议调高 maxTokens。')
           break
         }

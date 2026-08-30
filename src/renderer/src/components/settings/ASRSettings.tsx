@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Mic, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -10,12 +11,21 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { listAudioInputs } from '@/features/asr/micCapture'
+import { detectSherpaKind, normalizeAsrEngine } from '@shared/asrKinds'
 import type { AppConfig, ASRConfig } from '@shared/types'
 
 const LANG_OPTIONS: Array<{ value: ASRConfig['language']; label: string }> = [
+  { value: 'auto', label: '自动检测' },
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' },
-  { value: 'ja', label: '日本語' }
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'yue', label: '粤语' }
+]
+
+const ENGINE_OPTIONS: Array<{ value: ASRConfig['engine']; label: string }> = [
+  { value: 'sherpa', label: 'sherpa-onnx（本地离线）' },
+  { value: 'vosk', label: 'Vosk（旧引擎）' }
 ]
 
 interface ASRSettingsProps {
@@ -26,11 +36,14 @@ interface ASRSettingsProps {
 export function ASRSettings({ config, onSave }: ASRSettingsProps) {
   const [form, setForm] = React.useState<ASRConfig>({
     enabled: false,
+    engine: 'sherpa',
     modelPath: '',
     language: 'zh',
     sampleRate: 16000,
     autoSend: true,
     deviceId: '',
+    hotwords: [],
+    vadSilenceMs: 600,
     directorEnabled: false,
     directorScreenContext: true,
     directorCooldownSec: 20
@@ -38,13 +51,17 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
   const [devices, setDevices] = React.useState<MediaDeviceInfo[]>([])
+  const engineDirty = form.engine !== normalizeAsrEngine(config?.asr?.engine)
 
   React.useEffect(() => {
     if (config?.asr) {
       const a = config.asr
       setForm({
         ...a,
+        engine: normalizeAsrEngine(a.engine),
         deviceId: a.deviceId ?? '',
+        hotwords: a.hotwords ?? [],
+        vadSilenceMs: a.vadSilenceMs ?? 600,
         directorEnabled: a.directorEnabled ?? false,
         directorScreenContext: a.directorScreenContext ?? true,
         directorCooldownSec: a.directorCooldownSec ?? 20
@@ -84,10 +101,12 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <Mic className="size-4" /> 语音识别 (Vosk)
+        <Mic className="size-4" /> 语音识别
       </div>
       <p className="text-xs text-muted-foreground">
-        自带 ASRWorker 离线识别引擎，无需安装 Python
+        {form.engine === 'sherpa'
+          ? 'sherpa-onnx 离线识别，支持 Qwen3-ASR、SenseVoice、FunASR-Nano 等模型（自带 ASRWorker2 或系统 Python + sherpa-onnx）'
+          : '自带 ASRWorker 离线识别引擎，无需安装 Python'}
       </p>
 
       <div className="space-y-1">
@@ -121,14 +140,35 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
       </div>
 
       <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">识别引擎</label>
+        <Select value={form.engine} onValueChange={(v) => patch({ engine: v as ASRConfig['engine'] })}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ENGINE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {engineDirty && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400">切换引擎后需重启语音识别生效</p>
+        )}
+      </div>
+
+      <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">模型目录路径</label>
         <Input
           value={form.modelPath}
           onChange={(e) => patch({ modelPath: e.target.value })}
-          placeholder="STT/vosk-model-small-cn-0.22"
+          placeholder={
+            form.engine === 'sherpa'
+              ? 'STT/models/（sherpa-onnx 发布的模型目录名）'
+              : 'STT/vosk-model-small-cn-0.22'
+          }
         />
         <p className="text-[11px] text-muted-foreground">
-          从 https://alphacephei.com/vosk/models 下载模型并解压到此目录
+          从 ModelScope/HuggingFace 下载对应引擎的模型并解压
         </p>
       </div>
 
@@ -154,6 +194,34 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
           onChange={(e) => patch({ sampleRate: Number(e.target.value) || 16000 })}
         />
       </div>
+
+      {form.engine === 'sherpa' && (
+        <>
+          {(detectSherpaKind(form.modelPath)?.supportsHotwords ?? true) && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">热词</label>
+              <Textarea
+                rows={3}
+                value={form.hotwords.join('\n')}
+                onChange={(e) =>
+                  patch({ hotwords: e.target.value.split('\n').map((w) => w.trim()).filter(Boolean) })
+                }
+                placeholder={'角色名、游戏术语等，每行一个'}
+              />
+              <p className="text-[11px] text-muted-foreground">热词不宜超过 20 个，仅 Qwen3-ASR 系模型支持</p>
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">VAD 判停时长（毫秒）</label>
+            <Input
+              type="number"
+              value={form.vadSilenceMs}
+              onChange={(e) => patch({ vadSilenceMs: Number(e.target.value) || 600 })}
+            />
+            <p className="text-[11px] text-muted-foreground">静音持续该时长后判定一句话结束，越小出字越快但易截断</p>
+          </div>
+        </>
+      )}
 
       <label className="flex items-center gap-2 text-xs">
         <input
