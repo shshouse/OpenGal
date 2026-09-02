@@ -124,7 +124,6 @@ export class OpenAIAdapter implements LLMAdapter {
       signal,
     })
     if (!response.ok && response.status === 400) {
-      // 部分兼容端点不认识 stream_options，去掉重试一次，代价是本轮无 usage
       delete body.stream_options
       response = await fetchLLM(url, {
         method: 'POST',

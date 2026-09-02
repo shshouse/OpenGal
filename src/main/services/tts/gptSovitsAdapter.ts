@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
+import { applyTtsPortShift } from '../ttsPort'
 import type {
   TTSAdapter,
   TTSGenerateRequest,
@@ -31,7 +32,7 @@ export class GptSovitsAdapter implements TTSAdapter {
   async ping(req: { globalConfig: TTSConfig }): Promise<{ ok: boolean; message?: string }> {
     const cfg = req.globalConfig
     if (!cfg.enabled) return { ok: false, message: 'TTS 未启用' }
-    const base = normalizeBaseURL(cfg.baseURL)
+    const base = applyTtsPortShift(normalizeBaseURL(cfg.baseURL))
     if (!base) return { ok: false, message: 'TTS baseURL is not configured' }
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 3_000)
@@ -147,7 +148,7 @@ export class GptSovitsAdapter implements TTSAdapter {
       if (req.overrides.textSplitMethod) merged.textSplitMethod = req.overrides.textSplitMethod
     }
 
-    const baseURL = normalizeBaseURL(String(merged.baseURL || ''))
+    const baseURL = applyTtsPortShift(normalizeBaseURL(String(merged.baseURL || '')))
     if (!baseURL) throw new Error('TTS baseURL is not configured')
 
     const gptRel = String(merged.gptModel || '')

@@ -1,6 +1,5 @@
 import type { LLMUsage } from '@shared/types'
 
-// 字段缺失一律返回 null：宁可没有数据，不用估算值冒充
 export function normalizeOpenAIUsage(
   u: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined,
 ): LLMUsage | null {
