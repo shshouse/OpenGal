@@ -8,7 +8,7 @@ function resolveSettings(request: LLMRequest): LLMConfig {
   const config = readConfig()
   const settings: LLMConfig = { ...config.llm, ...(request.overrides ?? {}) }
   if (!settings.apiKey) throw new Error('API key is not configured')
-  if (!settings.baseURL && settings.provider !== 'anthropic') {
+  if (!settings.baseURL) {
     throw new Error('Base URL is not configured')
   }
   if (!settings.modelName) throw new Error('Model name is not configured')
@@ -101,6 +101,9 @@ export async function callLLMStream(
         },
         onToolCalls: (calls) => {
           sender.send('llm:stream:tool_calls', streamId, calls)
+        },
+        onUsage: (usage) => {
+          sender.send('llm:stream:usage', streamId, usage)
         },
         onWarning: (msg) => {
           logBus.warn('llm', msg)

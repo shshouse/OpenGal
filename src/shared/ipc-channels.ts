@@ -11,7 +11,8 @@ export const IpcChannels = {
     streamDone: 'llm:stream:done',
     streamError: 'llm:stream:error',
     streamAbort: 'llm:stream:abort',
-    streamToolCalls: 'llm:stream:tool_calls'
+    streamToolCalls: 'llm:stream:tool_calls',
+    streamUsage: 'llm:stream:usage'
   },
   tools: {
     list: 'tools:list',

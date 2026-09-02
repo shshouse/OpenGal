@@ -27,14 +27,8 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     value: 'openai',
     label: 'OpenAI 兼容',
-    defaultBaseURL: 'https://openrouter.ai/api/v1',
-    exampleModel: 'x-ai/grok-4.1-fast',
-  },
-  {
-    value: 'anthropic',
-    label: 'Anthropic Claude',
-    defaultBaseURL: 'https://api.anthropic.com',
-    exampleModel: 'claude-sonnet-4-5',
+    defaultBaseURL: 'https://api.deepseek.com',
+    exampleModel: 'deepseek-chat',
   },
 ]
 
@@ -132,7 +126,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
+          placeholder='sk-...'
         />
       </div>
 

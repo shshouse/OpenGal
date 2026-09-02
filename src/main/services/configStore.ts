@@ -11,9 +11,9 @@ const defaultConfig: AppConfig = {
   uiLanguage: 'zh',
   theme: 'system',
   llm: {
-    baseURL: 'https://openrouter.ai/api/v1',
+    baseURL: 'https://api.deepseek.com',
     apiKey: '',
-    modelName: 'x-ai/grok-4.1-fast',
+    modelName: 'deepseek-chat',
     temperature: 0.86,
     maxTokens: 4096
   },

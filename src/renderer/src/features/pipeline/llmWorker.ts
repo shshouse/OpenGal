@@ -160,6 +160,7 @@ export function startLLMWorker(): () => void {
       const data = nonStream.data!
       const assistantContent = data.content || ''
       const toolCalls = data.toolCalls
+      if (data.usage) pipelineBus.emit('llm:usage', data.usage)
 
       const tmpParser = new DialogueStreamParser()
       for (const it of tmpParser.feed(assistantContent)) emitDialog(it)
@@ -263,7 +264,12 @@ export function startLLMWorker(): () => void {
     }
   })
 
-  unsubscribers = [offUserInput, offChunk, offReasoning, offDone, offError, offAbort]
+  const offUsage = window.opengal.llm.onStreamUsage((id, usage) => {
+    if (id !== currentStreamId) return
+    pipelineBus.emit('llm:usage', usage)
+  })
+
+  unsubscribers = [offUserInput, offChunk, offReasoning, offDone, offError, offAbort, offUsage]
   return stopLLMWorker
 }
 

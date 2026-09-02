@@ -1,6 +1,7 @@
 import type {
   LLMDialogMessage,
   LLMTurnDoneMessage,
+  LLMUsageMessage,
   ReasoningMessage,
   TTSOutputMessage,
   UserInputMessage,
@@ -11,6 +12,7 @@ export interface PipelineEventMap {
   'llm:dialog': LLMDialogMessage
   'llm:reasoning': ReasoningMessage
   'llm:done': LLMTurnDoneMessage
+  'llm:usage': LLMUsageMessage
   'tts:output': TTSOutputMessage
   'pipeline:abort': void
 }
