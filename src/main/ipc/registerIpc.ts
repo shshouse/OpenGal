@@ -22,6 +22,7 @@ import { getEngine } from '../services/asr/factory'
 import { getDataRoot } from '../services/paths'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
+import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins } from '../services/plugins/registry'
 import type { WindowManager } from '../windows/windowManager'
 
 function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
@@ -32,6 +33,8 @@ function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
 }
 
 export function registerIpc(windows: WindowManager): void {
+  initPlugins(getDataRoot())
+
   ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
 
   ipcMain.handle(IpcChannels.config.set, (_, patch: Partial<AppConfig>) =>
@@ -211,4 +214,12 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.tools.execute, (_, name: string, argsJson: string) =>
     wrap(() => executeTool(name, argsJson))
   )
+  ipcMain.handle(IpcChannels.plugins.list, () => wrap(() => scanPlugins()))
+  ipcMain.handle(IpcChannels.plugins.setEnabled, (_, pluginId: string, enabled: boolean) =>
+    wrap(async () => {
+      await setPluginEnabled(pluginId, enabled)
+      return scanPlugins()
+    })
+  )
+  ipcMain.handle(IpcChannels.plugins.rescan, () => wrap(() => rescanPlugins()))
 }

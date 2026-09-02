@@ -8,6 +8,7 @@ import type {
   LLMResponse,
   LLMUsage,
   Live2DModelConfig,
+  PluginInfo,
   RoleCardEntry,
   ToolCall,
   ToolDefinition
@@ -67,6 +68,12 @@ const api = {
         name,
         argsJson
       )
+  },
+  plugins: {
+    list: () => invoke<PluginInfo[]>(IpcChannels.plugins.list),
+    setEnabled: (pluginId: string, enabled: boolean) =>
+      invoke<PluginInfo[]>(IpcChannels.plugins.setEnabled, pluginId, enabled),
+    rescan: () => invoke<PluginInfo[]>(IpcChannels.plugins.rescan)
   },
   model: {
     resolveDefault: () => invoke<Live2DModelConfig | null>(IpcChannels.model.resolveDefault),

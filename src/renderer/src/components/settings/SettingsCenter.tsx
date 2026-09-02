@@ -1,12 +1,13 @@
 import * as React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Monitor, Sparkles, Volume2, Mic, ScrollText } from 'lucide-react'
+import { Users, Monitor, Sparkles, Volume2, Mic, ScrollText, Puzzle } from 'lucide-react'
 import { CharacterSettings } from './CharacterSettings'
 import { CharacterDisplaySettings } from './CharacterDisplaySettings'
 import { SettingsDialog } from './SettingsDialog'
 import { TTSSettings } from './TTSSettings'
 import { ASRSettings } from './ASRSettings'
 import { LogsView } from './LogsView'
+import { PluginSettings } from './PluginSettings'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 
 interface SettingsCenterProps {
@@ -21,6 +22,7 @@ const SECTIONS = [
   { value: 'llm', label: 'LLM', icon: Sparkles, description: '对话模型的供应商、Base URL、API Key 与模型名' },
   { value: 'tts', label: 'TTS', icon: Volume2, description: 'GPT-SoVITS 语音合成服务与参考音频参数' },
   { value: 'asr', label: 'STT', icon: Mic, description: '语音识别（ASR）参数' },
+  { value: 'plugins', label: '插件', icon: Puzzle, description: '管理工具与界面扩展插件' },
   { value: 'logs', label: '日志', icon: ScrollText, description: '查看运行日志' }
 ] as const
 
@@ -71,6 +73,9 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
           </TabsContent>
           <TabsContent value="asr" className="mt-0">
             <ASRSettings config={config} onSave={onSave} />
+          </TabsContent>
+          <TabsContent value="plugins" className="mt-0">
+            <PluginSettings />
           </TabsContent>
           <TabsContent value="logs" className="mt-0">
             <LogsView />

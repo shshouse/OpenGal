@@ -14,6 +14,10 @@ export function registerTool(def: ToolDefinition, handler: ToolHandler): void {
   tools.set(def.function.name, { def, handle: handler })
 }
 
+export function unregisterTool(name: string): void {
+  tools.delete(name)
+}
+
 export function getToolDefinitions(): ToolDefinition[] {
   return Array.from(tools.values()).map((e) => e.def)
 }

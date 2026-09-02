@@ -18,6 +18,11 @@ export const IpcChannels = {
     list: 'tools:list',
     execute: 'tools:execute'
   },
+  plugins: {
+    list: 'plugins:list',
+    setEnabled: 'plugins:setEnabled',
+    rescan: 'plugins:rescan'
+  },
   pet: {
     open: 'pet:open',
     close: 'pet:close',
