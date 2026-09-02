@@ -26,7 +26,7 @@ interface ProviderPreset {
 const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     value: 'openai',
-    label: 'OpenAI 兼容',
+    label: 'DeepSeek',
     defaultBaseURL: 'https://api.deepseek.com',
     exampleModel: 'deepseek-chat',
   },
@@ -56,16 +56,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   const currentPreset =
     PROVIDER_PRESETS.find((p) => p.value === provider) ?? PROVIDER_PRESETS[0]
 
-  function handleProviderChange(next: string): void {
-    const value = next as LLMProvider
-    setProvider(value)
-    const matchedDefault = PROVIDER_PRESETS.some((p) => p.defaultBaseURL === baseURL)
-    if (!baseURL || matchedDefault) {
-      const preset = PROVIDER_PRESETS.find((p) => p.value === value)
-      if (preset) setBaseURL(preset.defaultBaseURL)
-    }
-  }
-
   async function handleSave(): Promise<void> {
     setSaving(true)
     setStatus(null)
@@ -92,23 +82,14 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <Settings className="size-4" /> LLM 设置
+        <Settings className="size-4" /> 模型设置
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">供应商</label>
-        <Select value={provider} onValueChange={handleProviderChange}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PROVIDER_PRESETS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>
-                {p.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+          DeepSeek
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -122,12 +103,23 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">API Key</label>
-        <Input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder='sk-...'
-        />
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder='sk-...'
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => window.open('https://platform.deepseek.com/api_keys', '_blank')}
+          >
+            一键获取
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-1">
