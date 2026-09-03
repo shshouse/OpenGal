@@ -7,8 +7,8 @@ import {
 } from '../src/main/services/ttsPort.ts'
 
 assert.strictEqual(parseTtsPort('http://127.0.0.1:9880'), 9880)
-assert.strictEqual(parseTtsPort('http://127.0.0.1'), 9880)
-assert.strictEqual(parseTtsPort('not a url'), 9880)
+assert.strictEqual(parseTtsPort('http://127.0.0.1'), 39880)
+assert.strictEqual(parseTtsPort('not a url'), 39880)
 
 assert.strictEqual(applyTtsPortShift('http://127.0.0.1:9880'), 'http://127.0.0.1:9880')
 

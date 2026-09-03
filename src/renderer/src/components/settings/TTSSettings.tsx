@@ -59,7 +59,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
   const [form, setForm] = React.useState<TTSConfig>({
     enabled: false,
     provider: 'gpt-sovits',
-    baseURL: 'http://127.0.0.1:9880',
+    baseURL: 'http://127.0.0.1:39880',
     gptModelRelPath: '',
     sovitsModelRelPath: '',
     characterName: '',
@@ -163,7 +163,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
   const formPort = React.useMemo(() => {
     try {
-      return Number(new URL(form.baseURL).port) || 9880
+      return Number(new URL(form.baseURL).port) || 39880
     } catch {
       return null
     }
@@ -317,7 +317,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         value={String(effective('baseURL'))}
         onChange={(e) => update('baseURL', e.target.value)}
         disabled={fromCard('baseURL')}
-        placeholder={form.provider === 'genie' ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:9880'}
+        placeholder={form.provider === 'genie' ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:39880'}
       />
 
       {form.provider === 'gpt-sovits' && (

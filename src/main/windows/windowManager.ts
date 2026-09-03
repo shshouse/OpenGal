@@ -35,7 +35,7 @@ export class WindowManager {
         preload: this.deps.preloadPath,
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false
+        sandbox: true
       }
     })
 
@@ -78,7 +78,7 @@ export class WindowManager {
         preload: this.deps.preloadPath,
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false
+        sandbox: true
       }
     })
     this.pet.setAlwaysOnTop(true, 'screen-saver')

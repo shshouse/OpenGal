@@ -169,7 +169,7 @@ const api = {
 
 export type OpenGalAPI = typeof api
 
-if (process.contextIsolated) {
+if (typeof contextBridge.exposeInMainWorld === 'function') {
   contextBridge.exposeInMainWorld('opengal', api)
 } else {
   ;(globalThis as unknown as { opengal: OpenGalAPI }).opengal = api

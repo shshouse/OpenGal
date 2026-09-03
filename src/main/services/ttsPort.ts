@@ -1,4 +1,4 @@
-export const TTS_DEFAULT_PORT = 9880
+export const TTS_DEFAULT_PORT = 39880
 
 let shift: { from: number; to: number } | null = null
 

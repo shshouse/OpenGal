@@ -20,7 +20,7 @@ const defaultConfig: AppConfig = {
   tts: {
     enabled: false,
     provider: 'gpt-sovits',
-    baseURL: 'http://127.0.0.1:9880',
+    baseURL: 'http://127.0.0.1:39880',
     gptModelRelPath: '',
     sovitsModelRelPath: '',
     characterName: '',
