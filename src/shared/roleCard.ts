@@ -136,7 +136,7 @@ export class DialogueStreamParser {
   private drainComplete(): LLMDialogueItem[] {
     const items: LLMDialogueItem[] = []
     while (true) {
-      const endIdx = this.buffer.indexOf('}')
+      const endIdx = findClosingBrace(this.buffer)
       if (endIdx === -1) break
       const startIdx = this.buffer.lastIndexOf('{', endIdx)
       if (startIdx === -1) {
@@ -156,6 +156,28 @@ export class DialogueStreamParser {
     }
     return items
   }
+}
+
+function findClosingBrace(s: string): number {
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (c === '\\') {
+      escaped = true
+      continue
+    }
+    if (c === '"') {
+      inString = !inString
+      continue
+    }
+    if (!inString && c === '}') return i
+  }
+  return -1
 }
 
 export function extractAssistantDisplayText(content: string): string {
