@@ -14,7 +14,7 @@
     "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "selfcheck": "node --experimental-strip-types scripts/selfcheck-usage.ts && node --experimental-strip-types scripts/selfcheck-ttsport.ts && node --experimental-strip-types scripts/selfcheck-mcp.ts && node --experimental-strip-types scripts/selfcheck-stream.ts",
+    "selfcheck": "node --experimental-strip-types scripts/selfcheck-ttsport.ts && node --experimental-strip-types scripts/selfcheck-mcp.ts && node --experimental-strip-types scripts/selfcheck-stream.ts",
     "package": "electron-vite build && electron-builder --win portable"
   },
   "dependencies": {

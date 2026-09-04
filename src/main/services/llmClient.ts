@@ -45,12 +45,6 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
       tools: request.tools,
       toolChoice: request.toolChoice,
     })
-    if (res.usage) {
-      logBus.info(
-        'llm',
-        `token 用量 (non-stream) prompt=${res.usage.promptTokens} completion=${res.usage.completionTokens} total=${res.usage.totalTokens}`,
-      )
-    }
     logBus.info('llm', `请求完成 (non-stream)`, res.content.slice(0, 500))
     return res
   } catch (err) {
@@ -107,13 +101,6 @@ export async function callLLMStream(
         },
         onToolCalls: (calls) => {
           sender.send('llm:stream:tool_calls', streamId, calls)
-        },
-        onUsage: (usage) => {
-          logBus.info(
-            'llm',
-            `token 用量 prompt=${usage.promptTokens} completion=${usage.completionTokens} total=${usage.totalTokens}`,
-          )
-          sender.send('llm:stream:usage', streamId, usage)
         },
         onWarning: (msg) => {
           logBus.warn('llm', msg)

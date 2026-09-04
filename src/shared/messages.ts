@@ -35,9 +35,3 @@ export interface LLMTurnDoneMessage {
   ok: boolean
   error?: string
 }
-
-export interface LLMUsageMessage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}

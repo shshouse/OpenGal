@@ -75,7 +75,7 @@ export interface TTSConfig {
 
 export interface ASRConfig {
   enabled: boolean
-  engine: 'vosk' | 'sherpa'
+  engine: 'sherpa'
   modelPath: string
   language: 'auto' | 'zh' | 'en' | 'ja' | 'ko' | 'yue'
   sampleRate: number
@@ -126,16 +126,9 @@ export interface LLMRequest {
   toolChoice?: unknown
 }
 
-export interface LLMUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-}
-
 export interface LLMResponse {
   content: string
   toolCalls?: ToolCall[]
-  usage?: LLMUsage
 }
 
 export interface IpcResult<T = unknown> {

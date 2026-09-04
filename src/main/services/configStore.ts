@@ -4,7 +4,6 @@ import type { AppConfig } from '@shared/types'
 import { toModUrl, getDataRoot } from './paths'
 import { listRoleCards, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
-import { migrateLegacyData } from './dataMigration'
 import { normalizeAsrEngine } from '../../shared/asrKinds'
 
 const defaultConfig: AppConfig = {
@@ -55,7 +54,6 @@ let store: Store<Record<string, unknown>> | null = null
 
 function getStore(): Store<Record<string, unknown>> {
   if (!store) {
-    migrateLegacyData()
     store = new Store<Record<string, unknown>>({
       name: 'opengal-config',
       cwd: getDataRoot(),

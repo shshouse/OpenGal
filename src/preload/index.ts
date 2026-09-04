@@ -6,7 +6,6 @@ import type {
   IpcResult,
   LLMRequest,
   LLMResponse,
-  LLMUsage,
   Live2DModelConfig,
   PluginInfo,
   RoleCardEntry,
@@ -52,11 +51,6 @@ const api = {
       const handler = (_: unknown, id: string, calls: ToolCall[]) => listener(id, calls)
       ipcRenderer.on(IpcChannels.llm.streamToolCalls, handler)
       return () => ipcRenderer.off(IpcChannels.llm.streamToolCalls, handler)
-    },
-    onStreamUsage: (listener: (streamId: string, usage: LLMUsage) => void) => {
-      const handler = (_: unknown, id: string, usage: LLMUsage) => listener(id, usage)
-      ipcRenderer.on(IpcChannels.llm.streamUsage, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamUsage, handler)
     },
     abortStream: (streamId: string) => invoke(IpcChannels.llm.streamAbort, streamId)
   },

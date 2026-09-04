@@ -24,8 +24,7 @@ const LANG_OPTIONS: Array<{ value: ASRConfig['language']; label: string }> = [
 ]
 
 const ENGINE_OPTIONS: Array<{ value: ASRConfig['engine']; label: string }> = [
-  { value: 'sherpa', label: 'sherpa-onnx（本地离线）' },
-  { value: 'vosk', label: 'Vosk（旧引擎）' }
+  { value: 'sherpa', label: 'sherpa-onnx（本地离线）' }
 ]
 
 interface ASRSettingsProps {
@@ -161,11 +160,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         <Input
           value={form.modelPath}
           onChange={(e) => patch({ modelPath: e.target.value })}
-          placeholder={
-            form.engine === 'sherpa'
-              ? 'STT/models/（sherpa-onnx 发布的模型目录名）'
-              : 'STT/vosk-model-small-cn-0.22'
-          }
+          placeholder='STT/models/（sherpa-onnx 发布的模型目录名）'
         />
         <p className="text-[11px] text-muted-foreground">
           从 ModelScope/HuggingFace 下载对应引擎的模型并解压

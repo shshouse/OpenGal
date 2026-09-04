@@ -8,4 +8,4 @@ export interface ASREngine {
   setResultCallback(cb: ASRResultCallback | null): void
 }
 
-export type ASREngineKind = 'vosk' | 'sherpa'
+export type ASREngineKind = 'sherpa'

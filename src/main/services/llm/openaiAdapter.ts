@@ -1,7 +1,6 @@
 import type { LLMConfig, LLMResponse, ToolCall } from '@shared/types'
 import { logBus } from '../logBus'
 import type { LLMAdapter, LLMChatRequest, LLMStreamCallbacks } from './types'
-import { normalizeOpenAIUsage } from './usage'
 import { splitChunk } from './chunkSplit'
 function isDeepSeek(config: LLMConfig): boolean {
   return /deepseek/i.test(config.modelName) || /(?:^|\/\/)(?:[^/]*\.)?deepseek\.com/i.test(config.baseURL)
@@ -13,7 +12,6 @@ interface ChatBody {
   temperature: number
   max_tokens: number
   stream?: boolean
-  stream_options?: { include_usage: boolean }
   response_format?: { type: 'json_object' }
   thinking?: { type: 'enabled' | 'disabled'; budget_tokens?: number }
   tools?: unknown[]
@@ -95,14 +93,12 @@ export class OpenAIAdapter implements LLMAdapter {
         }
         finish_reason?: string | null
       }>
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
     }
     const message = data.choices?.[0]?.message
     const content = (message?.content ?? '').trim()
     const toolCalls = message?.tool_calls
     if (!content && !toolCalls?.length) throw new Error('Empty response from LLM')
-    const usage = normalizeOpenAIUsage(data.usage)
-    return { content, toolCalls, ...(usage ? { usage } : {}) }
+    return { content, toolCalls }
   }
 
   async chatStream(req: LLMChatRequest, callbacks: LLMStreamCallbacks): Promise<void> {
@@ -113,26 +109,17 @@ export class OpenAIAdapter implements LLMAdapter {
 
     const url = `${config.baseURL.replace(/\/$/, '')}/chat/completions`
     const body = buildChatBody(config, messages, true, req.tools, req.toolChoice)
-    body.stream_options = { include_usage: true }
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-    }
-    let response = await fetchLLM(url, {
+
+    const response = await fetchLLM(url, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      },
       body: JSON.stringify(body),
       signal,
     })
-    if (!response.ok && response.status === 400) {
-      delete body.stream_options
-      response = await fetchLLM(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        signal,
-      })
-    }
+
     if (!response.ok) {
       const errText = await response.text()
       throw new Error(`LLM error ${response.status}: ${errText.slice(0, 500)}`)
@@ -143,7 +130,6 @@ export class OpenAIAdapter implements LLMAdapter {
     const decoder = new TextDecoder()
     let buffer = ''
     let truncated = false
-    let lastUsage: ReturnType<typeof normalizeOpenAIUsage> = null
     const thinkState = { insideThinkBlock: false }
     const toolCallAccum = new Map<number, { id: string; name: string; args: string }>()
 
@@ -176,7 +162,6 @@ export class OpenAIAdapter implements LLMAdapter {
             }
             finish_reason?: string | null
           }>
-          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
         }
         try {
           parsed = JSON.parse(payload)
@@ -192,8 +177,6 @@ export class OpenAIAdapter implements LLMAdapter {
         }
         const choice = parsed.choices?.[0]
         const delta = choice?.delta
-        const streamUsage = normalizeOpenAIUsage(parsed.usage)
-        if (streamUsage) lastUsage = streamUsage
         const reasoningField = delta?.reasoning_content
         if (reasoningField) callbacks.onReasoning?.(reasoningField)
         const chunk = delta?.content
@@ -220,7 +203,6 @@ export class OpenAIAdapter implements LLMAdapter {
         }
       }
     }
-    if (lastUsage) callbacks.onUsage?.(lastUsage)
     if (toolCallAccum.size > 0) {
       const indices = Array.from(toolCallAccum.keys()).sort((a, b) => a - b)
       const calls: ToolCall[] = []

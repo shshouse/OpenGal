@@ -15,7 +15,6 @@ export function detectSherpaKind(modelPath: string): SherpaModelKindInfo | null 
   return SHERPA_MODEL_KINDS.find((k) => name.startsWith(k.prefix)) ?? null
 }
 
-export function normalizeAsrEngine(engine: string | undefined): 'vosk' | 'sherpa' {
-  if (engine === 'vosk') return 'vosk'
+export function normalizeAsrEngine(_engine: string | undefined): 'sherpa' {
   return 'sherpa'
 }
