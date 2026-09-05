@@ -97,6 +97,63 @@ export interface AppConfig {
   model: Live2DModelConfig | null
   activeCharacterId: string | null
   showLive2D: boolean
+  memory: MemoryConfig
+}
+
+export interface MemoryConfig {
+  factBudgetChars: number
+  storyBudgetChars: number
+  injectCharCap: number
+  batchTurns: number
+  idleMinutes: number
+  fallbackHours: number
+  windowBatchTurns: number
+}
+
+export interface MemoryFact {
+  id: string
+  text: string
+  entity: 'user' | 'character' | 'relationship'
+  importance: number
+  confidence: number
+  source: 'user_statement' | 'llm_inferred' | 'manual'
+  created_at: string
+  last_confirmed_at: string
+  status: 'active' | 'archived'
+  evidence: { reinforce: number; negate: number }
+}
+
+export interface MemoryStory {
+  id: string
+  kind: 'event' | 'promise' | 'milestone' | 'joke'
+  text: string
+  occurred_at: string
+  due_at: string | null
+  fulfilled: boolean
+  importance: number
+  status: 'active' | 'archived'
+  created_at: string
+}
+
+export interface MemoryCandidateFact {
+  text: string
+  entity: MemoryFact['entity']
+  importance: number
+  confidence: number
+  reason: string
+}
+
+export interface MemoryCandidateStory {
+  kind: MemoryStory['kind']
+  text: string
+  importance: number
+  reason: string
+  due_at?: string | null
+}
+
+export interface MemoryApplyPayload {
+  facts: MemoryCandidateFact[]
+  stories: MemoryCandidateStory[]
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'

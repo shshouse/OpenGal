@@ -49,20 +49,23 @@ export function GalgameChatPanel() {
   }, [historyOpen, messages.length, streamingSegments.length])
 
   React.useEffect(() => {
+    let directorEnabled = false
+    let autoSend = true
+    window.opengal.config.get().then((res) => {
+      directorEnabled = res.data?.asr?.directorEnabled ?? false
+      autoSend = res.data?.asr?.autoSend !== false
+    })
     setASRFinalCallback((text) => {
       if (!text.trim()) return
-      window.opengal.config.get().then((res) => {
-        const asr = res.data?.asr
-        if (asr?.directorEnabled) {
-          offerUtterance(text)
-          return
-        }
-        if (asr?.autoSend !== false) {
-          send(text.trim())
-        } else {
-          setDraft((prev) => (prev ? prev + ' ' : '') + text.trim())
-        }
-      })
+      if (directorEnabled) {
+        offerUtterance(text)
+        return
+      }
+      if (autoSend) {
+        send(text.trim())
+      } else {
+        setDraft((prev) => (prev ? prev + ' ' : '') + text.trim())
+      }
     })
     setDirectorDispatch((input) => send(input.text))
     return () => {

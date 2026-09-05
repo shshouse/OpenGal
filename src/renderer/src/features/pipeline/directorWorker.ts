@@ -79,11 +79,11 @@ function plainContent(content: string | MessageContentPart[]): string {
 }
 
 async function evaluate(): Promise<void> {
-  const utterances = buffer
-  buffer = []
-  if (utterances.length === 0 || evaluating) return
+  if (evaluating || buffer.length === 0) return
   evaluating = true
   try {
+    const utterances = buffer
+    buffer = []
     const cfg = (await window.opengal.config.get()).data?.asr
     if (!cfg) return
 
@@ -127,6 +127,9 @@ async function evaluate(): Promise<void> {
     log('warn', `导演判定失败，保持沉默: ${(err as Error).message}`)
   } finally {
     evaluating = false
+    if (buffer.length > 0) {
+      void evaluate()
+    }
   }
 }
 
@@ -185,7 +188,7 @@ async function askDirector(
     { role: 'system', content: buildDirectorPrompt(roleName) },
     { role: 'user', content: userParts }
   ]
-  const res = await window.opengal.llm.chat({ messages })
+  const res = await window.opengal.llm.chat({ messages, overrides: card?.llm })
   if (!res.success || !res.data?.content) throw new Error(res.error || 'empty director response')
   return { decision: parseDecision(res.data.content), screenIncluded }
 }

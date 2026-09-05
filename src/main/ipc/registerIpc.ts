@@ -23,6 +23,8 @@ import { getDataRoot } from '../services/paths'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins } from '../services/plugins/registry'
+import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory } from '../services/memoryStore'
+import type { MemoryApplyPayload, MemoryCandidateFact, MemoryFact } from '@shared/types'
 import type { WindowManager } from '../windows/windowManager'
 
 function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
@@ -34,6 +36,26 @@ function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
 
 export function registerIpc(windows: WindowManager): void {
   initPlugins(getDataRoot())
+  initMemoryStore(getDataRoot(), readConfig().memory)
+
+  async function judgeFact(existing: MemoryFact, cand: MemoryCandidateFact): Promise<'reinforces' | 'negates'> {
+    const res = await callLLM({
+      messages: [
+        {
+          role: 'system',
+          content:
+            '你是记忆一致性裁判。只输出 JSON：{"verdict":"reinforces"} 或 {"verdict":"negates"}。reinforces=新信息确认或补充旧记忆；negates=新信息与旧记忆矛盾。'
+        },
+        {
+          role: 'user',
+          content: `旧记忆：${existing.text}\n新信息：${cand.text}\n判断新信息与旧记忆的关系。`
+        }
+      ]
+    })
+    const m = res.content.match(/\{[\s\S]*\}/)
+    const parsed = m ? (JSON.parse(m[0]) as { verdict?: string }) : {}
+    return parsed.verdict === 'negates' ? 'negates' : 'reinforces'
+  }
 
   ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
 
@@ -222,4 +244,18 @@ export function registerIpc(windows: WindowManager): void {
     })
   )
   ipcMain.handle(IpcChannels.plugins.rescan, () => wrap(() => rescanPlugins()))
+  ipcMain.handle(IpcChannels.memory.get, (_, characterId: string) =>
+    wrap(() => ({
+      facts: loadFacts(characterId),
+      stories: loadStories(characterId),
+      block: getMemoryBlock(characterId)
+    }))
+  )
+  ipcMain.handle(IpcChannels.memory.apply, (_, characterId: string, payload: MemoryApplyPayload) =>
+    wrap(() => applyCandidates(characterId, payload, judgeFact))
+  )
+  ipcMain.handle(IpcChannels.memory.manualAdd, (_, characterId: string, text: string, entity?: MemoryFact['entity']) =>
+    wrap(() => manualAddFact(characterId, text, entity))
+  )
+  ipcMain.handle(IpcChannels.memory.clear, (_, characterId: string) => wrap(() => clearMemory(characterId)))
 }

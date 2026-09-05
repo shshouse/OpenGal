@@ -38,7 +38,7 @@ function formatMotionMenu(motionGroups: string[]): string[] {
     .map((g) => `- "${g}"：${MOTION_GROUP_LABELS[g] ?? g}`)
 }
 
-export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = []): string {
+export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], memoryBlock?: string): string {
   const persona = card.persona
   const userIdentity = persona.userIdentity ?? '用户'
   const userTerm = persona.userTerm ?? card.name
@@ -49,6 +49,10 @@ export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = []): 
   if (persona.scenario) lines.push(`场景：${persona.scenario}`)
   if (persona.rules) lines.push(`规则：${persona.rules}`)
   lines.push(`用户身份：${userIdentity}；用户对你的称呼：${userTerm}。`)
+  if (memoryBlock) {
+    lines.push('')
+    lines.push(memoryBlock)
+  }
   lines.push('')
   lines.push('说话风格（应用级规则，对所有角色生效，优先于角色设定中的书面化表达）：')
   lines.push('- 台词必须写成自然的口语，像面对面说话；不要书面语、公文腔和括号注释。')

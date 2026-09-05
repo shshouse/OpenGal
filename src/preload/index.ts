@@ -7,6 +7,9 @@ import type {
   LLMRequest,
   LLMResponse,
   Live2DModelConfig,
+  MemoryApplyPayload,
+  MemoryFact,
+  MemoryStory,
   PluginInfo,
   RoleCardEntry,
   ToolCall,
@@ -68,6 +71,24 @@ const api = {
     setEnabled: (pluginId: string, enabled: boolean) =>
       invoke<PluginInfo[]>(IpcChannels.plugins.setEnabled, pluginId, enabled),
     rescan: () => invoke<PluginInfo[]>(IpcChannels.plugins.rescan)
+  },
+  memory: {
+    get: (characterId: string) =>
+      invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
+        IpcChannels.memory.get,
+        characterId
+      ),
+    apply: (characterId: string, payload: MemoryApplyPayload) =>
+      invoke<{
+        insertedFacts: number
+        refreshedFacts: number
+        judgedAway: number
+        insertedStories: number
+        budgetRejected: number
+      }>(IpcChannels.memory.apply, characterId, payload),
+    manualAdd: (characterId: string, text: string, entity?: MemoryFact['entity']) =>
+      invoke<MemoryFact>(IpcChannels.memory.manualAdd, characterId, text, entity),
+    clear: (characterId: string) => invoke<void>(IpcChannels.memory.clear, characterId)
   },
   model: {
     resolveDefault: () => invoke<Live2DModelConfig | null>(IpcChannels.model.resolveDefault),

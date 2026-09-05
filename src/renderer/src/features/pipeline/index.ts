@@ -1,6 +1,7 @@
 import { startLLMWorker, stopLLMWorker, setActiveRoleCard } from './llmWorker'
 import { startTTSWorker, stopTTSWorker } from './ttsWorker'
 import { startUIWorker, stopUIWorker } from './uiWorker'
+import { startMemoryService } from '@/features/memory/memoryService'
 import { pipelineBus } from './pipelineBus'
 import { useChatStore } from '@/features/chat/chatStore'
 import { startASRBridge } from '@/features/asr/asrStore'
@@ -32,12 +33,14 @@ export function startPipeline(): PipelineHandle {
   startLLMWorker()
   startTTSWorker()
   startUIWorker()
+  const stopMemory = startMemoryService()
   const stopBridge = startChatStreamBridge()
   const stopASR = startASRBridge()
   return {
     dispose: () => {
       stopASR()
       stopBridge()
+      stopMemory()
       stopLLMWorker()
       stopTTSWorker()
       stopUIWorker()

@@ -5,6 +5,7 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
+import { getMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from './pipelineBus'
 
 let counter = 0
@@ -16,8 +17,17 @@ let accumulatedReasoning = ''
 let accumulatedRaw = ''
 
 export function setActiveRoleCard(card: RoleCard): void {
+  if (activeRoleCard?.id !== card.id) {
+    windowTurnCount = 0
+    windowStart = 0
+  }
   activeRoleCard = card
 }
+
+const WINDOW_BATCH_TURNS = 10
+const WINDOW_MESSAGES = 40
+let windowTurnCount = 0
+let windowStart = 0
 
 export function getLastRawResponse(): string {
   return accumulatedRaw
@@ -68,13 +78,22 @@ export function startLLMWorker(): () => void {
 
   async function runTurn(userText: string): Promise<void> {
     const history = useChatStore.getState().messages
+    windowTurnCount++
+    if ((windowTurnCount - 1) % WINDOW_BATCH_TURNS === 0) {
+      windowStart = Math.max(0, history.length - WINDOW_MESSAGES)
+    }
+    const windowedHistory = history.slice(windowStart)
 
     const motionGroups = getAvailableMotionGroups()
-    const systemContent = buildSystemPrompt(activeRoleCard!, motionGroups)
+    const systemContent = buildSystemPrompt(
+      activeRoleCard!,
+      motionGroups,
+      getMemorySnapshot(activeRoleCard!.id) ?? undefined,
+    )
 
     let messagesForLLM: ChatMessage[] = [
       { role: 'system', content: systemContent },
-      ...sanitizeHistoryForLLM(history),
+      ...sanitizeHistoryForLLM(windowedHistory),
     ]
 
     const toolsResp = await window.opengal.tools.list()

@@ -22,6 +22,12 @@ export const IpcChannels = {
     setEnabled: 'plugins:setEnabled',
     rescan: 'plugins:rescan'
   },
+  memory: {
+    get: 'memory:get',
+    apply: 'memory:apply',
+    manualAdd: 'memory:manualAdd',
+    clear: 'memory:clear'
+  },
   pet: {
     open: 'pet:open',
     close: 'pet:close',

@@ -16,6 +16,15 @@ const defaultConfig: AppConfig = {
     temperature: 0.86,
     maxTokens: 4096
   },
+  memory: {
+    factBudgetChars: 4000,
+    storyBudgetChars: 3000,
+    injectCharCap: 900,
+    batchTurns: 8,
+    idleMinutes: 5,
+    fallbackHours: 12,
+    windowBatchTurns: 10
+  },
   tts: {
     enabled: false,
     provider: 'gpt-sovits',
@@ -116,7 +125,8 @@ export function readConfig(): AppConfig {
     ...raw,
     llm: { ...defaultConfig.llm, ...(raw.llm ?? {}) },
     tts: { ...defaultConfig.tts, ...(raw.tts ?? {}) },
-    asr: { ...defaultConfig.asr, ...(raw.asr ?? {}) }
+    asr: { ...defaultConfig.asr, ...(raw.asr ?? {}) },
+    memory: { ...defaultConfig.memory, ...(raw.memory ?? {}) }
   }
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
