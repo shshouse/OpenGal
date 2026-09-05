@@ -16,6 +16,11 @@ function reportTTSError(message: string): void {
   useLogsStore.getState().appendLocal('warn', 'tts-worker', `语音合成失败: ${message}`)
 }
 
+function clearQueue(): void {
+  queue = []
+  useLogsStore.getState().appendLocal('info', 'tts-worker', 'TTS 队列已清空')
+}
+
 export function startTTSWorker(): () => void {
   if (bound) return stopTTSWorker
   bound = true
@@ -26,11 +31,15 @@ export function startTTSWorker(): () => void {
   })
 
   const offAbort = pipelineBus.on('pipeline:abort', () => {
-    queue = []
+    clearQueue()
     processing = false
   })
 
-  unsubscribers = [offDialog, offAbort]
+  const offUserInput = pipelineBus.on('user:input', () => {
+    clearQueue()
+  })
+
+  unsubscribers = [offDialog, offAbort, offUserInput]
   return stopTTSWorker
 }
 

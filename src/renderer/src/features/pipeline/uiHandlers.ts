@@ -2,6 +2,7 @@ import type { TTSOutputMessage } from '@shared/messages'
 import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useASRStore } from '@/features/asr/asrStore'
 import type { MessageHandler } from './handlerChain'
+import { pipelineBus } from './pipelineBus'
 
 let fallbackAudio: HTMLAudioElement | null = null
 
@@ -18,11 +19,14 @@ export function stopFallbackAudio(): void {
 }
 
 export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> {
+  private interrupted = false
+
   canHandle(msg: TTSOutputMessage): boolean {
     return !msg.isSystem
   }
 
   async handle(msg: TTSOutputMessage): Promise<void> {
+    this.interrupted = false
     if (msg.emotion) applyEmotion(msg.emotion)
     if (msg.motion) playMotionGroup(msg.motion)
 
@@ -34,18 +38,28 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
     const model = getLive2DModel()
     if (model) {
       await new Promise<void>((resolve) => {
+        const off = pipelineBus.on('user:input', () => {
+          this.interrupted = true
+          try { model.stopSpeaking() } catch { /* ignore */ }
+          resolve()
+        })
         try {
           model.speak(msg.audioUrl, {
             volume: 1,
             crossOrigin: 'anonymous',
-            onFinish: () => resolve(),
+            onFinish: () => {
+              off()
+              if (!this.interrupted) resolve()
+            },
             onError: (err: Error) => {
               console.warn('[UIWorker] model.speak error', err)
+              off()
               resolve()
             },
           })
         } catch (err) {
           console.warn('[UIWorker] model.speak threw', err)
+          off()
           resolve()
         }
       })
@@ -53,7 +67,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       await playFallbackAudio(msg.audioUrl)
     }
 
-    if (wasASRRunning) await useASRStore.getState().start()
+    if (wasASRRunning && !this.interrupted) await useASRStore.getState().start()
   }
 }
 

@@ -17,23 +17,30 @@ let accumulatedReasoning = ''
 let accumulatedRaw = ''
 
 export function setActiveRoleCard(card: RoleCard): void {
-  if (activeRoleCard?.id !== card.id) {
-    windowTurnCount = 0
-    windowStart = 0
-  }
   activeRoleCard = card
 }
 
-const WINDOW_BATCH_TURNS = 10
-const WINDOW_MESSAGES = 40
-let windowTurnCount = 0
-let windowStart = 0
+const MAX_HISTORY_MESSAGES = 40
+function slidingWindow(history: ChatMessage[]): ChatMessage[] {
+  if (history.length <= MAX_HISTORY_MESSAGES) return history
+  return history.slice(history.length - MAX_HISTORY_MESSAGES)
+}
 
 export function getLastRawResponse(): string {
   return accumulatedRaw
 }
 
 const MAX_TOOL_ROUNDS = 5
+const MAX_RETRIES = 1
+const RETRY_BASE_MS = 2000
+
+function isRetryableError(error: string): boolean {
+  return /timeout|network|ECONNRESET|502|503|504|rate limit|overloaded/i.test(error)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export function startLLMWorker(): () => void {
   if (bound) {
@@ -44,6 +51,7 @@ export function startLLMWorker(): () => void {
   const parser = new DialogueStreamParser()
 
   let dialogCountThisTurn = 0
+  let retryCount = 0
 
   const emitDialog = (item: LLMDialogueItem): void => {
     dialogCountThisTurn++
@@ -62,13 +70,7 @@ export function startLLMWorker(): () => void {
         /* ignore */
       }
     }
-    parser.reset()
-    accumulatedReasoning = ''
-    accumulatedRaw = ''
-    dialogCountThisTurn = 0
-    useToolCallsStore.getState().clear()
-
-    currentStreamId = `stream_${++counter}_${Date.now()}`
+    resetForNewAttempt()
 
     void runTurn(input.text).catch((err: Error) => {
       currentStreamId = null
@@ -78,11 +80,7 @@ export function startLLMWorker(): () => void {
 
   async function runTurn(userText: string): Promise<void> {
     const history = useChatStore.getState().messages
-    windowTurnCount++
-    if ((windowTurnCount - 1) % WINDOW_BATCH_TURNS === 0) {
-      windowStart = Math.max(0, history.length - WINDOW_MESSAGES)
-    }
-    const windowedHistory = history.slice(windowStart)
+    const windowedHistory = slidingWindow(history)
 
     const motionGroups = getAvailableMotionGroups()
     const systemContent = buildSystemPrompt(
@@ -99,7 +97,7 @@ export function startLLMWorker(): () => void {
     const toolsResp = await window.opengal.tools.list()
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
 
-    const firstResult = await runStreamRound(messagesForLLM, tools)
+    const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools)
     if (!firstResult.ok) {
       currentStreamId = null
       pipelineBus.emit('llm:done', { ok: false, error: firstResult.error })
@@ -199,6 +197,37 @@ export function startLLMWorker(): () => void {
     pipelineBus.emit('llm:done', { ok: false, error: `工具循环超过 ${MAX_TOOL_ROUNDS} 轮，已强制终止` })
   }
 
+  async function runStreamRoundWithRetry(
+    messages: ChatMessage[],
+    tools: ToolDefinition[],
+  ): Promise<
+    | { ok: true; assistantContent: string; toolCalls: ToolCall[] | undefined }
+    | { ok: false; error: string }
+  > {
+    let lastError = ''
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1)
+        useLogsStore.getState().appendLocal('info', 'llm-worker', `LLM 请求重试 ${attempt}/${MAX_RETRIES}，等待 ${delay}ms`)
+        await sleep(delay)
+      }
+      const result = await runStreamRound(messages, tools)
+      if (result.ok) return result
+      lastError = result.error
+      if (!isRetryableError(result.error)) break
+    }
+    return { ok: false, error: lastError }
+  }
+
+  function resetForNewAttempt(): void {
+    parser.reset()
+    accumulatedReasoning = ''
+    accumulatedRaw = ''
+    dialogCountThisTurn = 0
+    useToolCallsStore.getState().clear()
+    currentStreamId = `stream_${++counter}_${Date.now()}`
+  }
+
   function finalizeAndEmit(
     rawContent: string,
     p: DialogueStreamParser,
@@ -262,6 +291,35 @@ export function startLLMWorker(): () => void {
   const offError = window.opengal.llm.onStreamError((id, error) => {
     if (id !== currentStreamId) return
     useLogsStore.getState().appendLocal('error', 'llm-worker', `LLM 流错误: ${error}`)
+    if (retryCount < MAX_RETRIES && isRetryableError(error)) {
+      retryCount++
+      useLogsStore.getState().appendLocal('info', 'llm-worker', `流错误将重试 (${retryCount}/${MAX_RETRIES})`)
+      resetForNewAttempt()
+      const history = useChatStore.getState().messages
+      const windowedHistory = slidingWindow(history)
+      const motionGroups = getAvailableMotionGroups()
+      const systemContent = buildSystemPrompt(
+        activeRoleCard!,
+        motionGroups,
+        getMemorySnapshot(activeRoleCard!.id) ?? undefined,
+      )
+      const messages: ChatMessage[] = [
+        { role: 'system', content: systemContent },
+        ...sanitizeHistoryForLLM(windowedHistory),
+      ]
+      void runStreamRoundWithRetry(messages, [])
+        .then((result) => {
+          if (!result.ok) {
+            currentStreamId = null
+            pipelineBus.emit('llm:done', { ok: false, error: result.error })
+          }
+        })
+        .catch(() => {
+          currentStreamId = null
+          pipelineBus.emit('llm:done', { ok: false, error })
+        })
+      return
+    }
     currentStreamId = null
     pipelineBus.emit('llm:done', { ok: false, error })
   })
@@ -277,6 +335,7 @@ export function startLLMWorker(): () => void {
       currentStreamId = null
     }
     parser.reset()
+    retryCount = 0
     if (wasStreaming) {
       pipelineBus.emit('llm:done', { ok: true })
     }
