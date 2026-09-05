@@ -8,6 +8,8 @@ const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
 const MAX_BUFFER_WAIT_MS = 8000
 const SHOT_TTL_MS = 10000
+const BACKLOG_TTL_MS = 120000
+const MAX_WAIT_ROUNDS = 2
 
 interface Utterance {
   text: string
@@ -17,16 +19,22 @@ interface Utterance {
 interface DirectorDecisionLog {
   utterances: Utterance[]
   joined: string
-  decision: 'respond' | 'silence' | 'skip'
+  decision: 'respond' | 'silence' | 'wait' | 'skip'
   reason?: string
   skipWhy?: 'cooldown' | 'short' | 'busy'
   llmLatencyMs?: number
   screenIncluded?: boolean
   engine?: string
+  waitRound?: number
+  waitSec?: number
 }
 
 let buffer: Utterance[] = []
+let backlog: Utterance[] = []
 let silenceTimer: ReturnType<typeof setTimeout> | null = null
+let waitTimer: ReturnType<typeof setTimeout> | null = null
+let waitRound = 0
+let waitUtterances: Utterance[] = []
 let lastReplyAt = 0
 let evaluating = false
 let dispatch: ((input: UserInputMessage) => void) | null = null
@@ -53,11 +61,27 @@ function decisionLog(entry: DirectorDecisionLog): void {
       decision: entry.decision,
       reason: entry.reason ?? '',
       ...(entry.skipWhy ? { skipWhy: entry.skipWhy } : {}),
+      ...(entry.waitRound !== undefined ? { waitRound: entry.waitRound } : {}),
+      ...(entry.waitSec !== undefined ? { waitSec: entry.waitSec } : {}),
       llmLatencyMs: entry.llmLatencyMs ?? 0,
       screenIncluded: entry.screenIncluded ?? false,
       engine: entry.engine ?? ''
     })
   } catch { /* 日志失败不影响主流程 */ }
+}
+
+function clearWaitState(): void {
+  if (waitTimer) {
+    clearTimeout(waitTimer)
+    waitTimer = null
+  }
+  waitRound = 0
+  waitUtterances = []
+}
+
+function pruneBacklog(): void {
+  const cutoff = Date.now() - BACKLOG_TTL_MS
+  backlog = backlog.filter((u) => u.at >= cutoff)
 }
 
 export function offerUtterance(text: string): void {
@@ -84,6 +108,7 @@ async function evaluate(): Promise<void> {
   try {
     const utterances = buffer
     buffer = []
+    clearWaitState()
     const cfg = (await window.opengal.config.get()).data?.asr
     if (!cfg) return
 
@@ -105,18 +130,45 @@ async function evaluate(): Promise<void> {
       return
     }
 
+    pruneBacklog()
     const startedAt = Date.now()
-    const { decision, screenIncluded } = await askDirector(utterances, cfg.directorScreenContext)
+    const { decision, screenIncluded } = await askDirector(utterances, backlog, cfg.directorScreenContext)
     const llmLatencyMs = Date.now() - startedAt
-    if (decision.respond) {
+    if (decision.action === 'respond') {
       lastReplyAt = Date.now()
-      dispatch?.({ text: joined, source: 'voice' })
+      const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
+      backlog = []
+      dispatch?.({ text: fullText, source: 'voice' })
       log('info', `导演放行: ${decision.reason}`)
       decisionLog({
-        utterances, joined, decision: 'respond', reason: decision.reason,
+        utterances, joined: fullText, decision: 'respond', reason: decision.reason,
         llmLatencyMs, screenIncluded, engine: cfg.engine
       })
+    } else if (decision.action === 'wait') {
+      const waitSec = Math.min(Math.max(decision.waitSec ?? 5, 2), 15)
+      if (waitRound < MAX_WAIT_ROUNDS) {
+        waitRound++
+        waitUtterances = utterances
+        waitTimer = setTimeout(() => {
+          buffer = [...waitUtterances, ...buffer]
+          clearWaitState()
+          void evaluate()
+        }, waitSec * 1000)
+        log('info', `导演等待 ${waitSec}s (第${waitRound}轮): ${decision.reason}`)
+        decisionLog({
+          utterances, joined, decision: 'wait', reason: decision.reason,
+          llmLatencyMs, screenIncluded, engine: cfg.engine, waitRound, waitSec
+        })
+      } else {
+        backlog = [...backlog, ...utterances]
+        log('info', `等待轮次耗尽，转入回溯池: ${decision.reason}`)
+        decisionLog({
+          utterances, joined, decision: 'silence', reason: `等待耗尽: ${decision.reason}`,
+          llmLatencyMs, screenIncluded, engine: cfg.engine
+        })
+      }
     } else {
+      backlog = [...backlog, ...utterances]
       log('info', `导演沉默: ${decision.reason}`)
       decisionLog({
         utterances, joined, decision: 'silence', reason: decision.reason,
@@ -134,8 +186,9 @@ async function evaluate(): Promise<void> {
 }
 
 interface DirectorDecision {
-  respond: boolean
+  action: 'respond' | 'wait' | 'silence'
   reason: string
+  waitSec?: number
 }
 
 async function captureScreen(): Promise<string | null> {
@@ -150,6 +203,7 @@ async function captureScreen(): Promise<string | null> {
 
 async function askDirector(
   utterances: Utterance[],
+  backlogUtterances: Utterance[],
   screenContext: boolean
 ): Promise<{ decision: DirectorDecision; screenIncluded: boolean }> {
   const now = new Date()
@@ -163,12 +217,19 @@ async function askDirector(
     .map((u) => `- ${Math.max(1, Math.round((Date.now() - u.at) / 1000))}秒前: "${u.text}"`)
     .join('\n')
 
+  const backlogTranscript = backlogUtterances
+    .map((u) => `- ${Math.max(1, Math.round((Date.now() - u.at) / 1000))}秒前: "${u.text}"`)
+    .join('\n')
+
   const report = [
     `【当前时间】${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
     `【距上次角色回应】${sinceLastReply < 0 ? '本次会话尚未回应过' : `${sinceLastReply}秒前`}`,
     '',
-    '【麦克风听到的语音转写（离线识别，可能不准确）】',
+    '【麦克风刚听到的语音】',
     transcript,
+    ...(backlogUtterances.length > 0
+      ? ['', '【此前被沉默的语音】', backlogTranscript]
+      : []),
     '',
     '【最近对话（可能为空）】',
     recent.length > 0 ? recent.join('\n') : '（无）'
@@ -196,24 +257,29 @@ async function askDirector(
 function parseDecision(raw: string): DirectorDecision {
   const m = raw.match(/\{[\s\S]*\}/)
   if (!m) throw new Error(`无法解析导演输出: ${raw.slice(0, 120)}`)
-  const parsed = JSON.parse(m[0]) as DirectorDecision
-  if (typeof parsed.respond !== 'boolean') throw new Error('导演输出缺少 respond 字段')
-  return { respond: parsed.respond, reason: String(parsed.reason ?? '') }
+  const parsed = JSON.parse(m[0]) as { action?: string; reason?: string; waitSec?: number }
+  const action = parsed.action === 'wait' ? 'wait' : parsed.action === 'respond' ? 'respond' : 'silence'
+  return {
+    action,
+    reason: String(parsed.reason ?? ''),
+    ...(parsed.waitSec !== undefined ? { waitSec: Number(parsed.waitSec) } : {})
+  }
 }
 
 function buildDirectorPrompt(roleName: string | null): string {
-  const nameRule = roleName ? `\n- 用户叫角色名字（${roleName}）=> respond=true` : ''
+  const nameRule = roleName ? `\n- 用户叫角色名字（${roleName}）=> action="respond"` : ''
   return `你是"导演"，为一个桌面虚拟角色工作。你的唯一职责：判断角色【此刻】是否应该回应麦克风听到的话。
 
-你不是角色，不创作任何对话内容。你是一个节奏控制者，目标是让角色显得"有分寸"——该说话时说话，不该说话时安静。
+你不是角色，不创作任何对话内容。你是一个节奏控制者，目标是让角色显得"有分寸"——该说话时说话，不该说话时安静，话没说完时等待。
 
 判定原则：${nameRule}
-- 用户在跟角色说话（提问、打招呼、叫角色名字、情绪表达、明显期待回应）=> respond=true
-- 用户在自言自语、工作口述、打电话、跟别人语音、念稿、读字幕 => respond=false
-- 转写是疑问句或以角色名开头 => 大概率 respond=true
-- 依据屏幕内容辅助判断：用户在打字、看视频、游戏中激战 => 倾向 respond=false；用户停下看着屏幕发呆、在浏览与角色相关内容 => 可以放宽
-- 判断模糊时 => respond=false（安静永远比打扰安全）
+- 用户在跟角色说话（提问、打招呼、叫角色名字、情绪表达、明显期待回应）=> action="respond"
+- 用户在自言自语、工作口述、打电话、跟别人语音、念稿、读字幕 => action="silence"
+- 用户话没说完（句子不完整、明显在组织语言、刚说了半句）=> action="wait"，并给出建议等待秒数 waitSec（2~15）
+- 转写是疑问句或以角色名开头 => 大概率 action="respond"
+- 依据屏幕内容辅助判断：用户在打字、看视频、游戏中激战 => 倾向 action="silence"；用户停下看着屏幕发呆、在浏览与角色相关内容 => 可以放宽
+- 判断模糊时 => action="silence"（安静永远比打扰安全）
 
 只输出一个 JSON 对象，不要输出任何其他内容：
-{"respond": true, "reason": "简短中文原因"}`
+{"action": "respond"|"wait"|"silence", "reason": "简短中文原因", "waitSec": 数字（仅 action="wait" 时需要）}`
 }
