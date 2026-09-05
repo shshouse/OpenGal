@@ -1,4 +1,4 @@
-import { startLLMWorker, stopLLMWorker, setActiveRoleCard } from './llmWorker'
+import { startLLMWorker, stopLLMWorker, setActiveRoleCard, setGlobalMaxTokens } from './llmWorker'
 import { startTTSWorker, stopTTSWorker } from './ttsWorker'
 import { startUIWorker, stopUIWorker } from './uiWorker'
 import { startMemoryService } from '@/features/memory/memoryService'
@@ -30,6 +30,10 @@ function startChatStreamBridge(): () => void {
 }
 
 export function startPipeline(): PipelineHandle {
+  void window.opengal.config.get().then((res) => {
+    const n = res.data?.llm?.maxTokens
+    if (typeof n === 'number' && n > 0) setGlobalMaxTokens(n)
+  })
   startLLMWorker()
   startTTSWorker()
   startUIWorker()

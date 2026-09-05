@@ -11,6 +11,11 @@ export interface LLMConfig {
   thinkingBudget?: number
 }
 
+export interface LLMPreset extends LLMConfig {
+  id: string
+  label: string
+}
+
 export interface Live2DModelConfig {
   modelPath: string
   modelUrl: string
@@ -92,6 +97,7 @@ export interface AppConfig {
   uiLanguage: 'zh' | 'en' | 'ja'
   theme: 'light' | 'dark' | 'system'
   llm: LLMConfig
+  llmPresets?: LLMPreset[]
   tts: TTSConfig
   asr: ASRConfig
   model: Live2DModelConfig | null

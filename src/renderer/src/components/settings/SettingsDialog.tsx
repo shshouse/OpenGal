@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Settings } from 'lucide-react'
+import { Settings, Plus, Trash2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { AppConfig, LLMProvider } from '@shared/types'
+import type { AppConfig, LLMProvider, LLMPreset } from '@shared/types'
 
 interface SettingsDialogProps {
   config: AppConfig | null
@@ -32,15 +32,24 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   },
 ]
 
+function newPresetId(): string {
+  return `preset_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+}
+
 export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   const [provider, setProvider] = React.useState<LLMProvider>('openai')
   const [baseURL, setBaseURL] = React.useState('')
   const [apiKey, setApiKey] = React.useState('')
   const [modelName, setModelName] = React.useState('')
+  const [maxTokens, setMaxTokens] = React.useState('4096')
   const [thinking, setThinking] = React.useState<'auto' | 'on' | 'off'>('auto')
   const [thinkingBudget, setThinkingBudget] = React.useState('1024')
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
+
+  const [presets, setPresets] = React.useState<LLMPreset[]>([])
+  const [activePresetId, setActivePresetId] = React.useState<string | null>(null)
+  const [editingPresetId, setEditingPresetId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (config) {
@@ -48,28 +57,62 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       setBaseURL(config.llm.baseURL)
       setApiKey(config.llm.apiKey)
       setModelName(config.llm.modelName)
+      setMaxTokens(String(config.llm.maxTokens ?? 4096))
       setThinking(config.llm.thinking === undefined ? 'auto' : config.llm.thinking ? 'on' : 'off')
       setThinkingBudget(String(config.llm.thinkingBudget ?? 1024))
+      setPresets(config.llmPresets ?? [])
+      const match = (config.llmPresets ?? []).find(
+        (p) =>
+          p.baseURL === config.llm.baseURL &&
+          p.modelName === config.llm.modelName &&
+          p.apiKey === config.llm.apiKey,
+      )
+      setActivePresetId(match?.id ?? null)
     }
   }, [config])
 
   const currentPreset =
     PROVIDER_PRESETS.find((p) => p.value === provider) ?? PROVIDER_PRESETS[0]
 
+  function loadPreset(p: LLMPreset): void {
+    setProvider(p.provider ?? 'openai')
+    setBaseURL(p.baseURL)
+    setApiKey(p.apiKey)
+    setModelName(p.modelName)
+    setMaxTokens(String(p.maxTokens ?? 4096))
+    setThinking(p.thinking === undefined ? 'auto' : p.thinking ? 'on' : 'off')
+    setThinkingBudget(String(p.thinkingBudget ?? 1024))
+    setEditingPresetId(p.id)
+  }
+
   async function handleSave(): Promise<void> {
     setSaving(true)
     setStatus(null)
     try {
+      const currentLLM = {
+        provider,
+        baseURL: baseURL.trim(),
+        apiKey: apiKey.trim(),
+        modelName: modelName.trim(),
+        maxTokens: Number(maxTokens) || 4096,
+        thinking: thinking === 'auto' ? undefined : thinking === 'on',
+        thinkingBudget: thinking === 'on' ? Number(thinkingBudget) || 1024 : undefined,
+      } as AppConfig['llm']
+
+      let nextPresets = [...presets]
+      if (editingPresetId) {
+        const idx = nextPresets.findIndex((p) => p.id === editingPresetId)
+        if (idx >= 0) {
+          nextPresets[idx] = { ...nextPresets[idx], ...currentLLM }
+        }
+      } else {
+        const label = modelName.trim() || '未命名预设'
+        nextPresets.push({ id: newPresetId(), label, ...currentLLM })
+      }
+
       await onSave({
-        llm: {
-          ...config?.llm,
-          provider,
-          baseURL: baseURL.trim(),
-          apiKey: apiKey.trim(),
-          modelName: modelName.trim(),
-          thinking: thinking === 'auto' ? undefined : thinking === 'on',
-          thinkingBudget: thinking === 'on' ? Number(thinkingBudget) || 1024 : undefined,
-        } as AppConfig['llm'],
+        llm: currentLLM,
+        llmPresets: nextPresets,
       })
       setStatus('已保存')
     } catch (error) {
@@ -79,11 +122,85 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     }
   }
 
+  async function handleSwitchPreset(p: LLMPreset): Promise<void> {
+    setActivePresetId(p.id)
+    loadPreset(p)
+    await onSave({
+      llm: {
+        provider: p.provider,
+        baseURL: p.baseURL,
+        apiKey: p.apiKey,
+        modelName: p.modelName,
+        maxTokens: p.maxTokens,
+        thinking: p.thinking,
+        thinkingBudget: p.thinkingBudget,
+      } as AppConfig['llm'],
+    })
+  }
+
+  async function handleDeletePreset(id: string): Promise<void> {
+    const next = presets.filter((p) => p.id !== id)
+    setPresets(next)
+    if (activePresetId === id) setActivePresetId(null)
+    if (editingPresetId === id) setEditingPresetId(null)
+    await onSave({ llmPresets: next })
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Settings className="size-4" /> 模型设置
       </div>
+
+      {presets.length > 0 && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">模型预设</label>
+          <div className="flex flex-wrap gap-1.5">
+            {presets.map((p) => (
+              <div
+                key={p.id}
+                className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
+                  activePresetId === p.id ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <button
+                  type="button"
+                  className="flex items-center gap-1 hover:underline"
+                  onClick={() => void handleSwitchPreset(p)}
+                >
+                  {activePresetId === p.id && <Check className="size-3 text-primary" />}
+                  {p.label}
+                </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => void handleDeletePreset(p.id)}
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 gap-1 px-2 text-xs"
+              onClick={() => {
+                setEditingPresetId(null)
+                setProvider('openai')
+                setBaseURL('')
+                setApiKey('')
+                setModelName('')
+                setMaxTokens('4096')
+                setThinking('auto')
+                setThinkingBudget('1024')
+              }}
+            >
+              <Plus className="size-3" /> 新建
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">供应商</label>
@@ -129,6 +246,28 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           onChange={(e) => setModelName(e.target.value)}
           placeholder={currentPreset.exampleModel}
         />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">上下文窗口 (tokens)</label>
+        <Select value={maxTokens} onValueChange={setMaxTokens}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="2048">2K</SelectItem>
+            <SelectItem value="4096">4K</SelectItem>
+            <SelectItem value="8192">8K</SelectItem>
+            <SelectItem value="16384">16K</SelectItem>
+            <SelectItem value="32768">32K</SelectItem>
+            <SelectItem value="65536">64K</SelectItem>
+            <SelectItem value="131072">128K</SelectItem>
+            <SelectItem value="1048576">1M</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          模型单次请求的最大 token 数，超出部分会被压缩或截断
+        </p>
       </div>
 
       <div className="space-y-1">

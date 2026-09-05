@@ -21,13 +21,71 @@ export function setActiveRoleCard(card: RoleCard): void {
 }
 
 const MAX_HISTORY_MESSAGES = 40
+const COMPRESSION_THRESHOLD = 0.85
+
 function slidingWindow(history: ChatMessage[]): ChatMessage[] {
   if (history.length <= MAX_HISTORY_MESSAGES) return history
   return history.slice(history.length - MAX_HISTORY_MESSAGES)
 }
 
+interface ContextUsage {
+  systemTokens: number
+  memoryTokens: number
+  historyTokens: number
+  totalTokens: number
+  maxTokens: number
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+function computeContextUsage(
+  systemContent: string,
+  memoryBlock: string | undefined,
+  history: ChatMessage[],
+  maxTokens: number,
+): ContextUsage {
+  const systemTokens = estimateTokens(systemContent)
+  const memoryTokens = memoryBlock ? estimateTokens(memoryBlock) : 0
+  const historyTokens = history.reduce((sum, m) => {
+    const text = typeof m.content === 'string'
+      ? m.content
+      : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
+    return sum + estimateTokens(text)
+  }, 0)
+  return {
+    systemTokens,
+    memoryTokens,
+    historyTokens,
+    totalTokens: systemTokens + memoryTokens + historyTokens,
+    maxTokens,
+  }
+}
+
 export function getLastRawResponse(): string {
   return accumulatedRaw
+}
+
+export function getContextUsage(): ContextUsage | null {
+  if (!activeRoleCard) return null
+  const history = useChatStore.getState().messages
+  const windowedHistory = slidingWindow(history)
+  const motionGroups = getAvailableMotionGroups()
+  const memoryBlock = getMemorySnapshot(activeRoleCard.id) ?? undefined
+  const systemContent = buildSystemPrompt(activeRoleCard, motionGroups, memoryBlock)
+  const maxTokens = resolveMaxTokens()
+  return computeContextUsage(systemContent, memoryBlock, windowedHistory, maxTokens)
+}
+
+let globalMaxTokens = 4096
+
+export function setGlobalMaxTokens(n: number): void {
+  globalMaxTokens = n
+}
+
+function resolveMaxTokens(): number {
+  return activeRoleCard?.llm?.maxTokens ?? globalMaxTokens
 }
 
 const MAX_TOOL_ROUNDS = 5
@@ -40,6 +98,62 @@ function isRetryableError(error: string): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function compressHistory(
+  history: ChatMessage[],
+  maxTokens: number,
+): Promise<ChatMessage[]> {
+  const totalTokens = history.reduce((sum, m) => {
+    const text = typeof m.content === 'string'
+      ? m.content
+      : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
+    return sum + estimateTokens(text)
+  }, 0)
+
+  if (totalTokens <= maxTokens * COMPRESSION_THRESHOLD) return history
+
+  const keepRecent = Math.max(10, Math.floor(history.length * 0.3))
+  const toCompress = history.slice(0, history.length - keepRecent)
+  const recent = history.slice(history.length - keepRecent)
+
+  const summaryText = toCompress
+    .map((m) => {
+      const role = m.role === 'user' ? '用户' : '角色'
+      const text = typeof m.content === 'string'
+        ? m.content
+        : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
+      return `${role}: ${text.slice(0, 200)}`
+    })
+    .join('\n')
+
+  const res = await window.opengal.llm.chat({
+    messages: [
+      {
+        role: 'system',
+        content: '将以下对话历史压缩为一段简洁的摘要，保留关键事实和情感脉络。输出纯文本，不要 JSON。',
+      },
+      { role: 'user', content: summaryText },
+    ],
+  })
+
+  if (!res.success || !res.data?.content) {
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', '历史压缩失败，使用截断')
+    return recent
+  }
+
+  const compressed: ChatMessage = {
+    role: 'system',
+    content: `[历史摘要] ${res.data.content.trim()}`,
+  }
+
+  useLogsStore.getState().appendLocal(
+    'info',
+    'llm-worker',
+    `历史压缩: ${toCompress.length} 条 → 1 条摘要 (${estimateTokens(res.data.content)} tokens)`,
+  )
+
+  return [compressed, ...recent]
 }
 
 export function startLLMWorker(): () => void {
@@ -80,7 +194,9 @@ export function startLLMWorker(): () => void {
 
   async function runTurn(userText: string): Promise<void> {
     const history = useChatStore.getState().messages
+    const maxTokens = resolveMaxTokens()
     const windowedHistory = slidingWindow(history)
+    const compressedHistory = await compressHistory(windowedHistory, maxTokens)
 
     const motionGroups = getAvailableMotionGroups()
     const systemContent = buildSystemPrompt(
@@ -91,7 +207,7 @@ export function startLLMWorker(): () => void {
 
     let messagesForLLM: ChatMessage[] = [
       { role: 'system', content: systemContent },
-      ...sanitizeHistoryForLLM(windowedHistory),
+      ...sanitizeHistoryForLLM(compressedHistory),
     ]
 
     const toolsResp = await window.opengal.tools.list()

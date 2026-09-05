@@ -12,6 +12,7 @@ import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directo
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { MicButton } from './MicButton'
+import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
 
 function abortPipeline(): void {
@@ -224,6 +225,7 @@ export function GalgameChatPanel() {
               <ImagePlus className="size-4" />
             </Button>
             <MicButton />
+            <ContextUsageIndicator />
             {isSending ? (
               <Button
                 size="icon"
