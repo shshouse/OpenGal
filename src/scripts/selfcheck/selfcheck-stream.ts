@@ -1,6 +1,6 @@
 import assert from 'node:assert'
-import { DialogueStreamParser } from '../src/shared/roleCard.ts'
-import { splitChunk } from '../src/main/services/llm/chunkSplit.ts'
+import { DialogueStreamParser } from '../../shared/roleCard.ts'
+import { splitChunk } from '../../main/services/llm/chunkSplit.ts'
 
 const p1 = new DialogueStreamParser()
 assert.deepStrictEqual(p1.feed('{"text":"你好","emotion":"happy"}'), [

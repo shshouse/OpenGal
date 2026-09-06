@@ -21,11 +21,8 @@ export function setActiveRoleCard(card: RoleCard): void {
 }
 
 const COMPRESSION_THRESHOLD = 0.8
-
-// ponytail: 摘要 token 缓存仅供用量指示器同步估算；实际注入以 compressHistory 返回为准
 let cachedSummariesText: string | null = null
 
-// 分段摘要注入：全部摘要段按时间拼接
 async function loadSummariesText(characterId: string): Promise<string | null> {
   const res = await window.opengal.chatHistory.summaries(characterId)
   const rows = res.success && res.data ? res.data : []

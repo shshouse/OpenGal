@@ -1,0 +1,11 @@
+appId: com.opengal.desktop
+productName: OpenGal
+directories:
+  output: release/${version}
+files:
+  - out/**
+win:
+  target: portable
+  # icon: build/icon.ico  # TODO: 需要方形品牌图标(>=256px)，当前 logo 是 400x115 横幅不可用
+portable:
+  artifactName: ${productName}-${version}-portable.exe

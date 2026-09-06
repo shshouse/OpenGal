@@ -37,7 +37,6 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
       orientation="vertical"
       className="flex h-full min-h-0 w-full"
     >
-      {/* 左侧导航栏：窄屏收起为纯图标 */}
       <TabsList className="h-full w-14 shrink-0 flex-col items-stretch justify-start gap-0.5 rounded-none border-r bg-transparent p-2 sm:w-44">
         {SECTIONS.map((s) => (
           <TabsTrigger
@@ -52,7 +51,6 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
         ))}
       </TabsList>
 
-      {/* 右侧：固定头部（标题 + 描述）+ 独立滚动内容区 */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="shrink-0 border-b px-4 py-3 sm:px-6">
           <h2 className="text-base font-semibold">{active.label}</h2>

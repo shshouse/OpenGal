@@ -18,8 +18,7 @@ export function setMemoryDbLogger(l: MemoryDbLogger): void {
   logger = l
 }
 
-// 原生 node:sqlite（Electron 35+ / Node 22.13+ 可用），WAL 增量落盘，写即持久。
-// 旧方案（sql.js WASM + 3s 节流全量 export）已删；历史原因见 backups/memory-pre-wal.db。
+// 原生 SQLite（Electron 内置 node:sqlite），WAL 模式，写即持久
 export interface MessageRow {
   id?: number
   character_id: string
@@ -171,7 +170,6 @@ function checkpoint(): void {
   }
 }
 
-// 一次性迁移留档：旧 sql.js 引擎生成的文件在原生引擎首开前先备份一份，确认稳定后可删
 function preMigrationBackup(dataRoot: string): void {
   try {
     if (getMeta('native_sqlite_migrated')) return

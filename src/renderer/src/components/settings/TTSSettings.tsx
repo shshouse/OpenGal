@@ -305,7 +305,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
       {form.provider === 'genie' && (
         <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2">
-          Genie 需先转换模型为 ONNX 格式（scripts/convert_to_onnx.py），并启动 Genie API 服务（scripts/start_genie_tts.py）。
+          Genie 需先转换模型为 ONNX 格式（src/scripts/tts/convert_to_onnx.py），并启动 Genie API 服务（src/scripts/tts/start_genie_tts.py）。
         </div>
       )}
 

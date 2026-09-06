@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const [modelDir, wavPath] = process.argv.slice(2)
 if (!modelDir || !wavPath) {
-  console.error('usage: node scripts/asr-worker/feed_wav.mjs <modelDir> <clip.wav> [vadPath]')
+  console.error('usage: node src/scripts/asr-worker/feed_wav.mjs <modelDir> <clip.wav> [vadPath]')
   console.error('env: WORKER_EXE=... 切换到冻结 exe；WORKER_PY / WORKER_SCRIPT 切换 python')
   process.exit(1)
 }
@@ -19,7 +19,7 @@ const hotwords = process.env.ASR_HOTWORDS ?? ''
 const exe = process.env.WORKER_EXE
 const pyParts = (process.env.WORKER_PY ?? 'py -3.12').split(' ')
 const workerScript =
-  process.env.WORKER_SCRIPT ?? path.join(root, 'scripts', 'asr-worker', 'sherpa_worker.py')
+  process.env.WORKER_SCRIPT ?? path.join(root, 'src', 'main', 'services', 'asr', 'sherpa_worker.py')
 const [program, ...pre] = exe
   ? [exe]
   : [...pyParts, '-u', workerScript]

@@ -6,7 +6,7 @@ import { logBus } from '../logBus'
 import { readConfig } from '../configStore'
 import { getModRoot, getDataRoot } from '../paths'
 import type { ASREngine, ASRResultCallback } from './types'
-import workerSrc from '../../../../scripts/asr-worker/sherpa_worker.py?raw'
+import workerSrc from './sherpa_worker.py?raw'
 
 let child: ChildProcess | null = null
 let running = false

@@ -4,7 +4,7 @@ import {
   clearTtsPortShift,
   parseTtsPort,
   setTtsPortShift,
-} from '../src/main/services/ttsPort.ts'
+} from '../../main/services/ttsPort.ts'
 
 assert.strictEqual(parseTtsPort('http://127.0.0.1:9880'), 9880)
 assert.strictEqual(parseTtsPort('http://127.0.0.1'), 39880)

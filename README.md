@@ -51,10 +51,10 @@ OpenGal 的核心。不是“把聊天记录塞回去”，而是模拟人类记
 
 ## 技术栈
 
-- **桌面**：Electron 32 + electron-vite
+- **桌面**：Electron 44 + electron-vite
 - **前端**：React 18 + TypeScript + Tailwind CSS + Zustand
 - **渲染**：PixiJS + pixi-live2d-display
-- **存储**：better-sqlite3（WAL 模式，原生增量落盘）
+- **存储**：node:sqlite（Electron 内置原生 SQLite，WAL 模式，写即持久）
 - **LLM**：OpenAI 兼容 API（任意提供商）
 
 ## 项目结构

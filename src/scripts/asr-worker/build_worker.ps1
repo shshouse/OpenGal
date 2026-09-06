@@ -2,7 +2,7 @@ param(
     [string]$Python = "py -3.12"
 )
 $ErrorActionPreference = "Stop"
-$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$repo = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 $pyCmd = $Python.Split(" ")
 $pyExe = $pyCmd[0]
 $pyArgs = @()
@@ -28,7 +28,7 @@ try {
         "--noconfirm", "--clean", "--onedir", "--name", "ASRWorker2",
         "--collect-all", "sherpa_onnx",
         "--collect-all", "onnxruntime"
-    ) + $excludeArgs + @("scripts/asr-worker/sherpa_worker.py"))
+    ) + $excludeArgs + @("src/main/services/asr/sherpa_worker.py"))
     if ($LASTEXITCODE -ne 0) { throw "pyinstaller failed" }
 
     $dest = Join-Path $repo "mods/STT/ASRWorker2"

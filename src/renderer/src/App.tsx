@@ -147,7 +147,6 @@ export default function App() {
     return (
       <div className="flex h-full flex-col">
         <main className="relative flex flex-1 overflow-hidden">
-          {/* 人物全屏背景 */}
           <div className="absolute inset-0">
             {config?.showLive2D ? (
               <Live2DStage model={model} onChange={handleModelChange} />
@@ -160,7 +159,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Galgame 对话层（覆盖在人物之上） */}
           {showSettings && config ? (
             <div className="absolute inset-0 z-20 flex flex-col bg-background">
               <div className="flex h-10 items-center gap-2 border-b px-3">
@@ -175,7 +173,6 @@ export default function App() {
             </div>
           ) : (
             <>
-              {/* 右上角：设置齿轮 */}
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
                 <Button
                   variant="ghost"

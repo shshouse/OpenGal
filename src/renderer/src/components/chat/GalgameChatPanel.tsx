@@ -156,7 +156,6 @@ export function GalgameChatPanel() {
         )}
       </div>
 
-      {/* 收起/展开历史按钮 */}
       <button
         type="button"
         onClick={() => setHistoryOpen((v) => !v)}
@@ -166,13 +165,10 @@ export function GalgameChatPanel() {
         {historyOpen ? '收起' : `历史 ${messages.length}`}
       </button>
 
-      {/* 底部对话框：居中限宽（galgame 式），人物在中间、对话框正下方 */}
       <div className="pointer-events-auto relative mx-auto mb-4 w-[calc(100%-1.5rem)] max-w-3xl rounded-2xl border bg-background/85 shadow-lg backdrop-blur-sm">
-        {/* 角色名铭牌 */}
         <span className="absolute -top-3 left-4 rounded-md border bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground shadow">
           {displayName}
         </span>
-        {/* 台词区：点击展开历史 */}
         <button
           type="button"
           onClick={() => setHistoryOpen(true)}
@@ -186,7 +182,6 @@ export function GalgameChatPanel() {
           </span>
         </button>
 
-        {/* 输入区 */}
         <div className="px-3 pb-3 pt-1">
           <PendingImagesBar pending={pendingImages} />
           <div className="flex items-end gap-2">

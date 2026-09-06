@@ -12,7 +12,7 @@ import {
   loadStories,
   normalizeText,
   textSimilarity,
-} from '../src/main/services/memoryStore.ts'
+} from '../../main/services/memoryStore.ts'
 import {
   appendMessage,
   archiveMessagesRange,
@@ -26,8 +26,8 @@ import {
   memoryDbReady,
   addSummary,
   saveChatMessages,
-} from '../src/main/services/memoryDb.ts'
-import { manualAddFact } from '../src/main/services/memoryStore.ts'
+} from '../../main/services/memoryDb.ts'
+import { manualAddFact } from '../../main/services/memoryStore.ts'
 
 assert.strictEqual(normalizeText('你好， 世界！'), '你好世界')
 assert.strictEqual(textSimilarity('用户的生日是6月12日', '用户的生日是 6 月 12 日'), 1)

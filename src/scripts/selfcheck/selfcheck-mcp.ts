@@ -1,8 +1,8 @@
 import assert from 'node:assert'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { McpSession } from '../src/main/services/plugins/mcpHost.ts'
-import { validateManifest } from '../src/main/services/plugins/manifest.ts'
+import { McpSession } from '../../main/services/plugins/mcpHost.ts'
+import { validateManifest } from '../../main/services/plugins/manifest.ts'
 
 const okM = validateManifest(
   {
