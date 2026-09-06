@@ -1,15 +1,13 @@
 <div align="center">
 
-<img src="public/OpenGalLogo.png" alt="OpenGal" width="128" />
+<img src="public/Logo/icon.png" alt="OpenGal" width="128" />
 
 # OpenGal
 
-**一个拥有长期记忆的 Live2D 桌面伴侣**
+**一个专门面向数字生命模拟的集合了语音功能，长期记忆，自主决策的一体化Harness**
 
-她可以一直陪你聊下去——记得你说过的话、你的偏好、你们之间的约定。
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Electron](https://img.shields.io/badge/Electron-32-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)](https://github.com/)

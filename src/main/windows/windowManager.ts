@@ -2,6 +2,8 @@ import { BrowserWindow, screen, shell } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 
+const windowIcon = join(process.cwd(), 'public/Logo/icon.png')
+
 interface WindowDeps {
   preloadPath: string
   rendererDevServerUrl?: string
@@ -31,6 +33,7 @@ export class WindowManager {
       titleBarStyle: 'hidden',
       autoHideMenuBar: true,
       backgroundColor: '#0b0b12',
+      icon: windowIcon,
       webPreferences: {
         preload: this.deps.preloadPath,
         contextIsolation: true,
@@ -74,6 +77,7 @@ export class WindowManager {
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
+      icon: windowIcon,
       webPreferences: {
         preload: this.deps.preloadPath,
         contextIsolation: true,

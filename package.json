@@ -1,11 +1,10 @@
 {
-  "name": "opengal-desktop",
+  "name": "opengal",
   "version": "0.0.1",
-  "description": "OpenGal companion with Live2D and OpenAI-compatible chat",
+  "description": "OpenGal,the best harness specifically for digital life",
   "main": "./out/main/index.js",
-  "author": "OpenGal",
-  "license": "MIT",
-  "private": true,
+  "author": "shshouse",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "dev": "chcp 65001 && electron-vite dev",
     "build": "electron-vite build",
