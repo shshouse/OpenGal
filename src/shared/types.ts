@@ -7,6 +7,7 @@ export interface LLMConfig {
   modelName: string
   temperature?: number
   maxTokens?: number
+  contextWindow?: number
   thinking?: boolean
   thinkingBudget?: number
 }
@@ -127,6 +128,7 @@ export interface MemoryFact {
   last_confirmed_at: string
   status: 'active' | 'archived'
   evidence: { reinforce: number; negate: number }
+  protected?: boolean
 }
 
 export interface MemoryStory {

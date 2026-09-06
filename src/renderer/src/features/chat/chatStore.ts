@@ -34,6 +34,7 @@ interface ChatState {
   appendStreamingSegment: (segment: StreamingSegment) => void
   markSegmentTTSQueued: (index: number) => void
   finalizeStream: (rawContent?: string, toolCalls?: ToolCallRecord[]) => void
+  archiveFront: (count: number) => Promise<void>
   clear: () => void
   switchSession: (characterId: string | null) => void
   ensureHydrated: (characterId: string) => Promise<void>
@@ -47,6 +48,17 @@ function buildUserContent(text: string, images?: string[]): ChatMessage['content
     parts.push({ type: 'image_url', image_url: { url } })
   }
   return parts
+}
+
+// 库侧已由动作自行同步（hydrate/归档/切角色），跳过订阅器的一轮持久化
+let suppressPersist = 0
+
+function isAppendOf(prev: unknown[], cur: unknown[]): boolean {
+  if (prev.length > cur.length) return false
+  for (let i = 0; i < prev.length; i++) {
+    if (prev[i] !== cur[i]) return false
+  }
+  return true
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -97,16 +109,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ streamingSegments: [] })
     }
   },
-  clear: () => {
-    const { sessionId } = get()
-    set({ messages: [], error: null, streamingSegments: [] })
-    if (sessionId) {
-      void window.opengal.chatHistory.clear(sessionId).catch(() => {})
+  // 存档式压缩：库侧按 id 锚点标记 archived（原文保留），本地移除前缀，摘要由 llmWorker 持久化
+  archiveFront: async (count) => {
+    const { sessionId, messages } = get()
+    if (!sessionId || count <= 0 || count > messages.length) return
+    const slice = messages.slice(0, count)
+    const fromId = (slice[0] as ChatMessage & { dbId?: number }).dbId
+    const toId = (slice[slice.length - 1] as ChatMessage & { dbId?: number }).dbId
+    if (typeof fromId === 'number' && typeof toId === 'number') {
+      await window.opengal.chatHistory.archiveRange(sessionId, fromId, toId).catch(() => {})
     }
+    suppressPersist++
+    set((state) => ({ messages: state.messages.slice(count) }))
+  },
+  clear: () => {
+    set({ messages: [], error: null, streamingSegments: [] })
   },
   switchSession: (characterId) => {
     const { sessionId } = get()
     if (sessionId === characterId) return
+    suppressPersist++
     set((state) => {
       const sessions = { ...state.sessions }
       if (state.sessionId) {
@@ -132,6 +154,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         | PersistedAssistantMessage
         | PersistedUserMessage
       )[]
+      suppressPersist++
       set((state) => {
         const sessions = { ...state.sessions, [characterId]: { messages: loaded } }
         if (state.sessionId === characterId) {
@@ -144,18 +167,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   }
 }))
 
-let persistTimer: ReturnType<typeof setTimeout> | null = null
+// 增量持久化到 SQLite：纯追加走 append，其余（清空/异常编辑）走 replaceAll
 useChatStore.subscribe((state, prev) => {
   if (state.messages === prev.messages && state.sessionId === prev.sessionId) return
+  if (state.sessionId !== prev.sessionId) return
+  if (suppressPersist > 0) {
+    suppressPersist--
+    return
+  }
   const { sessionId, messages } = state
   if (!sessionId) return
-  if (persistTimer) clearTimeout(persistTimer)
-  persistTimer = setTimeout(() => {
-    persistTimer = null
-    const cur = useChatStore.getState()
-    if (!cur.sessionId) return
-    void window.opengal.chatHistory
-      .save(cur.sessionId, cur.messages as ChatMessage[])
-      .catch(() => {})
-  }, 800)
+  if (isAppendOf(prev.messages, messages)) {
+    const added = messages.slice(prev.messages.length)
+    if (added.length > 0) {
+      void window.opengal.chatHistory.append(sessionId, added as ChatMessage[]).catch(() => {})
+    }
+  } else {
+    void window.opengal.chatHistory.replaceAll(sessionId, messages as ChatMessage[]).catch(() => {})
+  }
 })

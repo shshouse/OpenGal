@@ -20,12 +20,27 @@ export function setActiveRoleCard(card: RoleCard): void {
   activeRoleCard = card
 }
 
-const MAX_HISTORY_MESSAGES = 40
-const COMPRESSION_THRESHOLD = 0.85
+const COMPRESSION_THRESHOLD = 0.8
 
-function slidingWindow(history: ChatMessage[]): ChatMessage[] {
-  if (history.length <= MAX_HISTORY_MESSAGES) return history
-  return history.slice(history.length - MAX_HISTORY_MESSAGES)
+// ponytail: 摘要 token 缓存仅供用量指示器同步估算；实际注入以 compressHistory 返回为准
+let cachedSummariesText: string | null = null
+
+// 分段摘要注入：全部摘要段按时间拼接
+async function loadSummariesText(characterId: string): Promise<string | null> {
+  const res = await window.opengal.chatHistory.summaries(characterId)
+  const rows = res.success && res.data ? res.data : []
+  if (rows.length === 0) {
+    cachedSummariesText = null
+    return null
+  }
+  cachedSummariesText = rows.map((r) => r.text).join('\n')
+  return cachedSummariesText
+}
+
+function messageText(m: ChatMessage): string {
+  return typeof m.content === 'string'
+    ? m.content
+    : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
 }
 
 interface ContextUsage {
@@ -36,8 +51,22 @@ interface ContextUsage {
   maxTokens: number
 }
 
+// ponytail: 字符级启发式估算，CJK 2 tokens/字，英文 0.25 tokens/字符
+// 比 length/4 准确（length/4 对中文低估 4 倍），比 tiktoken 轻（零依赖）
+// 已知上限：非精确 tokenizer，混合文本可能有 ±10% 偏差
 function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4)
+  let tokens = 0
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if (code >= 0x4e00 && code <= 0x9fff) {
+      tokens += 2
+    } else if (code >= 0x3000 && code <= 0x303f) {
+      tokens += 1
+    } else {
+      tokens += 0.25
+    }
+  }
+  return Math.ceil(tokens)
 }
 
 function computeContextUsage(
@@ -48,12 +77,9 @@ function computeContextUsage(
 ): ContextUsage {
   const systemTokens = estimateTokens(systemContent)
   const memoryTokens = memoryBlock ? estimateTokens(memoryBlock) : 0
-  const historyTokens = history.reduce((sum, m) => {
-    const text = typeof m.content === 'string'
-      ? m.content
-      : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
-    return sum + estimateTokens(text)
-  }, 0)
+  const historyTokens =
+    history.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0) +
+    (cachedSummariesText ? estimateTokens(cachedSummariesText) : 0)
   return {
     systemTokens,
     memoryTokens,
@@ -70,22 +96,30 @@ export function getLastRawResponse(): string {
 export function getContextUsage(): ContextUsage | null {
   if (!activeRoleCard) return null
   const history = useChatStore.getState().messages
-  const windowedHistory = slidingWindow(history)
   const motionGroups = getAvailableMotionGroups()
   const memoryBlock = getMemorySnapshot(activeRoleCard.id) ?? undefined
   const systemContent = buildSystemPrompt(activeRoleCard, motionGroups, memoryBlock)
-  const maxTokens = resolveMaxTokens()
-  return computeContextUsage(systemContent, memoryBlock, windowedHistory, maxTokens)
+  return computeContextUsage(systemContent, memoryBlock, history, resolveContextWindow())
 }
 
 let globalMaxTokens = 4096
+let globalContextWindow: number | null = null
 
 export function setGlobalMaxTokens(n: number): void {
   globalMaxTokens = n
 }
 
+export function setGlobalContextWindow(n: number): void {
+  globalContextWindow = n
+}
+
 function resolveMaxTokens(): number {
   return activeRoleCard?.llm?.maxTokens ?? globalMaxTokens
+}
+
+// 上下文窗口：压缩阈值与用量显示的口径；输出上限（max_tokens）与此无关
+function resolveContextWindow(): number {
+  return activeRoleCard?.llm?.contextWindow ?? globalContextWindow ?? resolveMaxTokens()
 }
 
 const MAX_TOOL_ROUNDS = 5
@@ -100,31 +134,39 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// 存档式压缩：超阈值时把旧段摘要追加进 L1（SQLite summaries 分段），原文标记 archived 永不删除
+// 返回值 = [既往摘要消息(若有), ...可用历史]
 async function compressHistory(
+  characterId: string,
   history: ChatMessage[],
-  maxTokens: number,
+  contextWindow: number,
+  systemTokens: number,
 ): Promise<ChatMessage[]> {
-  const totalTokens = history.reduce((sum, m) => {
-    const text = typeof m.content === 'string'
-      ? m.content
-      : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
-    return sum + estimateTokens(text)
-  }, 0)
+  const summariesText = await loadSummariesText(characterId)
+  const summaryMessage: ChatMessage | null = summariesText
+    ? { role: 'system', content: `[既往对话摘要]\n${summariesText}` }
+    : null
 
-  if (totalTokens <= maxTokens * COMPRESSION_THRESHOLD) return history
+  const summaryTokens = summariesText ? estimateTokens(summariesText) : 0
+  const historyTokens = history.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
+  const budget = contextWindow * COMPRESSION_THRESHOLD - systemTokens - summaryTokens
+  if (historyTokens <= budget) {
+    return summaryMessage ? [summaryMessage, ...history] : history
+  }
 
   const keepRecent = Math.max(10, Math.floor(history.length * 0.3))
+  if (history.length <= keepRecent) {
+    return summaryMessage ? [summaryMessage, ...history] : history
+  }
   const toCompress = history.slice(0, history.length - keepRecent)
   const recent = history.slice(history.length - keepRecent)
 
-  const summaryText = toCompress
-    .map((m) => {
-      const role = m.role === 'user' ? '用户' : '角色'
-      const text = typeof m.content === 'string'
-        ? m.content
-        : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
-      return `${role}: ${text.slice(0, 200)}`
-    })
+  const summarySource = [
+    summariesText ? `【此前摘要】\n${summariesText}` : '',
+    '【新增对话】',
+    ...toCompress.map((m) => `${m.role === 'user' ? '用户' : '角色'}: ${messageText(m).slice(0, 200)}`),
+  ]
+    .filter(Boolean)
     .join('\n')
 
   const res = await window.opengal.llm.chat({
@@ -133,27 +175,39 @@ async function compressHistory(
         role: 'system',
         content: '将以下对话历史压缩为一段简洁的摘要，保留关键事实和情感脉络。输出纯文本，不要 JSON。',
       },
-      { role: 'user', content: summaryText },
+      { role: 'user', content: summarySource },
     ],
   })
 
   if (!res.success || !res.data?.content) {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', '历史压缩失败，使用截断')
-    return recent
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', '历史压缩失败，跳过本轮压缩')
+    return summaryMessage ? [summaryMessage, ...history] : history
   }
 
-  const compressed: ChatMessage = {
-    role: 'system',
-    content: `[历史摘要] ${res.data.content.trim()}`,
+  const newText = res.data.content.trim()
+  // 兜底：压缩后仍超阈值则放弃归档，保原文返回（避免归档与注入脱节）
+  const newSummaryTokens = summaryTokens + estimateTokens(newText)
+  const newTotal = systemTokens + newSummaryTokens + recent.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
+  if (newTotal > contextWindow) {
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', `压缩后仍超窗口 (${newTotal}/${contextWindow})，放弃本轮归档`)
+    return summaryMessage ? [summaryMessage, ...history] : history
   }
+
+  await window.opengal.chatHistory.summaryAdd(characterId, {
+    start_ts: Date.now(),
+    end_ts: Date.now(),
+    text: newText,
+    message_count: toCompress.length,
+  })
+  await useChatStore.getState().archiveFront(toCompress.length)
 
   useLogsStore.getState().appendLocal(
     'info',
     'llm-worker',
-    `历史压缩: ${toCompress.length} 条 → 1 条摘要 (${estimateTokens(res.data.content)} tokens)`,
+    `存档压缩: ${toCompress.length} 条归档，新摘要段 ${estimateTokens(newText)} tokens`,
   )
 
-  return [compressed, ...recent]
+  return [{ role: 'system', content: `[既往对话摘要]\n${summariesText ? summariesText + '\n' : ''}${newText}` }, ...recent]
 }
 
 export function startLLMWorker(): () => void {
@@ -194,15 +248,17 @@ export function startLLMWorker(): () => void {
 
   async function runTurn(userText: string): Promise<void> {
     const history = useChatStore.getState().messages
-    const maxTokens = resolveMaxTokens()
-    const windowedHistory = slidingWindow(history)
-    const compressedHistory = await compressHistory(windowedHistory, maxTokens)
-
     const motionGroups = getAvailableMotionGroups()
     const systemContent = buildSystemPrompt(
       activeRoleCard!,
       motionGroups,
       getMemorySnapshot(activeRoleCard!.id) ?? undefined,
+    )
+    const compressedHistory = await compressHistory(
+      activeRoleCard!.id,
+      history,
+      resolveContextWindow(),
+      estimateTokens(systemContent),
     )
 
     let messagesForLLM: ChatMessage[] = [
@@ -404,7 +460,7 @@ export function startLLMWorker(): () => void {
     if (id !== currentStreamId) return
   })
 
-  const offError = window.opengal.llm.onStreamError((id, error) => {
+  const offError = window.opengal.llm.onStreamError(async (id, error) => {
     if (id !== currentStreamId) return
     useLogsStore.getState().appendLocal('error', 'llm-worker', `LLM 流错误: ${error}`)
     if (retryCount < MAX_RETRIES && isRetryableError(error)) {
@@ -412,16 +468,21 @@ export function startLLMWorker(): () => void {
       useLogsStore.getState().appendLocal('info', 'llm-worker', `流错误将重试 (${retryCount}/${MAX_RETRIES})`)
       resetForNewAttempt()
       const history = useChatStore.getState().messages
-      const windowedHistory = slidingWindow(history)
       const motionGroups = getAvailableMotionGroups()
       const systemContent = buildSystemPrompt(
         activeRoleCard!,
         motionGroups,
         getMemorySnapshot(activeRoleCard!.id) ?? undefined,
       )
+      const contextHistory = await compressHistory(
+        activeRoleCard!.id,
+        history,
+        resolveContextWindow(),
+        estimateTokens(systemContent),
+      )
       const messages: ChatMessage[] = [
         { role: 'system', content: systemContent },
-        ...sanitizeHistoryForLLM(windowedHistory),
+        ...sanitizeHistoryForLLM(contextHistory),
       ]
       void runStreamRoundWithRetry(messages, [])
         .then((result) => {

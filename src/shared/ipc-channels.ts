@@ -45,8 +45,12 @@ export const IpcChannels = {
   },
   chatHistory: {
     load: 'chatHistory:load',
-    save: 'chatHistory:save',
-    clear: 'chatHistory:clear'
+    append: 'chatHistory:append',
+    replaceAll: 'chatHistory:replaceAll',
+    archiveRange: 'chatHistory:archiveRange',
+    latestMessageId: 'chatHistory:latestMessageId',
+    summaries: 'chatHistory:summaries',
+    summaryAdd: 'chatHistory:summaryAdd'
   },
   tts: {
     speak: 'tts:speak',

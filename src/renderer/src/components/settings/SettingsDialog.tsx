@@ -42,6 +42,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   const [apiKey, setApiKey] = React.useState('')
   const [modelName, setModelName] = React.useState('')
   const [maxTokens, setMaxTokens] = React.useState('4096')
+  const [contextWindow, setContextWindow] = React.useState('32768')
   const [thinking, setThinking] = React.useState<'auto' | 'on' | 'off'>('auto')
   const [thinkingBudget, setThinkingBudget] = React.useState('1024')
   const [saving, setSaving] = React.useState(false)
@@ -57,7 +58,15 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       setBaseURL(config.llm.baseURL)
       setApiKey(config.llm.apiKey)
       setModelName(config.llm.modelName)
-      setMaxTokens(String(config.llm.maxTokens ?? 4096))
+      // 旧配置迁移：历史上"上下文窗口"误存进 maxTokens，>32K 的视为窗口值
+      const legacyMax = config.llm.maxTokens ?? 4096
+      if (!config.llm.contextWindow && legacyMax > 32768) {
+        setContextWindow(String(legacyMax))
+        setMaxTokens('8192')
+      } else {
+        setMaxTokens(String(legacyMax))
+        setContextWindow(String(config.llm.contextWindow ?? Math.max(legacyMax, 32768)))
+      }
       setThinking(config.llm.thinking === undefined ? 'auto' : config.llm.thinking ? 'on' : 'off')
       setThinkingBudget(String(config.llm.thinkingBudget ?? 1024))
       setPresets(config.llmPresets ?? [])
@@ -80,6 +89,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     setApiKey(p.apiKey)
     setModelName(p.modelName)
     setMaxTokens(String(p.maxTokens ?? 4096))
+    setContextWindow(String(p.contextWindow ?? contextWindow))
     setThinking(p.thinking === undefined ? 'auto' : p.thinking ? 'on' : 'off')
     setThinkingBudget(String(p.thinkingBudget ?? 1024))
     setEditingPresetId(p.id)
@@ -250,7 +260,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">上下文窗口 (tokens)</label>
-        <Select value={maxTokens} onValueChange={setMaxTokens}>
+        <Select value={contextWindow} onValueChange={setContextWindow}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>

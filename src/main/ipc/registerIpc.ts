@@ -5,7 +5,6 @@ import { IpcChannels } from '@shared/ipc-channels'
 import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
 import { readConfig, writeConfig } from '../services/configStore'
-import { loadHistory, saveHistory, clearHistory } from '../services/chatHistory'
 import { callLLM, callLLMStream, abortStream } from '../services/llmClient'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
@@ -24,6 +23,18 @@ import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/log
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins } from '../services/plugins/registry'
 import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory } from '../services/memoryStore'
+import {
+  setMemoryDbLogger,
+  memoryDbReady,
+  listUnarchivedMessages,
+  saveChatMessages,
+  replaceUnarchivedMessages,
+  archiveMessagesRange,
+  latestMessageId,
+  listSummaries,
+  addSummary,
+  clearCharacterMessages,
+} from '../services/memoryDb'
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryFact } from '@shared/types'
 import type { WindowManager } from '../windows/windowManager'
 
@@ -35,6 +46,7 @@ function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
 }
 
 export function registerIpc(windows: WindowManager): void {
+  setMemoryDbLogger(logBus)
   initPlugins(getDataRoot())
   initMemoryStore(getDataRoot(), readConfig().memory)
 
@@ -111,20 +123,65 @@ export function registerIpc(windows: WindowManager): void {
       return card ? readRoleVoiceConfig(card) : null
     })
   )
+  // 消息 content 列存完整消息对象 JSON；兼容旧 JSON 导入的裸 content 格式
+  // 附带 dbId 供归档锚点使用
+  const rowToChatMessage = (row: { id?: number; role: string; content: string }): ChatMessage => {
+    try {
+      const parsed = JSON.parse(row.content) as unknown
+      const base = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'role' in (parsed as Record<string, unknown>))
+        ? (parsed as ChatMessage)
+        : { role: row.role as ChatMessage['role'], content: parsed as ChatMessage['content'] }
+      return { ...base, dbId: row.id } as ChatMessage
+    } catch {
+      return { role: row.role as ChatMessage['role'], content: row.content, dbId: row.id } as ChatMessage
+    }
+  }
+
   ipcMain.handle(IpcChannels.chatHistory.load, (_, characterId: string) =>
-    wrap<ChatMessage[]>(() => loadHistory(characterId))
+    wrap<ChatMessage[]>(async () => {
+      await memoryDbReady()
+      return listUnarchivedMessages(characterId).map(rowToChatMessage)
+    })
   )
-  ipcMain.handle(IpcChannels.chatHistory.save, (_, characterId: string, messages: ChatMessage[]) =>
+  ipcMain.handle(IpcChannels.chatHistory.append, (_, characterId: string, messages: ChatMessage[]) =>
     wrap<boolean>(() => {
-      saveHistory(characterId, messages)
+      saveChatMessages(characterId, messages)
       return true
     })
   )
-  ipcMain.handle(IpcChannels.chatHistory.clear, (_, characterId: string) =>
-    wrap<boolean>(() => {
-      clearHistory(characterId)
-      return true
-    })
+  ipcMain.handle(
+    IpcChannels.chatHistory.replaceAll,
+    (_, characterId: string, messages: ChatMessage[]) =>
+      wrap<boolean>(() => {
+        replaceUnarchivedMessages(
+          characterId,
+          messages.map((m) => ({
+            character_id: characterId,
+            role: m.role,
+            content: JSON.stringify(m),
+            ts: Date.now(),
+            archived: 0,
+          }))
+        )
+        return true
+      })
+  )
+  ipcMain.handle(IpcChannels.chatHistory.archiveRange, (_, characterId: string, fromId: number, toId: number) =>
+    wrap<number>(() => archiveMessagesRange(characterId, fromId, toId))
+  )
+  ipcMain.handle(IpcChannels.chatHistory.latestMessageId, (_, characterId: string) =>
+    wrap<number | null>(() => latestMessageId(characterId))
+  )
+  ipcMain.handle(IpcChannels.chatHistory.summaries, (_, characterId: string) =>
+    wrap(() => listSummaries(characterId))
+  )
+  ipcMain.handle(
+    IpcChannels.chatHistory.summaryAdd,
+    (_, characterId: string, s: { start_ts: number; end_ts: number; text: string; message_count: number }) =>
+      wrap<boolean>(() => {
+        addSummary(characterId, s)
+        return true
+      })
   )
 
   ipcMain.handle(IpcChannels.pet.open, () => wrap(() => windows.openPetWindow()))
@@ -245,10 +302,10 @@ export function registerIpc(windows: WindowManager): void {
   )
   ipcMain.handle(IpcChannels.plugins.rescan, () => wrap(() => rescanPlugins()))
   ipcMain.handle(IpcChannels.memory.get, (_, characterId: string) =>
-    wrap(() => ({
-      facts: loadFacts(characterId),
-      stories: loadStories(characterId),
-      block: getMemoryBlock(characterId)
+    wrap(async () => ({
+      facts: await loadFacts(characterId),
+      stories: await loadStories(characterId),
+      block: await getMemoryBlock(characterId)
     }))
   )
   ipcMain.handle(IpcChannels.memory.apply, (_, characterId: string, payload: MemoryApplyPayload) =>

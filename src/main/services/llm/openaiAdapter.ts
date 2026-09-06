@@ -29,7 +29,8 @@ function buildChatBody(
     model: config.modelName,
     messages,
     temperature: config.temperature ?? 0.86,
-    max_tokens: config.maxTokens ?? 8192,
+    // ponytail: max_tokens 是输出上限，钳制防止误配（如把上下文窗口 1M 填进来）被服务商拒绝
+    max_tokens: Math.min(config.maxTokens ?? 8192, 32768),
     response_format: tools?.length ? undefined : { type: 'json_object' },
   }
   if (stream) body.stream = true

@@ -1,5 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import type {
   MemoryCandidateFact,
   MemoryCandidateStory,
@@ -8,13 +6,23 @@ import type {
   MemoryFact,
   MemoryStory,
 } from '@shared/types'
+import {
+  initMemoryDb,
+  memoryDbReady,
+  listFacts,
+  saveFacts,
+  listStories,
+  saveStories,
+  clearCharacterMemory,
+  type FactRow,
+  type StoryRow,
+} from './memoryDb.ts'
 
 export type FactJudge = (
   existing: MemoryFact,
   candidate: MemoryCandidateFact,
 ) => Promise<'reinforces' | 'negates'>
 
-let dataRoot = ''
 let config: MemoryConfig = {
   factBudgetChars: 4000,
   storyBudgetChars: 3000,
@@ -26,54 +34,100 @@ let config: MemoryConfig = {
 }
 
 export function initMemoryStore(root: string, cfg?: Partial<MemoryConfig>): void {
-  dataRoot = root
   if (cfg) config = { ...config, ...cfg }
+  void initMemoryDb(root).catch(() => {})
 }
 
 export function getMemoryConfig(): MemoryConfig {
   return config
 }
 
-function charDir(characterId: string): string {
-  const safe = characterId.replace(/[\\/:*?"<>|]/g, '_')
-  return path.join(dataRoot, 'memory', safe)
-}
+// ---- 行 <-> 类型转换 ----
 
-function factsFile(characterId: string): string {
-  return path.join(charDir(characterId), 'facts.json')
-}
-
-function storiesFile(characterId: string): string {
-  return path.join(charDir(characterId), 'story.json')
-}
-
-function atomicWrite(file: string, data: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  const tmp = `${file}.tmp`
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8')
-  fs.renameSync(tmp, file)
-}
-
-function readJson<T>(file: string, fallback: T): T {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as T
-  } catch {
-    return fallback
+function rowToFact(r: FactRow): MemoryFact {
+  return {
+    id: r.id,
+    text: r.text,
+    entity: r.entity as MemoryFact['entity'],
+    importance: r.importance,
+    confidence: r.confidence,
+    source: r.source as MemoryFact['source'],
+    created_at: r.created_at,
+    last_confirmed_at: r.last_confirmed_at,
+    status: r.status as MemoryFact['status'],
+    evidence: { reinforce: r.evidence_reinforce, negate: r.evidence_negate },
+    protected: r.protected_ === 1,
   }
 }
 
-export function loadFacts(characterId: string): MemoryFact[] {
-  return readJson<MemoryFact[]>(factsFile(characterId), [])
+function factToRow(f: MemoryFact): FactRow {
+  return {
+    id: f.id,
+    character_id: '',
+    text: f.text,
+    entity: f.entity,
+    importance: f.importance,
+    confidence: f.confidence,
+    source: f.source,
+    created_at: f.created_at,
+    last_confirmed_at: f.last_confirmed_at,
+    status: f.status,
+    evidence_reinforce: f.evidence.reinforce,
+    evidence_negate: f.evidence.negate,
+    protected_: f.protected ? 1 : 0,
+  }
 }
 
-export function loadStories(characterId: string): MemoryStory[] {
-  return readJson<MemoryStory[]>(storiesFile(characterId), [])
+function rowToStory(r: StoryRow): MemoryStory {
+  return {
+    id: r.id,
+    kind: r.kind as MemoryStory['kind'],
+    text: r.text,
+    occurred_at: r.occurred_at,
+    due_at: r.due_at,
+    fulfilled: r.fulfilled === 1,
+    importance: r.importance,
+    status: r.status as MemoryStory['status'],
+    created_at: r.created_at,
+  }
 }
 
-export function clearMemory(characterId: string): void {
-  try {
-    fs.rmSync(charDir(characterId), { recursive: true, force: true })
-  } catch { /* 目录不存在视为已清空 */ }
+function storyToRow(s: MemoryStory): StoryRow {
+  return {
+    id: s.id,
+    character_id: '',
+    kind: s.kind,
+    text: s.text,
+    occurred_at: s.occurred_at,
+    due_at: s.due_at,
+    fulfilled: s.fulfilled ? 1 : 0,
+    importance: s.importance,
+    status: s.status,
+    created_at: s.created_at,
+  }
+}
+
+async function loadFactsTyped(characterId: string): Promise<MemoryFact[]> {
+  await memoryDbReady()
+  return listFacts(characterId).map(rowToFact)
+}
+
+async function loadStoriesTyped(characterId: string): Promise<MemoryStory[]> {
+  await memoryDbReady()
+  return listStories(characterId).map(rowToStory)
+}
+
+export async function loadFacts(characterId: string): Promise<MemoryFact[]> {
+  return loadFactsTyped(characterId)
+}
+
+export async function loadStories(characterId: string): Promise<MemoryStory[]> {
+  return loadStoriesTyped(characterId)
+}
+
+export async function clearMemory(characterId: string): Promise<void> {
+  await memoryDbReady()
+  clearCharacterMemory(characterId)
 }
 
 export function normalizeText(s: string): string {
@@ -156,7 +210,7 @@ function charsOf(list: { text: string }[]): number {
   return list.reduce((sum, x) => sum + x.text.length, 0)
 }
 
-function fitBudget<T extends { text: string; status: 'active' | 'archived' }>(
+function fitBudget<T extends { text: string; status: 'active' | 'archived'; protected?: boolean }>(
   all: T[],
   incoming: T,
   budget: number,
@@ -165,7 +219,9 @@ function fitBudget<T extends { text: string; status: 'active' | 'archived' }>(
   if (incoming.text.length > budget) return null
   const activeChars = (): number => charsOf(all.filter((x) => x.status === 'active'))
   if (activeChars() + incoming.text.length <= budget) return incoming
-  const ordered = all.filter((x) => x.status === 'active').sort((a, b) => scoreOf(a) - scoreOf(b))
+  const ordered = all
+    .filter((x) => x.status === 'active' && !x.protected)
+    .sort((a, b) => scoreOf(a) - scoreOf(b))
   for (const item of ordered) {
     item.status = 'archived'
     if (activeChars() + incoming.text.length <= budget) return incoming
@@ -186,8 +242,8 @@ export async function applyCandidates(
   payload: MemoryApplyPayload,
   judge?: FactJudge,
 ): Promise<ApplyResult> {
-  const facts = loadFacts(characterId)
-  const stories = loadStories(characterId)
+  const facts = await loadFactsTyped(characterId)
+  const stories = await loadStoriesTyped(characterId)
   const result: ApplyResult = {
     insertedFacts: 0,
     refreshedFacts: 0,
@@ -214,7 +270,7 @@ export async function applyCandidates(
       }
       try {
         const verdict = await judge(adjudication.target, cand)
-        if (verdict === 'reinforces') {
+        if (verdict === 'reinforces' || adjudication.target.protected) {
           adjudication.target.last_confirmed_at = ts
           adjudication.target.evidence.reinforce += 1
           result.refreshedFacts++
@@ -283,17 +339,18 @@ export async function applyCandidates(
     result.insertedStories++
   }
 
-  atomicWrite(factsFile(characterId), facts)
-  atomicWrite(storiesFile(characterId), stories)
+  await memoryDbReady()
+  saveFacts(characterId, facts.map(factToRow))
+  saveStories(characterId, stories.map(storyToRow))
   return result
 }
 
-export function manualAddFact(
+export async function manualAddFact(
   characterId: string,
   text: string,
   entity: MemoryFact['entity'] = 'user',
-): MemoryFact {
-  const facts = loadFacts(characterId)
+): Promise<MemoryFact> {
+  const facts = await loadFactsTyped(characterId)
   const ts = nowIso()
   const entry: MemoryFact = {
     id: newId('f'),
@@ -306,9 +363,11 @@ export function manualAddFact(
     last_confirmed_at: ts,
     status: 'active',
     evidence: { reinforce: 0, negate: 0 },
+    protected: true,
   }
   facts.push(entry)
-  atomicWrite(factsFile(characterId), facts)
+  await memoryDbReady()
+  saveFacts(characterId, facts.map(factToRow))
   return entry
 }
 
@@ -372,6 +431,10 @@ export function buildMemoryBlock(
   return `【你记得的事】\n${lines.join('\n')}`
 }
 
-export function getMemoryBlock(characterId: string): string | null {
-  return buildMemoryBlock(loadFacts(characterId), loadStories(characterId))
+export async function getMemoryBlock(characterId: string): Promise<string | null> {
+  const [facts, stories] = await Promise.all([
+    loadFactsTyped(characterId),
+    loadStoriesTyped(characterId),
+  ])
+  return buildMemoryBlock(facts, stories)
 }

@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Info } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { getContextUsage, setGlobalMaxTokens } from '@/features/pipeline/llmWorker'
+import { getContextUsage, setGlobalContextWindow } from '@/features/pipeline/llmWorker'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useCharacterStore } from '@/features/character/characterStore'
 
@@ -13,8 +13,8 @@ interface Segment {
 
 async function buildSegments(): Promise<{ segments: Segment[]; total: number; max: number } | null> {
   const res = await window.opengal.config.get()
-  const globalMax = res.data?.llm?.maxTokens ?? 4096
-  setGlobalMaxTokens(globalMax)
+  const globalMax = res.data?.llm?.contextWindow ?? res.data?.llm?.maxTokens ?? 4096
+  setGlobalContextWindow(globalMax)
   const usage = getContextUsage()
   if (!usage) return null
   const { systemTokens, memoryTokens, historyTokens, totalTokens, maxTokens } = usage
@@ -125,7 +125,8 @@ export function ContextUsageIndicator() {
           </div>
           <div className="space-y-1">
             {segments.map((seg) => {
-              const percent = max > 0 ? Math.round((seg.tokens / max) * 100) : 0
+              const ratio = max > 0 ? (seg.tokens / max) * 100 : 0
+              const percent = seg.tokens > 0 && ratio < 1 ? '<1' : String(Math.round(ratio))
               return (
                 <div key={seg.label} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5">

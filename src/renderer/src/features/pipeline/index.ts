@@ -1,4 +1,4 @@
-import { startLLMWorker, stopLLMWorker, setActiveRoleCard, setGlobalMaxTokens } from './llmWorker'
+import { startLLMWorker, stopLLMWorker, setActiveRoleCard, setGlobalMaxTokens, setGlobalContextWindow } from './llmWorker'
 import { startTTSWorker, stopTTSWorker } from './ttsWorker'
 import { startUIWorker, stopUIWorker } from './uiWorker'
 import { startMemoryService } from '@/features/memory/memoryService'
@@ -33,6 +33,8 @@ export function startPipeline(): PipelineHandle {
   void window.opengal.config.get().then((res) => {
     const n = res.data?.llm?.maxTokens
     if (typeof n === 'number' && n > 0) setGlobalMaxTokens(n)
+    const cw = res.data?.llm?.contextWindow
+    if (typeof cw === 'number' && cw > 0) setGlobalContextWindow(cw)
   })
   startLLMWorker()
   startTTSWorker()

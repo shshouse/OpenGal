@@ -105,9 +105,23 @@ const api = {
   },
   chatHistory: {
     load: (characterId: string) => invoke<ChatMessage[]>(IpcChannels.chatHistory.load, characterId),
-    save: (characterId: string, messages: ChatMessage[]) =>
-      invoke<boolean>(IpcChannels.chatHistory.save, characterId, messages),
-    clear: (characterId: string) => invoke<boolean>(IpcChannels.chatHistory.clear, characterId)
+    append: (characterId: string, messages: ChatMessage[]) =>
+      invoke<boolean>(IpcChannels.chatHistory.append, characterId, messages),
+    replaceAll: (characterId: string, messages: ChatMessage[]) =>
+      invoke<boolean>(IpcChannels.chatHistory.replaceAll, characterId, messages),
+    archiveRange: (characterId: string, fromId: number, toId: number) =>
+      invoke<number>(IpcChannels.chatHistory.archiveRange, characterId, fromId, toId),
+    latestMessageId: (characterId: string) =>
+      invoke<number | null>(IpcChannels.chatHistory.latestMessageId, characterId),
+    summaries: (characterId: string) =>
+      invoke<Array<{ start_ts: number; end_ts: number; text: string; message_count: number }>>(
+        IpcChannels.chatHistory.summaries,
+        characterId
+      ),
+    summaryAdd: (
+      characterId: string,
+      s: { start_ts: number; end_ts: number; text: string; message_count: number }
+    ) => invoke<boolean>(IpcChannels.chatHistory.summaryAdd, characterId, s)
   },
   pet: {
     open: () => invoke(IpcChannels.pet.open),

@@ -39,15 +39,16 @@
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
+    "tiktoken": "^1.0.22",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.17.6",
+    "@types/node": "^24.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
-    "electron": "^32.2.3",
+    "electron": "^44.2.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "postcss": "^8.4.49",

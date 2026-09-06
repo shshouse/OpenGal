@@ -1,18 +1,26 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+
+// 环境变量 ELECTRON_FORCE_IS_PACKAGED 会颠倒 app.isPackaged，
+// 用 exe 是否位于 node_modules 判定真实运行形态
+export function isDevRuntime(): boolean {
+  return app.getPath('exe').replace(/\\/g, '/').includes('node_modules')
+}
+
 export function getModRoot(): string {
   if (process.env.OPENGAL_MOD_ROOT && fs.existsSync(process.env.OPENGAL_MOD_ROOT)) {
     return process.env.OPENGAL_MOD_ROOT
   }
-  const candidates = app.isPackaged
+  const exeDir = path.dirname(app.getPath('exe'))
+  const candidates = isDevRuntime()
     ? [
-        path.join(process.resourcesPath, 'mods'),
-        path.join(path.dirname(app.getPath('exe')), 'mods')
+        // dev 下 exe 在 node_modules/electron/dist，项目根为其余三层
+        path.join(path.resolve(exeDir, '../../../'), 'mods')
       ]
     : [
-        path.join(app.getAppPath(), 'mods'),
-        path.join(app.getAppPath(), '..', 'mods')
+        path.join(process.resourcesPath, 'mods'),
+        path.join(exeDir, 'mods')
       ]
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
@@ -25,10 +33,11 @@ export function getDataRoot(): string {
   if (cachedDataRoot) return cachedDataRoot
   const candidates: string[] = []
   if (process.env.OPENGAL_DATA_DIR) candidates.push(process.env.OPENGAL_DATA_DIR)
+  const exeDir = path.dirname(app.getPath('exe'))
   candidates.push(
-    app.isPackaged
-      ? path.join(path.dirname(app.getPath('exe')), 'data')
-      : path.join(app.getAppPath(), 'data')
+    isDevRuntime()
+      ? path.join(path.resolve(exeDir, '../../../'), 'data')
+      : path.join(exeDir, 'data')
   )
   for (const candidate of candidates) {
     if (ensureWritableDir(candidate)) {
