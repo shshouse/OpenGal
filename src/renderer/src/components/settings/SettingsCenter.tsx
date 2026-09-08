@@ -19,7 +19,7 @@ interface SettingsCenterProps {
 const SECTIONS = [
   { value: 'character', label: '角色', icon: Users, description: '浏览并切换 mods/role-card 下的角色卡' },
   { value: 'display', label: '显示', icon: Monitor, description: '人物缩放、位置与显示开关' },
-  { value: 'llm', label: 'LLM', icon: Sparkles, description: '对话模型的供应商、Base URL、API Key 与模型名' },
+  { value: 'llm', label: '模型', icon: Sparkles, description: '管理对话模型、API Key 与热切换' },
   { value: 'tts', label: 'TTS', icon: Volume2, description: 'GPT-SoVITS 语音合成服务与参考音频参数' },
   { value: 'asr', label: 'STT', icon: Mic, description: '语音识别（ASR）参数' },
   { value: 'plugins', label: '插件', icon: Puzzle, description: '管理工具与界面扩展插件' },

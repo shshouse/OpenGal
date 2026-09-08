@@ -1,11 +1,10 @@
 import * as React from 'react'
-import { Settings } from 'lucide-react'
+import { Settings, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TitleBar } from '@/components/titlebar/TitleBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
-import { SettingsOverlay } from '@/components/settings/SettingsOverlay'
 import { LogsPanel } from '@/components/logs/LogsPanel'
 import { Sidebar } from '@/components/nav/Sidebar'
 import { useLogsStore } from '@/features/logs/logsStore'
@@ -14,6 +13,9 @@ import { startPipeline } from '@/features/pipeline'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { isMobile } from '@/lib/utils'
+
+type View = 'chat' | 'settings' | 'logs'
+const VIEW_ORDER: View[] = ['chat', 'settings', 'logs']
 
 function mergeSavedTransform(
   cardConfig: Live2DModelConfig,
@@ -35,16 +37,31 @@ export default function App() {
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [petOpen, setPetOpen] = React.useState(false)
   const [mobile] = React.useState(() => isMobile())
+  const [view, setView] = React.useState<View>('chat')
+  const [showSettings, setShowSettings] = React.useState(false)
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
   const activeId = useCharacterStore((s) => s.activeId)
 
   React.useEffect(() => {
-    const handler = () => setShowSettings(true)
+    const onMouseUp = (e: MouseEvent) => {
+      const idx = VIEW_ORDER.indexOf(view)
+      if (e.button === 3 && idx > 0) {
+        e.preventDefault()
+        setView(VIEW_ORDER[idx - 1])
+      } else if (e.button === 4 && idx < VIEW_ORDER.length - 1) {
+        e.preventDefault()
+        setView(VIEW_ORDER[idx + 1])
+      }
+    }
+    window.addEventListener('mouseup', onMouseUp)
+    return () => window.removeEventListener('mouseup', onMouseUp)
+  }, [view])
+
+  React.useEffect(() => {
+    const handler = () => setView('settings')
     window.addEventListener('opengal:open-settings', handler)
     return () => window.removeEventListener('opengal:open-settings', handler)
   }, [])
-
-  const [showSettings, setShowSettings] = React.useState(false)
 
   React.useEffect(() => {
     const handle = startPipeline()
@@ -124,10 +141,6 @@ export default function App() {
     await saveConfig({ showLive2D: next })
   }
 
-  function openLogs(): void {
-    useLogsStore.getState().setPanelOpen(true)
-  }
-
   const handleModelChange = React.useCallback(
     (next: { scale: number; xRatio: number; yRatio: number }) => {
       if (!model) return
@@ -143,13 +156,19 @@ export default function App() {
     [model]
   )
 
+  const live2dLayer = config?.showLive2D ? (
+    <Live2DStage model={model} onChange={handleModelChange} />
+  ) : (
+    <div className="h-full w-full bg-background" />
+  )
+
   if (mobile) {
     return (
       <div className="flex h-full flex-col">
         <main className="relative flex flex-1 overflow-hidden">
           <div className="absolute inset-0">
             {config?.showLive2D ? (
-              <Live2DStage model={model} onChange={handleModelChange} />
+              live2dLayer
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-background">
                 <Button variant="ghost" size="sm" onClick={toggleLive2D}>
@@ -196,33 +215,67 @@ export default function App() {
     <div className="flex h-full flex-col">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          onOpenSettings={() => setShowSettings(true)}
-          petOpen={petOpen}
-          onTogglePet={() => void togglePet()}
-          showLive2D={config?.showLive2D ?? true}
-          onToggleLive2D={() => void toggleLive2D()}
-          onOpenLogs={openLogs}
-        />
-        <main className="relative flex flex-1 overflow-hidden">
-          <div className="absolute inset-0">
-            {config?.showLive2D ? (
-              <Live2DStage model={model} onChange={handleModelChange} />
-            ) : (
-              <div className="h-full w-full bg-background" />
-            )}
-          </div>
-          <GalgameChatPanel />
-          <SettingsOverlay
-            open={showSettings}
-            onClose={() => setShowSettings(false)}
-            config={config}
-            model={model}
-            onSave={saveConfig}
+        {view === 'chat' && (
+          <Sidebar
+            onOpenSettings={() => setView('settings')}
+            petOpen={petOpen}
+            onTogglePet={() => void togglePet()}
+            showLive2D={config?.showLive2D ?? true}
+            onToggleLive2D={() => void toggleLive2D()}
+            onOpenLogs={() => setView('logs')}
           />
+        )}
+        <main className="relative flex flex-1 overflow-hidden">
+          {view === 'chat' && (
+            <>
+              <div className="absolute inset-0">{live2dLayer}</div>
+              <GalgameChatPanel />
+            </>
+          )}
+
+          {view === 'settings' && (
+            <div className="flex h-full w-full flex-col bg-background">
+              <div className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setView('chat')}
+                >
+                  <ArrowLeft className="size-4" />
+                  返回
+                </Button>
+                <span className="text-sm font-semibold">设置</span>
+                <span className="text-xs text-muted-foreground">鼠标侧键前进/后退</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                {config && <SettingsCenter config={config} model={model} onSave={saveConfig} />}
+              </div>
+            </div>
+          )}
+
+          {view === 'logs' && (
+            <div className="flex h-full w-full flex-col bg-background">
+              <div className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setView('chat')}
+                >
+                  <ArrowLeft className="size-4" />
+                  返回
+                </Button>
+                <span className="text-sm font-semibold">日志</span>
+                <span className="text-xs text-muted-foreground">鼠标侧键前进/后退</span>
+              </div>
+              <div className="min-h-0 flex-1">
+                <LogsPanel forceOpen />
+              </div>
+            </div>
+          )}
         </main>
       </div>
-      <LogsPanel />
     </div>
   )
 }

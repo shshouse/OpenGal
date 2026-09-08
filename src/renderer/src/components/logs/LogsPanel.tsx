@@ -26,7 +26,7 @@ interface FilterState {
   query: string
 }
 
-export function LogsPanel() {
+export function LogsPanel({ forceOpen = false }: { forceOpen?: boolean } = {}) {
   const open = useLogsStore((s) => s.panelOpen)
   const close = useLogsStore((s) => s.setPanelOpen)
   const entries = useLogsStore((s) => s.entries)
@@ -84,8 +84,14 @@ export function LogsPanel() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm">
-      <div className="m-2 flex h-[70vh] w-full max-w-5xl flex-col rounded-lg border bg-background shadow-2xl">
+    <div className={forceOpen
+      ? 'flex h-full w-full flex-col bg-background'
+      : 'fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm'
+    }>
+      <div className={forceOpen
+        ? 'flex h-full min-h-0 w-full flex-1 flex-col'
+        : 'm-2 flex h-[70vh] w-full max-w-5xl flex-col rounded-lg border bg-background shadow-2xl'
+      }>
         <header className="flex items-center gap-2 border-b px-3 py-2">
           <span className="text-sm font-semibold">运行日志</span>
           <span className="text-xs text-muted-foreground">{filtered.length}/{entries.length}</span>
@@ -126,9 +132,11 @@ export function LogsPanel() {
             <Button size="sm" variant="ghost" onClick={handleClear} title="清空">
               <Trash2 className="size-3.5" />
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => close(false)} title="关闭">
-              <X className="size-3.5" />
-            </Button>
+            {!forceOpen && (
+              <Button size="sm" variant="ghost" onClick={() => close(false)} title="关闭">
+                <X className="size-3.5" />
+              </Button>
+            )}
           </div>
         </header>
         <ScrollArea className="flex-1">
