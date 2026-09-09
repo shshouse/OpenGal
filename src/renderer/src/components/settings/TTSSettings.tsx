@@ -284,14 +284,13 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
           引擎
           {activeCharacter?.voice?.provider && (
             <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">
-              角色卡
+              角色卡当前指定: {activeCharacter.voice.provider}（仅提示，可修改）
             </span>
           )}
         </label>
         <Select
-          value={activeCharacter?.voice?.provider ?? form.provider}
+          value={form.provider}
           onValueChange={(v) => update('provider', v as TTSConfig['provider'])}
-          disabled={!!activeCharacter?.voice?.provider}
         >
           <SelectTrigger>
             <SelectValue />
