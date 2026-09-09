@@ -95,6 +95,47 @@ export interface ASRConfig {
   directorCooldownSec: number
 }
 
+export interface MarketMod {
+  id: string
+  mod_number: number
+  title: string
+  description: string | null
+  cover_url: string | null
+  images: string[] | null
+  tags: string[] | null
+  download_count: number
+  like_count: number
+  category?: { id: string; name: string; slug: string } | null
+  author?: { id: string; username: string } | null
+  versions?: Array<{ id: string; version: string; file_size: number | null }> | null
+}
+
+export interface MarketListResult {
+  game: {
+    id: string
+    name: string
+    game_number: string
+    icon_url: string | null
+    images: string[] | null
+    description: string | null
+  }
+  categories: Array<{ id: string; name: string; slug: string }>
+  mods: MarketMod[]
+  totalMods: number
+  page: number
+  pageSize: number
+}
+
+export interface MarketDownloadProgress {
+  modId: string
+  title: string
+  received: number
+  total: number
+  done: boolean
+  error?: string
+  filePath?: string
+}
+
 export interface AppConfig {
   uiLanguage: 'zh' | 'en' | 'ja'
   theme: 'light' | 'dark' | 'system'

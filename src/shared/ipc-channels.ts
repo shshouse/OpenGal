@@ -81,6 +81,11 @@ export const IpcChannels = {
   director: {
     log: 'director:log'
   },
+  market: {
+    list: 'market:list',
+    download: 'market:download',
+    downloadProgress: 'market:downloadProgress'
+  },
   screen: {
     capture: 'screen:capture'
   },

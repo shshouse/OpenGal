@@ -1,9 +1,11 @@
 import * as React from 'react'
-import { Settings, Terminal, Cat, Eye, EyeOff } from 'lucide-react'
+import { Settings, Terminal, Cat, Eye, EyeOff, Store } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
   onOpenSettings: () => void
+  onOpenMarket: () => void
+  marketActive: boolean
   petOpen: boolean
   onTogglePet: () => void
   showLive2D: boolean
@@ -43,6 +45,8 @@ function RailButton({
 
 export function Sidebar({
   onOpenSettings,
+  onOpenMarket,
+  marketActive,
   petOpen,
   onTogglePet,
   showLive2D,
@@ -51,6 +55,9 @@ export function Sidebar({
 }: Props) {
   return (
     <nav className="flex w-16 shrink-0 flex-col items-center gap-1 border-r bg-card/60 px-1.5 py-2">
+      <RailButton label="市场" title="模组市场" active={marketActive} onClick={onOpenMarket}>
+        <Store className="size-5" />
+      </RailButton>
       <RailButton label="设置" title="设置" onClick={onOpenSettings}>
         <Settings className="size-5" />
       </RailButton>

@@ -14,8 +14,8 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { isMobile } from '@/lib/utils'
 
-type View = 'chat' | 'settings' | 'logs'
-const VIEW_ORDER: View[] = ['chat', 'settings', 'logs']
+type View = 'chat' | 'market' | 'settings' | 'logs'
+const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
 
 function mergeSavedTransform(
   cardConfig: Live2DModelConfig,
@@ -217,6 +217,8 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           onOpenSettings={() => setView('settings')}
+          onOpenMarket={() => setView('market')}
+          marketActive={view === 'market'}
           petOpen={petOpen}
           onTogglePet={() => void togglePet()}
           showLive2D={config?.showLive2D ?? true}

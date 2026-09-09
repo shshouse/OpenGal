@@ -284,7 +284,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
           引擎
           {activeCharacter?.voice?.provider && (
             <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">
-              角色卡当前指定: {activeCharacter.voice.provider}（仅提示，可修改）
+              角色卡: {activeCharacter.voice.provider}
             </span>
           )}
         </label>
@@ -400,7 +400,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         value={String(effective('referenceText'))}
         onChange={(e) => update('referenceText', e.target.value)}
         disabled={fromCard('referenceText')}
-        placeholder="Hello! （留空 = 无参考文本模式，仅 GPT-SoVITS 支持）"
+        placeholder="Hello!"
       />
 
       {form.provider === 'gpt-sovits' && (
@@ -527,7 +527,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
       {portMismatch && (
         <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2">
-          后端地址端口（{formPort}）与服务实际监听端口（{serverPort}）不一致。改 baseURL 后请「停止服务」再「启动服务」让 python 重新绑定新端口，否则合成会一直连接被拒。
+          端口（{formPort}）与服务监听端口（{serverPort}）不一致，请重启服务。
         </div>
       )}
 

@@ -179,6 +179,27 @@ const api = {
   screen: {
     capture: () => invoke<string>(IpcChannels.screen.capture)
   },
+  market: {
+    list: (options: { page?: number; sort?: string; category?: string }) =>
+      invoke<import('@shared/types').MarketListResult>(IpcChannels.market.list, options),
+    download: (modId: string, versionId?: string) =>
+      invoke(IpcChannels.market.download, modId, versionId),
+    onDownloadProgress: (
+      listener: (p: {
+        modId: string
+        title: string
+        received: number
+        total: number
+        done: boolean
+        error?: string
+        filePath?: string
+      }) => void
+    ) => {
+      const handler = (_: unknown, p: Parameters<typeof listener>[0]) => listener(p)
+      ipcRenderer.on(IpcChannels.market.downloadProgress, handler)
+      return () => ipcRenderer.off(IpcChannels.market.downloadProgress, handler)
+    }
+  },
   director: {
     log: (entry: Record<string, unknown>) => {
       ipcRenderer.send(IpcChannels.director.log, entry)

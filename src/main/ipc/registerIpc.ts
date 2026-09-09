@@ -6,6 +6,7 @@ import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from 
 import type { LogEntry } from '@shared/log'
 import { readConfig, writeConfig } from '../services/configStore'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
+import { fetchMarketMods, downloadMarketMod } from '../services/marketService'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
 import { speak, pingTTS, resetTTSState } from '../services/ttsClient'
@@ -266,6 +267,17 @@ export function registerIpc(windows: WindowManager): void {
       .mkdir(dir, { recursive: true })
       .then(() => fs.promises.appendFile(file, `${JSON.stringify(entry)}\n`, 'utf-8'))
       .catch((err) => logBus.warn('director', `决策日志写入失败: ${(err as Error).message}`))
+  })
+
+  ipcMain.handle(
+    IpcChannels.market.list,
+    (_, options: { page?: number; sort?: string; category?: string }) =>
+      wrap(() => fetchMarketMods(options ?? {}))
+  )
+  ipcMain.handle(IpcChannels.market.download, (event, modId: string, versionId?: string) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return wrap(async () => { throw new Error('No window') })
+    return wrap(() => downloadMarketMod(win.webContents, modId, versionId))
   })
 
   ipcMain.handle(IpcChannels.screen.capture, async () => {

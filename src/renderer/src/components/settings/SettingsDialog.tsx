@@ -404,8 +404,8 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                       {loadingModels
                         ? '正在拉取模型列表...'
                         : modelFetchError
-                          ? `拉取失败: ${modelFetchError}，可手动输入模型名`
-                          : '可手动输入，或填写 API Key 后'}
+                          ? `拉取失败: ${modelFetchError}`
+                          : ''}
                     </span>
                     <button
                       type="button"

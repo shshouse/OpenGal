@@ -58,7 +58,7 @@ export function LogsPanel({ forceOpen = false }: { forceOpen?: boolean } = {}) {
     el.scrollTop = el.scrollHeight
   }, [filtered.length, autoScroll])
 
-  if (!open) return null
+  if (!open && !forceOpen) return null
 
   async function handleClear() {
     await window.opengal.logs.clear()
