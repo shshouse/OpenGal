@@ -52,10 +52,6 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
       </TabsList>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="shrink-0 border-b px-4 py-3 sm:px-6">
-          <h2 className="text-base font-semibold">{active.label}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">{active.description}</p>
-        </div>
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
           <TabsContent value="character" className="mt-0">
             <CharacterSettings />

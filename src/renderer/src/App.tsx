@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Settings, ArrowLeft } from 'lucide-react'
+import { Settings, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TitleBar } from '@/components/titlebar/TitleBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
@@ -233,18 +233,16 @@ export default function App() {
 
           {view === 'settings' && (
             <div className="flex h-full w-full flex-col bg-background">
-              <div className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5"
+              <div className="flex h-12 shrink-0 items-center border-b px-4">
+                <span className="text-sm font-semibold">设置</span>
+                <button
+                  type="button"
+                  title="关闭"
+                  className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   onClick={() => setView('chat')}
                 >
-                  <ArrowLeft className="size-4" />
-                  返回
-                </Button>
-                <span className="text-sm font-semibold">设置</span>
-                <span className="text-xs text-muted-foreground">鼠标侧键前进/后退</span>
+                  <X className="size-4" />
+                </button>
               </div>
               <div className="min-h-0 flex-1">
                 {config && <SettingsCenter config={config} model={model} onSave={saveConfig} />}
@@ -254,18 +252,16 @@ export default function App() {
 
           {view === 'logs' && (
             <div className="flex h-full w-full flex-col bg-background">
-              <div className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5"
+              <div className="flex h-12 shrink-0 items-center border-b px-4">
+                <span className="text-sm font-semibold">日志</span>
+                <button
+                  type="button"
+                  title="关闭"
+                  className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   onClick={() => setView('chat')}
                 >
-                  <ArrowLeft className="size-4" />
-                  返回
-                </Button>
-                <span className="text-sm font-semibold">日志</span>
-                <span className="text-xs text-muted-foreground">鼠标侧键前进/后退</span>
+                  <X className="size-4" />
+                </button>
               </div>
               <div className="min-h-0 flex-1">
                 <LogsPanel forceOpen />
