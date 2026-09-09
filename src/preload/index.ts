@@ -55,7 +55,9 @@ const api = {
       ipcRenderer.on(IpcChannels.llm.streamToolCalls, handler)
       return () => ipcRenderer.off(IpcChannels.llm.streamToolCalls, handler)
     },
-    abortStream: (streamId: string) => invoke(IpcChannels.llm.streamAbort, streamId)
+    abortStream: (streamId: string) => invoke(IpcChannels.llm.streamAbort, streamId),
+    listModels: (baseURL: string, apiKey: string) =>
+      invoke<string[]>(IpcChannels.llm.listModels, baseURL, apiKey)
   },
   tools: {
     list: () => invoke<ToolDefinition[]>(IpcChannels.tools.list),

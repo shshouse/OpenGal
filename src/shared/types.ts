@@ -8,6 +8,7 @@ export interface LLMConfig {
   temperature?: number
   maxTokens?: number
   contextWindow?: number
+  multimodal?: boolean
   thinking?: boolean
   thinkingBudget?: number
 }

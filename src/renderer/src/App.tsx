@@ -215,16 +215,14 @@ export default function App() {
     <div className="flex h-full flex-col">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
-        {view === 'chat' && (
-          <Sidebar
-            onOpenSettings={() => setView('settings')}
-            petOpen={petOpen}
-            onTogglePet={() => void togglePet()}
-            showLive2D={config?.showLive2D ?? true}
-            onToggleLive2D={() => void toggleLive2D()}
-            onOpenLogs={() => setView('logs')}
-          />
-        )}
+        <Sidebar
+          onOpenSettings={() => setView('settings')}
+          petOpen={petOpen}
+          onTogglePet={() => void togglePet()}
+          showLive2D={config?.showLive2D ?? true}
+          onToggleLive2D={() => void toggleLive2D()}
+          onOpenLogs={() => setView('logs')}
+        />
         <main className="relative flex flex-1 overflow-hidden">
           {view === 'chat' && (
             <>

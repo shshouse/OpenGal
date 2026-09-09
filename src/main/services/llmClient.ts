@@ -27,6 +27,27 @@ function describeMessages(messages: LLMRequest['messages']): string {
     .join('\n')
 }
 
+
+// 拉取服务商可用模型列表（OpenAI 兼容 /models 端点）
+export async function listProviderModels(
+  baseURL: string,
+  apiKey: string,
+): Promise<string[]> {
+  const url = `${baseURL.replace(/\/+$/, '')}/models`
+  const res = await fetch(url, {
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    signal: AbortSignal.timeout(10000),
+  })
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  const data = (await res.json()) as { data?: Array<{ id?: string }> }
+  const list = Array.isArray(data?.data) ? data.data : []
+  return list
+    .map((m) => (typeof m?.id === 'string' ? m.id : ''))
+    .filter((id) => id.length > 0)
+    .sort()
+}
 export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
   const settings = resolveSettings(request)
   const adapter = chooseAdapter(settings)

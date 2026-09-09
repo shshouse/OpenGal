@@ -5,7 +5,7 @@ import { IpcChannels } from '@shared/ipc-channels'
 import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
 import { readConfig, writeConfig } from '../services/configStore'
-import { callLLM, callLLMStream, abortStream } from '../services/llmClient'
+import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
 import { speak, pingTTS, resetTTSState } from '../services/ttsClient'
@@ -93,6 +93,12 @@ export function registerIpc(windows: WindowManager): void {
     abortStream(streamId)
     return { success: true }
   })
+
+  ipcMain.handle(
+    IpcChannels.llm.listModels,
+    (_, baseURL: string, apiKey: string) =>
+      wrap<string[]>(() => listProviderModels(baseURL, apiKey))
+  )
 
   ipcMain.handle(IpcChannels.model.resolveDefault, () =>
     wrap(() => resolveDefaultModel())
