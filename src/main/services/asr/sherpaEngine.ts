@@ -4,7 +4,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import { logBus } from '../logBus'
 import { readConfig } from '../configStore'
-import { getModRoot, getDataRoot } from '../paths'
+import { getModRoot, getDataRoot, getResourceRoot } from '../paths'
 import type { ASREngine, ASRResultCallback } from './types'
 import workerSrc from './sherpa_worker.py?raw'
 
@@ -30,17 +30,20 @@ function resolveSherpaPython(): string[] {
 }
 
 function portableWorkerExe(): string | null {
-  const exe = path.join(getModRoot(), 'STT', 'ASRWorker2', 'ASRWorker2.exe')
-  return fs.existsSync(exe) ? exe : null
+  const exes = [
+    path.join(getResourceRoot(), 'asr', 'ASRWorker2', 'ASRWorker2.exe'),
+    path.join(getModRoot(), 'STT', 'ASRWorker2', 'ASRWorker2.exe')
+  ]
+  return exes.find((p) => fs.existsSync(p)) ?? null
 }
 
 function resolveVadModel(): string {
-  const rel = path.join('STT', 'vad', 'silero_vad.onnx')
-  const found = [path.join(getModRoot(), rel), path.join(app.getAppPath(), rel)].find((p) =>
-    fs.existsSync(p)
-  )
+  const found = [
+    path.join(getResourceRoot(), 'asr', 'vad', 'silero_vad.onnx'),
+    path.join(getModRoot(), 'STT', 'vad', 'silero_vad.onnx')
+  ].find((p) => fs.existsSync(p))
   if (!found) {
-    throw new Error('未找到 silero_vad.onnx，请放置到 mods/STT/vad/silero_vad.onnx')
+    throw new Error('未找到 silero_vad.onnx（resources/asr/vad 或 mods/STT/vad）')
   }
   return found
 }
@@ -61,17 +64,40 @@ function writeWorkerScript(): string {
   return file
 }
 
+function firstModelDir(root: string): string | null {
+  try {
+    const first = fs.readdirSync(root, { withFileTypes: true }).find((d) => d.isDirectory())
+    return first ? path.join(root, first.name) : null
+  } catch {
+    return null
+  }
+}
+
+function resolveModelPath(configured: string): string {
+  if (configured) {
+    if (path.isAbsolute(configured)) {
+      if (fs.existsSync(configured)) return configured
+    } else {
+      const rel = [
+        path.join(getModRoot(), configured),
+        path.join(getResourceRoot(), configured),
+        path.join(app.getAppPath(), configured)
+      ].find((p) => fs.existsSync(p))
+      if (rel) return rel
+    }
+  }
+  const auto = [
+    firstModelDir(path.join(getResourceRoot(), 'models', 'asr')),
+    firstModelDir(path.join(getModRoot(), 'STT', 'models'))
+  ].find((p): p is string => !!p && fs.existsSync(p))
+  if (auto) return auto
+  throw new Error('未找到 ASR 模型目录（resources/models/asr 或 mods/STT/models），或在设置中指定 modelPath')
+}
+
 export async function startASR(): Promise<void> {
   if (running) return
   const config = readConfig().asr
-  if (!config.modelPath) {
-    throw new Error('ASR modelPath 未配置。请在设置中指定 sherpa-onnx 模型目录路径。')
-  }
-  const modelPath = path.isAbsolute(config.modelPath)
-    ? config.modelPath
-    : [path.join(getModRoot(), config.modelPath), path.join(app.getAppPath(), config.modelPath)].find(
-        (p) => fs.existsSync(p)
-      ) ?? path.join(getModRoot(), config.modelPath)
+  const modelPath = resolveModelPath(config.modelPath)
   const vadPath = resolveVadModel()
   const hotwordsFile = writeHotwordsFile()
   const workerArgv = [
@@ -143,7 +169,7 @@ export async function startASR(): Promise<void> {
     }
   })
   running = true
-  logBus.info('asr', `ASR 已启动 (engine=sherpa, backend=${exe ? 'ASRWorker2.exe' : program}, model=${config.modelPath}, sampleRate=${config.sampleRate})`)
+  logBus.info('asr', `ASR 已启动 (engine=sherpa, backend=${exe ? 'ASRWorker2.exe' : program}, model=${modelPath}, sampleRate=${config.sampleRate})`)
   try {
     await new Promise<void>((resolve, reject) => {
       startup = { resolve, reject }

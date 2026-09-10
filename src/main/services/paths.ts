@@ -110,14 +110,21 @@ export function resolveVoicePath(relOrAbs: string): string {
   return path.join(getVoiceRoot(), relOrAbs)
 }
 
+export function getResourceRoot(): string {
+  if (isDevRuntime()) {
+    const exeDir = path.dirname(app.getPath('exe'))
+    return path.join(path.resolve(exeDir, '../../../'), 'resources')
+  }
+  return process.resourcesPath
+}
+
 export function getGenieTTSRoot(): string {
   const exeDir = path.dirname(app.getPath('exe'))
-  const candidates = isDevRuntime()
-    ? [path.join(path.resolve(exeDir, '../../../'), 'resources', 'genie')]
-    : [
-        path.join(process.resourcesPath, 'genie'),
-        path.join(exeDir, 'resources', 'genie'),
-      ]
+  const candidates = [
+    path.join(getResourceRoot(), 'tts', 'genie'),
+    path.join(getModRoot(), 'TTS', 'genie'),
+    path.join(exeDir, 'resources', 'tts', 'genie')
+  ]
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
   }

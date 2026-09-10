@@ -33,7 +33,7 @@
     "clsx": "^2.1.1",
     "electron-store": "^8.2.0",
     "lucide-react": "^0.460.0",
-    "onnxruntime-node": "^1.29.0",
+    "onnxruntime-node": "^1.24.3",
     "pixi-live2d-display-lipsyncpatch": "^0.5.0-ls-8",
     "pixi.js": "^7.4.3",
     "react": "^18.3.1",
@@ -70,11 +70,16 @@
     "extraResources": [
       {
         "from": "resources/models",
-        "to": "models"
+        "to": "models",
+        "filter": [
+          "bge-small-zh-v1.5/**/*",
+          "!bge-small-zh-v1.5/onnx/model.onnx",
+          "asr/**/*"
+        ]
       },
       {
-        "from": "resources/genie",
-        "to": "genie"
+        "from": "resources/tts",
+        "to": "tts"
       }
     ],
     "win": {
@@ -85,6 +90,9 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"
-    }
+    },
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**"
+    ]
   }
 }

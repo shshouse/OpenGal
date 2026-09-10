@@ -218,7 +218,7 @@ async function startGenieServer(): Promise<TTSServerStatus> {
   const scriptDir = path.dirname(serverScript)
 
   if (!fs.existsSync(genieRoot)) {
-    throw new Error(`Genie-TTS 目录未找到: ${genieRoot}。请确认 resources/genie/ 存在。`)
+    throw new Error(`Genie-TTS 目录未找到: ${genieRoot}。请确认 resources/tts/genie/ 存在。`)
   }
   if (!fs.existsSync(serverScript)) {
     throw new Error(`genie_server.py 未找到: ${serverScript}`)
@@ -267,6 +267,7 @@ async function startGenieServer(): Promise<TTSServerStatus> {
       ...process.env,
       PYTHONIOENCODING: 'utf-8',
       GENIE_DATA_DIR: path.join(genieRoot, 'GenieData'),
+      NLTK_DATA: path.join(genieRoot, 'runtime', 'nltk_data'),
     },
     windowsHide: true,
   })
