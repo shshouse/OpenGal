@@ -224,20 +224,15 @@ async function fetchReadable(
     const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } }
     if (e.name === 'AbortError') throw err
     const code = e.cause?.code
-    const causeMsg = e.cause?.message
     if (code === 'ECONNREFUSED') {
-      throw new Error(
-        `无法连接 Genie-TTS 服务（${baseURL}）：连接被拒绝。请确认 Genie 服务已启动且端口一致。`,
-      )
+      throw new Error('无法连接 Genie-TTS 服务，请确认服务已启动且端口一致')
     }
     if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') {
-      throw new Error(`连接 Genie-TTS 服务超时（${baseURL}）：服务可能未就绪或网络不通。`)
+      throw new Error('连接 Genie-TTS 服务超时，请检查网络')
     }
     if (code === 'ENOTFOUND') {
-      throw new Error(`无法解析 Genie-TTS 主机（${baseURL}）：DNS 查询失败。`)
+      throw new Error('Genie-TTS 地址无法解析，请检查网络')
     }
-    throw new Error(
-      `请求 Genie-TTS 失败（${baseURL}）：${code ?? e.message ?? 'unknown'}${causeMsg ? ' - ' + causeMsg : ''}`,
-    )
+    throw new Error(`请求 Genie-TTS 失败: ${code ?? e.message ?? 'unknown'}`)
   }
 }

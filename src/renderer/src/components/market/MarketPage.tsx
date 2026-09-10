@@ -172,7 +172,7 @@ export function MarketPage() {
           <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {data.mods.map((mod) => {
-                const cover = mod.cover_url || mod.images?.[0] || null
+                const cover = mod.media?.thumbnail_url || mod.media?.image_urls?.[0] || null
                 const p = progress[mod.id]
                 const downloading = p && !p.done
                 const ok = p?.done && !p.error

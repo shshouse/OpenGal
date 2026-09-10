@@ -6,6 +6,7 @@ import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
 import { LogsPanel } from '@/components/logs/LogsPanel'
+import { MarketPage } from '@/components/market/MarketPage'
 import { Sidebar } from '@/components/nav/Sidebar'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
@@ -234,6 +235,8 @@ export default function App() {
               <GalgameChatPanel />
             </>
           )}
+
+          {view === 'market' && <MarketPage />}
 
           {view === 'settings' && (
             <div className="flex h-full w-full flex-col bg-background">

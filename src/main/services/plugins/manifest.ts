@@ -20,10 +20,10 @@ export function validateManifest(
   const m = raw as PluginManifest
   const errors: string[] = []
   if (m.formatVersion !== 1) {
-    errors.push(`formatVersion 必须为 1，当前 ${JSON.stringify(m.formatVersion)}（更高版本需新版 OpenGal）`)
+    errors.push(`formatVersion 必须为 1，当前 ${JSON.stringify(m.formatVersion)}，更高版本需新版 OpenGal`)
   }
   if (typeof m.id !== 'string' || !PLUGIN_ID_RE.test(m.id)) {
-    errors.push(`id 不合法：${JSON.stringify(m.id)}（规则 [a-z0-9-]{2,32}）`)
+    errors.push(`id 不合法：${JSON.stringify(m.id)}，规则：小写字母、数字、连字符，2-32 位`)
   } else if (m.id !== dirName) {
     errors.push(`id(${m.id}) 必须等于目录名(${dirName})`)
   }

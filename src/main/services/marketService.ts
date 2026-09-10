@@ -15,8 +15,16 @@ interface ApiResult<T> {
 }
 
 async function apiGet<T>(url: string): Promise<T> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+  } catch (err) {
+    const e = err as Error & { cause?: { code?: string } }
+    logBus.warn('market', `MikuMod请求失败: ${e.message} code=${e.cause?.code ?? '-'}`)
+    if (e.name === 'TimeoutError') throw new Error('连接超时，请检查网络')
+    throw new Error('网络连接失败，请检查网络')
+  }
+  if (!res.ok) throw new Error(`服务器返回 HTTP ${res.status}`)
   const body = (await res.json()) as ApiResult<T>
   if (!body.success || body.data === undefined) throw new Error(body.error || '接口返回异常')
   return body.data

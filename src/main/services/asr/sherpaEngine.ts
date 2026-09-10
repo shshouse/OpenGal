@@ -43,7 +43,7 @@ function resolveVadModel(): string {
     path.join(getModRoot(), 'STT', 'vad', 'silero_vad.onnx')
   ].find((p) => fs.existsSync(p))
   if (!found) {
-    throw new Error('未找到 silero_vad.onnx（resources/asr/vad 或 mods/STT/vad）')
+    throw new Error('未找到 silero_vad.onnx')
   }
   return found
 }
@@ -91,7 +91,8 @@ function resolveModelPath(configured: string): string {
     firstModelDir(path.join(getModRoot(), 'STT', 'models'))
   ].find((p): p is string => !!p && fs.existsSync(p))
   if (auto) return auto
-  throw new Error('未找到 ASR 模型目录（resources/models/asr 或 mods/STT/models），或在设置中指定 modelPath')
+  logBus.warn('asr', `未找到 ASR 模型目录，已尝试 resources/models/asr 与 mods/STT/models，config.modelPath=${configured || '未配置'}`)
+  throw new Error('未找到语音识别模型，请在设置中指定模型目录')
 }
 
 export async function startASR(): Promise<void> {
@@ -176,7 +177,7 @@ export async function startASR(): Promise<void> {
       setTimeout(() => {
         if (startup) {
           startup = null
-          reject(new Error('ASR 模型加载超时（30 秒）'))
+          reject(new Error('语音识别模型加载超时'))
         }
       }, 30000)
     })

@@ -100,8 +100,7 @@ export interface MarketMod {
   mod_number: number
   title: string
   description: string | null
-  cover_url: string | null
-  images: string[] | null
+  media: { thumbnail_url?: string | null; image_urls?: string[] | null } | null
   tags: string[] | null
   download_count: number
   like_count: number
