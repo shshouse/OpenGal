@@ -212,19 +212,21 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <TitleBar />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          onOpenSettings={() => setView('settings')}
-          onOpenMarket={() => setView('market')}
-          marketActive={view === 'market'}
-          petOpen={petOpen}
-          onTogglePet={() => void togglePet()}
-          showLive2D={config?.showLive2D ?? true}
-          onToggleLive2D={() => void toggleLive2D()}
-          onOpenLogs={() => setView('logs')}
-        />
+    <div className="flex h-full overflow-hidden">
+      <Sidebar
+        onOpenChat={() => setView('chat')}
+        chatActive={view === 'chat'}
+        onOpenSettings={() => setView('settings')}
+        onOpenMarket={() => setView('market')}
+        marketActive={view === 'market'}
+        petOpen={petOpen}
+        onTogglePet={() => void togglePet()}
+        showLive2D={config?.showLive2D ?? true}
+        onToggleLive2D={() => void toggleLive2D()}
+        onOpenLogs={() => setView('logs')}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TitleBar />
         <main className="relative flex flex-1 overflow-hidden">
           {view === 'chat' && (
             <>

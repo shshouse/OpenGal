@@ -41,6 +41,31 @@ export function resetTTSState(): void {
   logBus.info('tts', '已重置所有 TTS 适配器状态')
 }
 
+const WARMUP_TEXT: Record<string, string> = { zh: '你好', ja: 'こんにちは', en: 'Hello', ko: '안녕하세요' }
+
+// Genie 冷启动首句要背上模型加载(~7s)+首次推理(~3s)，服务就绪/切角色时用短句烧掉
+export async function warmupTTS(): Promise<boolean> {
+  const config = readConfig().tts
+  if (!config.enabled) return false
+  const card = resolveActiveCard(undefined)
+  const provider = card?.voice?.provider || config.provider
+  if (provider !== 'genie') return false
+  const adapter = chooseTTSAdapter(provider)
+  const lang = config.referenceLanguage ?? 'zh'
+  try {
+    await adapter.generateSpeech({
+      text: WARMUP_TEXT[lang] ?? WARMUP_TEXT.zh,
+      globalConfig: config,
+      card,
+    })
+    logBus.info('tts', `Genie 预热完成，首句延迟已消除 provider=${provider}`)
+    return true
+  } catch (err) {
+    logBus.warn('tts', `Genie 预热失败（不影响后续使用）: ${(err as Error).message}`)
+    return false
+  }
+}
+
 export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse> {
   const config = readConfig().tts
   const card = resolveActiveCard(request.roleCardId)

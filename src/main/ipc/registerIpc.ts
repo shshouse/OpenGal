@@ -9,7 +9,7 @@ import { callLLM, callLLMStream, abortStream, listProviderModels } from '../serv
 import { fetchMarketMods, downloadMarketMod } from '../services/marketService'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
-import { speak, pingTTS, resetTTSState } from '../services/ttsClient'
+import { speak, pingTTS, resetTTSState, warmupTTS } from '../services/ttsClient'
 import type { TTSSpeakRequest, TTSSpeakResponse } from '../services/ttsClient'
 import {
   startTTSServer,
@@ -73,7 +73,11 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
 
   ipcMain.handle(IpcChannels.config.set, (_, patch: Partial<AppConfig>) =>
-    wrap<AppConfig>(() => writeConfig(patch))
+    wrap<AppConfig>(() => {
+      const next = writeConfig(patch)
+      if (patch.activeCharacterId !== undefined) void warmupTTS()
+      return next
+    })
   )
 
   ipcMain.handle(IpcChannels.llm.chat, (_, request: LLMRequest) =>
@@ -210,7 +214,11 @@ export function registerIpc(windows: WindowManager): void {
     })
   )
   ipcMain.handle(IpcChannels.tts.serverStart, () =>
-    wrap<TTSServerStatus>(() => startTTSServer())
+    wrap<TTSServerStatus>(async () => {
+      const status = await startTTSServer()
+      if (status.running) void warmupTTS()
+      return status
+    })
   )
   ipcMain.handle(IpcChannels.tts.serverStop, () =>
     wrap<TTSServerStatus>(() => stopTTSServer())
