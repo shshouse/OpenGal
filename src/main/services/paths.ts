@@ -110,4 +110,22 @@ export function resolveVoicePath(relOrAbs: string): string {
   return path.join(getVoiceRoot(), relOrAbs)
 }
 
+export function getGenieTTSRoot(): string {
+  const exeDir = path.dirname(app.getPath('exe'))
+  const candidates = isDevRuntime()
+    ? [path.join(path.resolve(exeDir, '../../../'), 'resources', 'genie')]
+    : [
+        path.join(process.resourcesPath, 'genie'),
+        path.join(exeDir, 'resources', 'genie'),
+      ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return candidates[0]
+}
+
+export function getGeniePythonExe(): string {
+  return path.join(getGenieTTSRoot(), 'runtime', 'python.exe')
+}
+
 export { CUSTOM_SCHEME, MOD_HOST }

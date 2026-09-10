@@ -42,6 +42,9 @@ export interface FactRow {
   evidence_reinforce: number
   evidence_negate: number
   protected_: number
+  valid_until: string | null
+  frozen_at: string | null
+  embedding: string | null
 }
 
 export interface StoryRow {
@@ -83,7 +86,10 @@ CREATE TABLE IF NOT EXISTS facts (
   status TEXT NOT NULL DEFAULT 'active',
   evidence_reinforce INTEGER NOT NULL DEFAULT 0,
   evidence_negate INTEGER NOT NULL DEFAULT 0,
-  protected_ INTEGER NOT NULL DEFAULT 0
+  protected_ INTEGER NOT NULL DEFAULT 0,
+  valid_until TEXT,
+  frozen_at TEXT,
+  embedding TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_facts_char ON facts(character_id, status);
 
@@ -128,6 +134,7 @@ export function initMemoryDb(dataRoot: string): Promise<void> {
       throw new Error(`memory.db 完整性检查失败: ${JSON.stringify(check)}`)
     }
     db.exec(SCHEMA)
+    migrateFactsSchema(dataRoot)
     preMigrationBackup(dataRoot)
     checkpoint()
     snapshotBackup(dataRoot)
@@ -224,6 +231,38 @@ function rows(query: string, params: SQLInputValue[] = []): Record<string, unkno
 function run(query: string, params: SQLInputValue[] = []): void {
   if (!db) throw new Error('memoryDb 未初始化')
   db.prepare(query).run(...params)
+}
+
+function migrateFactsSchema(dataRoot: string): void {
+  try {
+    const existing = rows("PRAGMA table_info(facts)", []).map((r) => String(r.name))
+    const needValidUntil = !existing.includes('valid_until')
+    const needFrozenAt = !existing.includes('frozen_at')
+    const needEmbedding = !existing.includes('embedding')
+    if (!needValidUntil && !needFrozenAt && !needEmbedding) return
+    if (!getMeta('facts_schema_migrated')) {
+      const backupDir = path.join(dataRoot, 'backups')
+      fs.mkdirSync(backupDir, { recursive: true })
+      const target = path.join(backupDir, 'memory-pre-schema.db')
+      if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
+      logger.info('memory', '已创建 schema 迁移前备份: backups/memory-pre-schema.db')
+    }
+    if (needValidUntil) {
+      db!.exec('ALTER TABLE facts ADD COLUMN valid_until TEXT')
+      logger.info('memory', 'facts 表新增列: valid_until')
+    }
+    if (needFrozenAt) {
+      db!.exec('ALTER TABLE facts ADD COLUMN frozen_at TEXT')
+      logger.info('memory', 'facts 表新增列: frozen_at')
+    }
+    if (needEmbedding) {
+      db!.exec('ALTER TABLE facts ADD COLUMN embedding TEXT')
+      logger.info('memory', 'facts 表新增列: embedding')
+    }
+    setMeta('facts_schema_migrated', new Date().toISOString())
+  } catch (err) {
+    logger.warn('memory', `facts schema 迁移失败: ${(err as Error).message}`)
+  }
 }
 
 export function getMeta(key: string): string | null {
@@ -348,8 +387,8 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
     run('DELETE FROM facts WHERE character_id = ?', [characterId])
     for (const f of items) {
       run(
-        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           f.id,
           characterId,
@@ -364,6 +403,9 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
           f.evidence_reinforce,
           f.evidence_negate,
           f.protected_,
+          f.valid_until,
+          f.frozen_at,
+          f.embedding,
         ]
       )
     }
@@ -459,8 +501,8 @@ function syncLegacyMemoryFromJson(dataRoot: string): void {
           const f = raw as LegacyFactJson
           if (typeof f.id !== 'string' || typeof f.text !== 'string' || !f.text) continue
           run(
-            `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_)
-             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding)
+             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               f.id,
               dirName,
@@ -475,6 +517,9 @@ function syncLegacyMemoryFromJson(dataRoot: string): void {
               intOr(f.evidence?.reinforce, 0),
               intOr(f.evidence?.negate, 0),
               f.source === 'manual' ? 1 : 0,
+              null,
+              null,
+              null,
             ]
           )
           factCount++

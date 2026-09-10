@@ -27,7 +27,7 @@ import {
   addSummary,
   saveChatMessages,
 } from '../../main/services/memoryDb.ts'
-import { manualAddFact } from '../../main/services/memoryStore.ts'
+import { manualAddFact, decaySweep, freezeFact, unfreezeFact, deleteFact, retentionScore, relevanceScore, buildMemoryBlockVector } from '../../main/services/memoryStore.ts'
 
 assert.strictEqual(normalizeText('你好， 世界！'), '你好世界')
 assert.strictEqual(textSimilarity('用户的生日是6月12日', '用户的生日是 6 月 12 日'), 1)
@@ -239,6 +239,57 @@ assert.strictEqual(r4.insertedFacts, 1)
 const manualAfter = facts4.find((f) => f.id === manual.id)
 assert.ok(manualAfter && manualAfter.status === 'active')
 assert.ok(!facts4.some((f) => f.text === '用户家里养了只猫'))
+
+// 遗忘曲线 & 冻结 & 过期
+const c4 = 'c4'
+await clearMemory(c4)
+await applyCandidates(c4, {
+  facts: [{ text: '用户去年喜欢打篮球', entity: 'user', importance: 5, confidence: 1, reason: 'r' }],
+  stories: [],
+})
+const factsC4 = await loadFacts(c4)
+const oldFact = factsC4.find((f) => f.text.includes('打篮球'))!
+// 手动把 last_confirmed_at 改成 100 天前，模拟长期未确认
+const oldDate = new Date(Date.now() - 100 * 86400000).toISOString()
+oldFact.last_confirmed_at = oldDate
+const { saveFacts } = await import('../../main/services/memoryDb.ts')
+saveFacts(c4, factsC4.map((f) => ({
+  id: f.id, character_id: c4, text: f.text, entity: f.entity, importance: f.importance,
+  confidence: f.confidence, source: f.source, created_at: f.created_at, last_confirmed_at: f.last_confirmed_at,
+  status: f.status, evidence_reinforce: f.evidence.reinforce, evidence_negate: f.evidence.negate,
+  protected_: f.protected ? 1 : 0, valid_until: null, frozen_at: null, embedding: null,
+})))
+
+const frozenFact = await manualAddFact(c4, '用户的生日是3月15日')
+await freezeFact(c4, frozenFact.id)
+const decayResult = await decaySweep(c4)
+assert.strictEqual(decayResult.archived, 1)
+const factsAfterDecay = await loadFacts(c4)
+assert.strictEqual(factsAfterDecay.find((f) => f.id === oldFact.id)?.status, 'archived')
+assert.strictEqual(factsAfterDecay.find((f) => f.id === frozenFact.id)?.status, 'active')
+await unfreezeFact(c4, frozenFact.id)
+const unfrozen = (await loadFacts(c4)).find((f) => f.id === frozenFact.id)
+assert.strictEqual(unfrozen?.frozen_at, null)
+await deleteFact(c4, frozenFact.id)
+assert.ok(!(await loadFacts(c4)).some((f) => f.id === frozenFact.id))
+
+// 相关性评分
+assert.ok(relevanceScore('用户的生日是3月15日', '生日') > 0.5)
+assert.ok(relevanceScore('用户的生日是3月15日', '完全无关的内容') < 0.3)
+
+// 向量检索版记忆块
+const c5 = 'c5'
+await clearMemory(c5)
+await manualAddFact(c5, '用户喜欢草莓蛋糕')
+await manualAddFact(c5, '用户讨厌香菜')
+const vectorBlock = await buildMemoryBlockVector(
+  c5,
+  await loadFacts(c5),
+  await loadStories(c5),
+  '草莓蛋糕',
+  900,
+)
+assert.ok(vectorBlock?.includes('草莓蛋糕'))
 
 closeMemoryDb()
 fs.rmSync(root, { recursive: true, force: true })

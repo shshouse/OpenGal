@@ -23,7 +23,7 @@ import { getDataRoot } from '../services/paths'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins } from '../services/plugins/registry'
-import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory } from '../services/memoryStore'
+import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, decaySweep, freezeFact, unfreezeFact, deleteFact } from '../services/memoryStore'
 import {
   setMemoryDbLogger,
   memoryDbReady,
@@ -333,4 +333,23 @@ export function registerIpc(windows: WindowManager): void {
     wrap(() => manualAddFact(characterId, text, entity))
   )
   ipcMain.handle(IpcChannels.memory.clear, (_, characterId: string) => wrap(() => clearMemory(characterId)))
+  ipcMain.handle(IpcChannels.memory.decaySweep, (_, characterId: string) =>
+    wrap(() => decaySweep(characterId))
+  )
+  ipcMain.handle(IpcChannels.memory.freezeFact, (_, characterId: string, factId: string) =>
+    wrap(() => freezeFact(characterId, factId))
+  )
+  ipcMain.handle(IpcChannels.memory.unfreezeFact, (_, characterId: string, factId: string) =>
+    wrap(() => unfreezeFact(characterId, factId))
+  )
+  ipcMain.handle(IpcChannels.memory.deleteFact, (_, characterId: string, factId: string) =>
+    wrap(() => deleteFact(characterId, factId))
+  )
+  ipcMain.handle(IpcChannels.memory.getRelevant, (_, characterId: string, context: string) =>
+    wrap(async () => ({
+      facts: await loadFacts(characterId),
+      stories: await loadStories(characterId),
+      block: await getMemoryBlock(characterId, context, true)
+    }))
+  )
 }

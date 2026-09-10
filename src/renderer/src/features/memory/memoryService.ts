@@ -5,6 +5,15 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { setMemorySnapshot } from './snapshot'
 
+async function refreshSnapshot(characterId: string): Promise<void> {
+  try {
+    const res = await window.opengal.memory.get(characterId)
+    setMemorySnapshot(characterId, res.data?.block ?? null)
+  } catch {
+    setMemorySnapshot(characterId, null)
+  }
+}
+
 interface CorpusEntry {
   characterId: string
   role: 'user' | 'assistant'
@@ -53,15 +62,6 @@ async function loadTuning(): Promise<MemoryTuning> {
   }
 }
 
-async function refreshSnapshot(characterId: string): Promise<void> {
-  try {
-    const res = await window.opengal.memory.get(characterId)
-    setMemorySnapshot(characterId, res.data?.block ?? null)
-  } catch {
-    setMemorySnapshot(characterId, null)
-  }
-}
-
 function parseCandidates(raw: string): MemoryApplyPayload {
   const m = raw.match(/\{[\s\S]*\}/)
   if (!m) return { facts: [], stories: [] }
@@ -93,11 +93,14 @@ reason 必填，想不出理由的条目直接不输出。
 facts 是关于用户的属性事实（生日、身份、稳定偏好、习惯、关系性质），entity 取值：user（关于用户）/ character（关于角色自己）/ relationship（关于双方关系）。
 importance 1-10：姓名、生日、明确要求记住=10；强偏好=7；一般习惯=4。
 confidence：用户明确陈述=1.0；你推断的=0.5。
+valid_until：如果事实有时间敏感性（如"最近在学日语"、"明天要出差"），给出 ISO 日期字符串（估计有效期）；长期事实给 null。
+frozen：如果用户明确要求"记住"或"别忘了"，设为 true。
+
 stories 是故事：kind 取值 event（共同经历）/ promise（约定）/ milestone（关系里程碑）/ joke（共同梗）。promise 尽量给 due_at（ISO 日期字符串，推不出为 null）。
 不记：临时情绪、一次性安排（约定除外）、寒暄、与用户无关的内容。
 
 只输出一个 JSON 对象，不要任何其他文字：
-{"facts":[{"text":"不超过40字","entity":"user","importance":8,"confidence":1.0,"reason":"简短理由"}],"stories":[{"kind":"promise","text":"不超过40字","importance":7,"reason":"简短理由","due_at":null}]}
+{"facts":[{"text":"不超过40字","entity":"user","importance":8,"confidence":1.0,"reason":"简短理由","valid_until":null,"frozen":false}],"stories":[{"kind":"promise","text":"不超过40字","importance":7,"reason":"简短理由","due_at":null}]}
 没有可提取的就输出 {"facts":[],"stories":[]}`
 
 async function runExtract(force = false): Promise<void> {
@@ -163,6 +166,36 @@ function dropEntries(characterId: string): void {
   buffer = buffer.filter((e) => e.characterId !== characterId)
 }
 
+let decaySweepTimer: ReturnType<typeof setInterval> | null = null
+const DECAY_SWEEP_INTERVAL_MS = 60 * 60 * 1000
+
+async function runDecaySweep(): Promise<void> {
+  const characterId = currentCharacterId()
+  try {
+    const res = await window.opengal.memory.decaySweep(characterId)
+    if (res.success && res.data && res.data.archived > 0) {
+      log('info', `遗忘曲线清理（${characterId}）：归档 ${res.data.archived} 条低保留记忆`)
+      await refreshSnapshot(characterId)
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function startDecaySweep(): void {
+  if (decaySweepTimer) clearInterval(decaySweepTimer)
+  decaySweepTimer = setInterval(() => {
+    void runDecaySweep()
+  }, DECAY_SWEEP_INTERVAL_MS)
+}
+
+function stopDecaySweep(): void {
+  if (decaySweepTimer) {
+    clearInterval(decaySweepTimer)
+    decaySweepTimer = null
+  }
+}
+
 function scheduleIdle(minutes: number): void {
   if (idleTimer) clearTimeout(idleTimer)
   idleTimer = setTimeout(() => {
@@ -172,6 +205,7 @@ function scheduleIdle(minutes: number): void {
 
 export function startMemoryService(): () => void {
   if (offs.length > 0) return () => {}
+  startDecaySweep()
   const offInput = pipelineBus.on('user:input', (input: UserInputMessage) => {
     const characterId = currentCharacterId()
     if (lastCharacterId && characterId !== lastCharacterId) {
@@ -225,5 +259,6 @@ export function startMemoryService(): () => void {
     offs = []
     if (idleTimer) clearTimeout(idleTimer)
     if (watchdogTimer) clearInterval(watchdogTimer)
+    stopDecaySweep()
   }
 }

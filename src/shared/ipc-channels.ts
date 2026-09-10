@@ -25,9 +25,14 @@ export const IpcChannels = {
   },
   memory: {
     get: 'memory:get',
+    getRelevant: 'memory:getRelevant',
     apply: 'memory:apply',
     manualAdd: 'memory:manualAdd',
-    clear: 'memory:clear'
+    clear: 'memory:clear',
+    decaySweep: 'memory:decaySweep',
+    freezeFact: 'memory:freezeFact',
+    unfreezeFact: 'memory:unfreezeFact',
+    deleteFact: 'memory:deleteFact',
   },
   pet: {
     open: 'pet:open',

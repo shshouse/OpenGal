@@ -17,6 +17,7 @@ import {
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
+import { computeEmbeddingAsync, searchSimilarAsync } from './vectorSearch.ts'
 
 export type FactJudge = (
   existing: MemoryFact,
@@ -57,6 +58,9 @@ function rowToFact(r: FactRow): MemoryFact {
     status: r.status as MemoryFact['status'],
     evidence: { reinforce: r.evidence_reinforce, negate: r.evidence_negate },
     protected: r.protected_ === 1,
+    valid_until: r.valid_until ?? null,
+    frozen_at: r.frozen_at ?? null,
+    embedding: r.embedding ? (JSON.parse(r.embedding) as number[]) : null,
   }
 }
 
@@ -75,6 +79,9 @@ function factToRow(f: MemoryFact): FactRow {
     evidence_reinforce: f.evidence.reinforce,
     evidence_negate: f.evidence.negate,
     protected_: f.protected ? 1 : 0,
+    valid_until: f.valid_until,
+    frozen_at: f.frozen_at,
+    embedding: f.embedding ? JSON.stringify(f.embedding) : null,
   }
 }
 
@@ -189,8 +196,25 @@ function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 }
 
+function isFactExpired(f: MemoryFact): boolean {
+  if (!f.valid_until) return false
+  return new Date(f.valid_until).getTime() < Date.now()
+}
+
+function isFactFrozen(f: MemoryFact): boolean {
+  return f.frozen_at !== null
+}
+
+export function retentionScore(f: MemoryFact): number {
+  if (isFactFrozen(f)) return 1
+  if (isFactExpired(f)) return 0
+  const days = (Date.now() - new Date(f.last_confirmed_at).getTime()) / 86400000
+  const stability = f.importance * 7
+  return Math.exp(-days / stability)
+}
+
 export function factScore(f: MemoryFact): number {
-  return f.importance * f.confidence
+  return f.importance * f.confidence * retentionScore(f)
 }
 
 export function storyScore(s: MemoryStory): number {
@@ -199,7 +223,7 @@ export function storyScore(s: MemoryStory): number {
 }
 
 function activeFacts(facts: MemoryFact[]): MemoryFact[] {
-  return facts.filter((f) => f.status === 'active')
+  return facts.filter((f) => f.status === 'active' && !isFactExpired(f))
 }
 
 function activeStories(stories: MemoryStory[]): MemoryStory[] {
@@ -210,7 +234,7 @@ function charsOf(list: { text: string }[]): number {
   return list.reduce((sum, x) => sum + x.text.length, 0)
 }
 
-function fitBudget<T extends { text: string; status: 'active' | 'archived'; protected?: boolean }>(
+function fitBudget<T extends { text: string; status: 'active' | 'archived'; protected?: boolean; frozen_at?: string | null }>(
   all: T[],
   incoming: T,
   budget: number,
@@ -220,7 +244,7 @@ function fitBudget<T extends { text: string; status: 'active' | 'archived'; prot
   const activeChars = (): number => charsOf(all.filter((x) => x.status === 'active'))
   if (activeChars() + incoming.text.length <= budget) return incoming
   const ordered = all
-    .filter((x) => x.status === 'active' && !x.protected)
+    .filter((x) => x.status === 'active' && !x.protected && !x.frozen_at)
     .sort((a, b) => scoreOf(a) - scoreOf(b))
   for (const item of ordered) {
     item.status = 'archived'
@@ -288,6 +312,9 @@ export async function applyCandidates(
             last_confirmed_at: ts,
             status: 'active',
             evidence: { reinforce: 0, negate: 0 },
+            valid_until: cand.valid_until ?? null,
+            frozen_at: null,
+            embedding: null,
           })
           result.insertedFacts++
         }
@@ -307,6 +334,9 @@ export async function applyCandidates(
       last_confirmed_at: ts,
       status: 'active',
       evidence: { reinforce: 0, negate: 0 },
+      valid_until: cand.valid_until ?? null,
+      frozen_at: cand.frozen ? ts : null,
+      embedding: null, // 延迟计算：写入时先不 embedding，首次检索时批量算
     }
     const accepted = fitBudget(facts, entry, config.factBudgetChars, factScore)
     if (!accepted) {
@@ -364,6 +394,9 @@ export async function manualAddFact(
     status: 'active',
     evidence: { reinforce: 0, negate: 0 },
     protected: true,
+    valid_until: null,
+    frozen_at: ts,
+    embedding: null,
   }
   facts.push(entry)
   await memoryDbReady()
@@ -371,23 +404,44 @@ export async function manualAddFact(
   return entry
 }
 
+export function relevanceScore(factText: string, context: string): number {
+  const normFact = normalizeText(factText)
+  const normCtx = normalizeText(context)
+  if (!normFact || !normCtx) return 0
+  if (normCtx.includes(normFact) || normFact.includes(normCtx)) return 1
+  const bigrams = (s: string): Set<string> => {
+    const set = new Set<string>()
+    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2))
+    return set
+  }
+  const bf = bigrams(normFact)
+  const bc = bigrams(normCtx)
+  if (bf.size === 0 || bc.size === 0) return 0
+  let inter = 0
+  for (const g of bf) if (bc.has(g)) inter++
+  return (2 * inter) / (bf.size + bc.size)
+}
+
 export function buildMemoryBlock(
   facts: MemoryFact[],
   stories: MemoryStory[],
   charCap = config.injectCharCap,
+  context?: string,
 ): string | null {
   const actives = activeFacts(facts)
   const activeStoriesList = activeStories(stories)
   if (actives.length === 0 && activeStoriesList.length === 0) return null
 
-  type Item = { text: string; score: number }
+  type Item = { text: string; score: number; rel: number }
   const groups: Record<'user' | 'character' | 'relationship', Item[]> = {
     user: [],
     character: [],
     relationship: [],
   }
   for (const f of [...actives].sort((a, b) => factScore(b) - factScore(a))) {
-    groups[f.entity].push({ text: f.text.slice(0, 60), score: factScore(f) })
+    const rel = context ? relevanceScore(f.text, context) : 0.5
+    const score = factScore(f) * (0.5 + rel)
+    groups[f.entity].push({ text: f.text.slice(0, 60), score, rel })
   }
 
   const promises = activeStoriesList
@@ -402,10 +456,12 @@ export function buildMemoryBlock(
   const relationshipItems: Item[] = []
   for (const p of promises) {
     const due = p.due_at ? `（约 ${p.due_at.slice(0, 10)}）` : ''
-    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5 })
+    const rel = context ? relevanceScore(p.text, context) : 0.5
+    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5, rel })
   }
   for (const s of others) {
-    relationshipItems.push({ text: s.text.slice(0, 60), score: storyScore(s) })
+    const rel = context ? relevanceScore(s.text, context) : 0.5
+    relationshipItems.push({ text: s.text.slice(0, 60), score: storyScore(s) * (0.5 + rel), rel })
   }
 
   let total = 0
@@ -431,10 +487,155 @@ export function buildMemoryBlock(
   return `【你记得的事】\n${lines.join('\n')}`
 }
 
-export async function getMemoryBlock(characterId: string): Promise<string | null> {
+export async function getMemoryBlock(
+  characterId: string,
+  context?: string,
+  useVector = false,
+): Promise<string | null> {
   const [facts, stories] = await Promise.all([
     loadFactsTyped(characterId),
     loadStoriesTyped(characterId),
   ])
-  return buildMemoryBlock(facts, stories)
+  if (useVector && context) {
+    return buildMemoryBlockVector(characterId, facts, stories, context, config.injectCharCap)
+  }
+  return buildMemoryBlock(facts, stories, config.injectCharCap, context)
+}
+
+export async function buildMemoryBlockVector(
+  characterId: string,
+  facts: MemoryFact[],
+  stories: MemoryStory[],
+  context: string,
+  charCap: number,
+): Promise<string | null> {
+  const actives = activeFacts(facts)
+  const activeStoriesList = activeStories(stories)
+  if (actives.length === 0 && activeStoriesList.length === 0) return null
+
+  // 模型未就绪时降级到关键词检索，并记录日志
+  let vectorHits: Array<{ fact: MemoryFact; similarity: number }> = []
+  let vectorFailed = false
+  try {
+    const needEmbedding = actives.filter((f) => !f.embedding)
+    if (needEmbedding.length > 0) {
+      for (const f of needEmbedding) {
+        f.embedding = await computeEmbeddingAsync(f.text)
+      }
+      await memoryDbReady()
+      saveFacts(characterId, facts.map(factToRow))
+    }
+    vectorHits = await searchSimilarAsync(actives, context, 10, 0.2)
+  } catch (err) {
+    console.warn(`[memory] 向量检索失败，降级到关键词: ${(err as Error).message}`)
+  }
+  const hitIds = new Set(vectorHits.map((h) => h.fact.id))
+
+  type Item = { text: string; score: number; source: 'vector' | 'keyword' }
+  const groups: Record<'user' | 'character' | 'relationship', Item[]> = {
+    user: [],
+    character: [],
+    relationship: [],
+  }
+
+  for (const f of actives) {
+    const isVectorHit = hitIds.has(f.id)
+    const rel = isVectorHit
+      ? vectorHits.find((h) => h.fact.id === f.id)!.similarity
+      : relevanceScore(f.text, context)
+    const score = factScore(f) * (0.3 + rel)
+    const item: Item = { text: f.text.slice(0, 60), score, source: isVectorHit ? 'vector' : 'keyword' }
+    groups[f.entity].push(item)
+  }
+
+  const promises = activeStoriesList
+    .filter((s) => s.kind === 'promise' && !s.fulfilled)
+    .sort((a, b) => storyScore(b) - storyScore(a))
+  const others = activeStoriesList
+    .filter((s) => s.kind !== 'promise' || s.fulfilled)
+    .sort((a, b) => storyScore(b) - storyScore(a))
+    .slice(0, 6)
+
+  const lines: string[] = []
+  const relationshipItems: Item[] = []
+  for (const p of promises) {
+    const due = p.due_at ? `（约 ${p.due_at.slice(0, 10)}）` : ''
+    const rel = relevanceScore(p.text, context)
+    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5, source: 'keyword' })
+  }
+  for (const s of others) {
+    const rel = relevanceScore(s.text, context)
+    relationshipItems.push({ text: s.text.slice(0, 60), score: storyScore(s) * (0.3 + rel), source: 'keyword' })
+  }
+
+  let total = 0
+  const kept: string[] = []
+  const emit: Array<[string, Item[]]> = [
+    ['关于他', groups.user],
+    ['关于你自己', groups.character],
+    ['关于你们', relationshipItems],
+  ]
+  for (const [label, items] of emit) {
+    items.sort((a, b) => b.score - a.score)
+    const groupLines: string[] = []
+    for (const item of items) {
+      if (total + item.text.length > charCap) break
+      total += item.text.length
+      groupLines.push(item.text)
+    }
+    if (groupLines.length > 0) kept.push(`${label}：${groupLines.join('；')}`)
+  }
+  lines.push(...kept)
+  if (lines.length === 0) return null
+  lines.push('（以上是过往记忆，可能过时，以对方现在说的为准）')
+  return `【你记得的事】\n${lines.join('\n')}`
+}
+
+// 遗忘曲线清理：retention < 0.1 且未冻结/未保护的记忆自动归档
+export async function decaySweep(characterId: string): Promise<{ archived: number }> {
+  const facts = await loadFactsTyped(characterId)
+  let archived = 0
+  for (const f of facts) {
+    if (f.status !== 'active') continue
+    if (f.protected || isFactFrozen(f)) continue
+    if (retentionScore(f) < 0.1) {
+      f.status = 'archived'
+      archived++
+    }
+  }
+  if (archived > 0) {
+    await memoryDbReady()
+    saveFacts(characterId, facts.map(factToRow))
+  }
+  return { archived }
+}
+
+export async function freezeFact(characterId: string, factId: string): Promise<boolean> {
+  const facts = await loadFactsTyped(characterId)
+  const target = facts.find((f) => f.id === factId)
+  if (!target) return false
+  target.frozen_at = nowIso()
+  await memoryDbReady()
+  saveFacts(characterId, facts.map(factToRow))
+  return true
+}
+
+export async function unfreezeFact(characterId: string, factId: string): Promise<boolean> {
+  const facts = await loadFactsTyped(characterId)
+  const target = facts.find((f) => f.id === factId)
+  if (!target) return false
+  target.frozen_at = null
+  await memoryDbReady()
+  saveFacts(characterId, facts.map(factToRow))
+  return true
+}
+
+export async function deleteFact(characterId: string, factId: string): Promise<boolean> {
+  const facts = await loadFactsTyped(characterId)
+  const idx = facts.findIndex((f) => f.id === factId)
+  if (idx === -1) return false
+  facts.splice(idx, 1)
+  await memoryDbReady()
+  saveFacts(characterId, facts.map(factToRow))
+  return true
 }

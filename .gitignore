@@ -8,6 +8,7 @@ temp
 docs
 dist
 release
+resources
 __pycache__/
 *.pyc
 *.spec

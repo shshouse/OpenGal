@@ -90,7 +90,21 @@ const api = {
       }>(IpcChannels.memory.apply, characterId, payload),
     manualAdd: (characterId: string, text: string, entity?: MemoryFact['entity']) =>
       invoke<MemoryFact>(IpcChannels.memory.manualAdd, characterId, text, entity),
-    clear: (characterId: string) => invoke<void>(IpcChannels.memory.clear, characterId)
+    clear: (characterId: string) => invoke<void>(IpcChannels.memory.clear, characterId),
+    decaySweep: (characterId: string) =>
+      invoke<{ archived: number }>(IpcChannels.memory.decaySweep, characterId),
+    freezeFact: (characterId: string, factId: string) =>
+      invoke<boolean>(IpcChannels.memory.freezeFact, characterId, factId),
+    unfreezeFact: (characterId: string, factId: string) =>
+      invoke<boolean>(IpcChannels.memory.unfreezeFact, characterId, factId),
+    deleteFact: (characterId: string, factId: string) =>
+      invoke<boolean>(IpcChannels.memory.deleteFact, characterId, factId),
+    getRelevant: (characterId: string, context: string) =>
+      invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
+        IpcChannels.memory.getRelevant,
+        characterId,
+        context
+      )
   },
   model: {
     resolveDefault: () => invoke<Live2DModelConfig | null>(IpcChannels.model.resolveDefault),

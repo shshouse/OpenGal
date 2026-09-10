@@ -171,6 +171,9 @@ export interface MemoryFact {
   status: 'active' | 'archived'
   evidence: { reinforce: number; negate: number }
   protected?: boolean
+  valid_until: string | null
+  frozen_at: string | null
+  embedding: number[] | null
 }
 
 export interface MemoryStory {
@@ -191,6 +194,8 @@ export interface MemoryCandidateFact {
   importance: number
   confidence: number
   reason: string
+  valid_until?: string | null
+  frozen?: boolean
 }
 
 export interface MemoryCandidateStory {

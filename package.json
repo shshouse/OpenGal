@@ -14,11 +14,12 @@
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "selfcheck": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-ttsport.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-mcp.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts",
-    "package": "electron-vite build && electron-builder --win portable"
+    "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "@huggingface/transformers": "^4.2.0",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-popover": "^1.1.16",
@@ -32,6 +33,7 @@
     "clsx": "^2.1.1",
     "electron-store": "^8.2.0",
     "lucide-react": "^0.460.0",
+    "onnxruntime-node": "^1.29.0",
     "pixi-live2d-display-lipsyncpatch": "^0.5.0-ls-8",
     "pixi.js": "^7.4.3",
     "react": "^18.3.1",
@@ -54,5 +56,35 @@
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
+  },
+  "build": {
+    "appId": "com.opengal.app",
+    "productName": "OpenGal",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/models",
+        "to": "models"
+      },
+      {
+        "from": "resources/genie",
+        "to": "genie"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "public/Logo/icon.png"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
   }
 }

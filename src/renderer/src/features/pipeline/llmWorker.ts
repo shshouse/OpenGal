@@ -5,7 +5,7 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
-import { getMemorySnapshot } from '@/features/memory/snapshot'
+import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from './pipelineBus'
 
 let counter = 0
@@ -48,9 +48,23 @@ interface ContextUsage {
   maxTokens: number
 }
 
-// ponytail: 字符级启发式估算，CJK 2 tokens/字，英文 0.25 tokens/字符
-// 比 length/4 准确（length/4 对中文低估 4 倍），比 tiktoken 轻（零依赖）
-// 已知上限：非精确 tokenizer，混合文本可能有 ±10% 偏差
+// 按需取相关记忆：优先用向量检索（getRelevant），失败时回退到快照
+async function fetchRelevantMemory(characterId: string, context: string): Promise<string | null> {
+  try {
+    const res = await window.opengal.memory.getRelevant(characterId, context.slice(0, 500))
+    if (res.success && res.data?.block) {
+      setMemorySnapshot(characterId, res.data.block)
+      return res.data.block
+    }
+    if (!res.success) {
+      useLogsStore.getState().appendLocal('warn', 'memory', `向量记忆检索失败: ${res.error ?? 'unknown'}`)
+    }
+  } catch (err) {
+    useLogsStore.getState().appendLocal('warn', 'memory', `向量记忆检索异常: ${(err as Error).message}`)
+  }
+  return getMemorySnapshot(characterId) ?? null
+}
+
 function estimateTokens(text: string): number {
   let tokens = 0
   for (let i = 0; i < text.length; i++) {
@@ -246,10 +260,11 @@ export function startLLMWorker(): () => void {
   async function runTurn(userText: string): Promise<void> {
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
+    const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, userText)
     const systemContent = buildSystemPrompt(
       activeRoleCard!,
       motionGroups,
-      getMemorySnapshot(activeRoleCard!.id) ?? undefined,
+      memoryBlock ?? undefined,
     )
     const compressedHistory = await compressHistory(
       activeRoleCard!.id,
@@ -466,10 +481,11 @@ export function startLLMWorker(): () => void {
       resetForNewAttempt()
       const history = useChatStore.getState().messages
       const motionGroups = getAvailableMotionGroups()
+      const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, history.slice(-3).map((m) => messageText(m)).join(' '))
       const systemContent = buildSystemPrompt(
         activeRoleCard!,
         motionGroups,
-        getMemorySnapshot(activeRoleCard!.id) ?? undefined,
+        memoryBlock ?? undefined,
       )
       const contextHistory = await compressHistory(
         activeRoleCard!.id,
