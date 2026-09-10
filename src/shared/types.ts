@@ -102,11 +102,16 @@ export interface MarketMod {
   description: string | null
   media: { thumbnail_url?: string | null; image_urls?: string[] | null } | null
   tags: string[] | null
+  view_count: number
   download_count: number
   like_count: number
+  latest_version: string | null
+  latest_version_id: string | null
+  source_info: { source_type?: 'original' | 'repost' } | null
+  game?: { id: string; name: string; icon_url: string | null } | null
   category?: { id: string; name: string; slug: string } | null
-  author?: { id: string; username: string } | null
-  versions?: Array<{ id: string; version: string; file_size: number | null }> | null
+  author?: { id: string; username: string; avatar_url: string | null } | null
+  versions?: Array<{ id: string; version: string; file_size: number | null; status: string; created_at: string }> | null
 }
 
 export interface MarketListResult {
@@ -123,16 +128,6 @@ export interface MarketListResult {
   totalMods: number
   page: number
   pageSize: number
-}
-
-export interface MarketDownloadProgress {
-  modId: string
-  title: string
-  received: number
-  total: number
-  done: boolean
-  error?: string
-  filePath?: string
 }
 
 export interface AppConfig {

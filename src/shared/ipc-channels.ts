@@ -88,8 +88,7 @@ export const IpcChannels = {
   },
   market: {
     list: 'market:list',
-    download: 'market:download',
-    downloadProgress: 'market:downloadProgress'
+    open: 'market:open'
   },
   screen: {
     capture: 'screen:capture'

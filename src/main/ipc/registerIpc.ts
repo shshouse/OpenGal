@@ -6,7 +6,7 @@ import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from 
 import type { LogEntry } from '@shared/log'
 import { readConfig, writeConfig } from '../services/configStore'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
-import { fetchMarketMods, downloadMarketMod } from '../services/marketService'
+import { fetchMarketMods, openMarketMod } from '../services/marketService'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
 import { speak, pingTTS, resetTTSState, warmupTTS } from '../services/ttsClient'
@@ -282,11 +282,9 @@ export function registerIpc(windows: WindowManager): void {
     (_, options: { page?: number; sort?: string; category?: string }) =>
       wrap(() => fetchMarketMods(options ?? {}))
   )
-  ipcMain.handle(IpcChannels.market.download, (event, modId: string, versionId?: string) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win) return wrap(async () => { throw new Error('No window') })
-    return wrap(() => downloadMarketMod(win.webContents, modId, versionId))
-  })
+  ipcMain.handle(IpcChannels.market.open, (_, modNumber: number, versionId?: string) =>
+    wrap(() => openMarketMod(modNumber, versionId))
+  )
 
   ipcMain.handle(IpcChannels.screen.capture, async () => {
     try {
