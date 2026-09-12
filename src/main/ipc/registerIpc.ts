@@ -20,6 +20,7 @@ import {
 import type { TTSServerStatus } from '../services/ttsServer'
 import { getEngine } from '../services/asr/factory'
 import { getDataRoot } from '../services/paths'
+import { startEnvMonitor, getEnvSnapshot } from '../services/envContext'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins } from '../services/plugins/registry'
@@ -50,6 +51,7 @@ export function registerIpc(windows: WindowManager): void {
   setMemoryDbLogger(logBus)
   initPlugins(getDataRoot())
   initMemoryStore(getDataRoot(), readConfig().memory)
+  startEnvMonitor()
 
   async function judgeFact(existing: MemoryFact, cand: MemoryCandidateFact): Promise<'reinforces' | 'negates'> {
     const res = await callLLM({
@@ -299,6 +301,8 @@ export function registerIpc(windows: WindowManager): void {
       return { success: false, error: (err as Error).message }
     }
   })
+
+  ipcMain.handle(IpcChannels.env.get, () => wrap(() => getEnvSnapshot()))
 
   ipcMain.handle(IpcChannels.logs.list, (event) => {
     addLogSubscriber(event.sender)

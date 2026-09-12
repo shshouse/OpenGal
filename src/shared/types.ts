@@ -141,6 +141,8 @@ export interface AppConfig {
   activeCharacterId: string | null
   showLive2D: boolean
   memory: MemoryConfig
+  tools: ToolsConfig
+  gameMode: GameModeConfig
 }
 
 export interface MemoryConfig {
@@ -151,6 +153,28 @@ export interface MemoryConfig {
   idleMinutes: number
   fallbackHours: number
   windowBatchTurns: number
+}
+
+export interface ToolsConfig {
+  webSearch: {
+    provider: 'bing' | 'tavily'
+    tavilyKey: string
+  }
+  fileSearchDirs: string[]
+}
+
+export interface GameModeConfig {
+  enabled: boolean
+  games: string[]
+}
+
+export interface EnvSnapshot {
+  timeText: string
+  idleSeconds: number
+  justReturned: boolean
+  awayMinutes: number
+  game: { name: string; fullscreen: boolean } | null
+  foreground: { app: string; title: string; fullscreen: boolean } | null
 }
 
 export interface MemoryFact {

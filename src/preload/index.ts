@@ -193,6 +193,9 @@ const api = {
   screen: {
     capture: () => invoke<string>(IpcChannels.screen.capture)
   },
+  env: {
+    get: () => invoke<import('@shared/types').EnvSnapshot>(IpcChannels.env.get)
+  },
   market: {
     list: (options: { page?: number; sort?: string; category?: string }) =>
       invoke<import('@shared/types').MarketListResult>(IpcChannels.market.list, options),

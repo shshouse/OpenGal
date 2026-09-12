@@ -13,7 +13,7 @@
     "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "selfcheck": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-ttsport.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-mcp.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts",
+    "selfcheck": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-ttsport.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-mcp.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-tools.ts",
     "package": "electron-vite build && electron-builder"
   },
   "dependencies": {
@@ -32,8 +32,12 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "electron-store": "^8.2.0",
+    "fast-glob": "^3.3.3",
+    "get-windows": "^9.3.0",
     "lucide-react": "^0.460.0",
     "onnxruntime-node": "^1.24.3",
+    "p-retry": "^8.0.1",
+    "p-timeout": "^7.0.1",
     "pixi-live2d-display-lipsyncpatch": "^0.5.0-ls-8",
     "pixi.js": "^7.4.3",
     "react": "^18.3.1",
@@ -66,6 +70,9 @@
     "files": [
       "out/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/get-windows/**"
     ],
     "extraResources": [
       {

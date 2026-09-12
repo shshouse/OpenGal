@@ -93,6 +93,9 @@ export const IpcChannels = {
   screen: {
     capture: 'screen:capture'
   },
+  env: {
+    get: 'env:get'
+  },
   logs: {
     list: 'logs:list',
     clear: 'logs:clear',

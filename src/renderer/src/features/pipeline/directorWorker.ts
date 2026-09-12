@@ -36,7 +36,8 @@ let waitTimer: ReturnType<typeof setTimeout> | null = null
 let waitRound = 0
 let waitUtterances: Utterance[] = []
 let lastReplyAt = 0
-let evaluating = false
+let evaluatingSince = 0
+const EVALUATE_LATCH_TTL_MS = 180_000
 let dispatch: ((input: UserInputMessage) => void) | null = null
 let lastShot: { at: number; dataUrl: string } | null = null
 
@@ -103,8 +104,10 @@ function plainContent(content: string | MessageContentPart[]): string {
 }
 
 async function evaluate(): Promise<void> {
-  if (evaluating || buffer.length === 0) return
-  evaluating = true
+  // 看门狗：闩锁带 TTL，防止上游 Promise 永不 settle 导致永久锁死
+  if (evaluatingSince && Date.now() - evaluatingSince < EVALUATE_LATCH_TTL_MS) return
+  if (buffer.length === 0) return
+  evaluatingSince = Date.now()
   try {
     const utterances = buffer
     buffer = []
@@ -115,7 +118,16 @@ async function evaluate(): Promise<void> {
     const joined = utterances.map((u) => u.text).join(' ')
     const compact = joined.replace(/[\s，。？！,.?！]/g, '')
 
-    if (cfg.directorCooldownSec > 0 && Date.now() - lastReplyAt < cfg.directorCooldownSec * 1000) {
+    // 游戏模式：冷却加倍，减少打扰
+    let cooldownSec = cfg.directorCooldownSec
+    try {
+      const env = await window.opengal.env.get()
+      if (env.success && env.data?.game) cooldownSec = Math.round(cooldownSec * 2)
+    } catch {
+      /* 环境信息可选 */
+    }
+
+    if (cooldownSec > 0 && Date.now() - lastReplyAt < cooldownSec * 1000) {
       log('info', `冷却中，忽略语音: ${joined.slice(0, 40)}`)
       decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'cooldown', engine: cfg.engine })
       return
@@ -178,7 +190,7 @@ async function evaluate(): Promise<void> {
   } catch (err) {
     log('warn', `导演判定失败，保持沉默: ${(err as Error).message}`)
   } finally {
-    evaluating = false
+    evaluatingSince = 0
     if (buffer.length > 0) {
       void evaluate()
     }

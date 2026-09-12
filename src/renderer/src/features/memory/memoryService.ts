@@ -31,7 +31,8 @@ interface MemoryTuning {
 const DEFAULTS: MemoryTuning = { batchTurns: 8, idleMinutes: 5, fallbackHours: 12 }
 
 let buffer: CorpusEntry[] = []
-let extractBusy = false
+let extractBusySince = 0
+const EXTRACT_LATCH_TTL_MS = 180_000
 let lastSuccessAt = 0
 let lastCharacterId: string | null = null
 let userTurns = 0
@@ -104,7 +105,12 @@ stories 是故事：kind 取值 event（共同经历）/ promise（约定）/ mi
 没有可提取的就输出 {"facts":[],"stories":[]}`
 
 async function runExtract(force = false): Promise<void> {
-  if (extractBusy) return
+  // 看门狗：闩锁带 TTL，防止上游 Promise 永不 settle 导致永久锁死
+  if (extractBusySince && Date.now() - extractBusySince < EXTRACT_LATCH_TTL_MS) return
+  if (extractBusySince) {
+    log('warn', '记忆提取闩锁超时，强制复位')
+  }
+  extractBusySince = Date.now()
   const groups = new Map<string, CorpusEntry[]>()
   for (const e of buffer) {
     if (e.role === 'user' && (e.source === 'plugin' || e.source === 'live')) continue
@@ -120,7 +126,6 @@ async function runExtract(force = false): Promise<void> {
     if (userTurns === 0 && groups.size === 1) return
   }
 
-  extractBusy = true
   try {
     for (const [characterId, entries] of groups) {
       if (!entries.some((e) => e.role === 'user')) continue
@@ -158,7 +163,7 @@ async function runExtract(force = false): Promise<void> {
       )
     }
   } finally {
-    extractBusy = false
+    extractBusySince = 0
   }
 }
 

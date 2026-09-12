@@ -56,7 +56,18 @@ const defaultConfig: AppConfig = {
   },
   model: null,
   activeCharacterId: null,
-  showLive2D: true
+  showLive2D: true,
+  tools: {
+    webSearch: {
+      provider: 'bing',
+      tavilyKey: ''
+    },
+    fileSearchDirs: []
+  },
+  gameMode: {
+    enabled: true,
+    games: []
+  }
 }
 
 let store: Store<Record<string, unknown>> | null = null
@@ -126,7 +137,14 @@ export function readConfig(): AppConfig {
     llm: { ...defaultConfig.llm, ...(raw.llm ?? {}) },
     tts: { ...defaultConfig.tts, ...(raw.tts ?? {}) },
     asr: { ...defaultConfig.asr, ...(raw.asr ?? {}) },
-    memory: { ...defaultConfig.memory, ...(raw.memory ?? {}) }
+    memory: { ...defaultConfig.memory, ...(raw.memory ?? {}) },
+    tools: {
+      ...defaultConfig.tools,
+      ...(raw.tools ?? {}),
+      webSearch: { ...defaultConfig.tools.webSearch, ...(raw.tools?.webSearch ?? {}) },
+      fileSearchDirs: raw.tools?.fileSearchDirs ?? defaultConfig.tools.fileSearchDirs,
+    },
+    gameMode: { ...defaultConfig.gameMode, ...(raw.gameMode ?? {}) }
   }
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
@@ -155,6 +173,13 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
     llm: { ...current.llm, ...(patch.llm ?? {}) },
     tts: { ...current.tts, ...(patch.tts ?? {}) },
     asr: { ...current.asr, ...(patch.asr ?? {}) },
+    tools: {
+      ...current.tools,
+      ...(patch.tools ?? {}),
+      webSearch: { ...current.tools.webSearch, ...(patch.tools?.webSearch ?? {}) },
+      fileSearchDirs: patch.tools?.fileSearchDirs ?? current.tools.fileSearchDirs,
+    },
+    gameMode: { ...current.gameMode, ...(patch.gameMode ?? {}) },
     model: patch.model === undefined ? current.model : patch.model
   }
   const persisted: AppConfig = {

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, Monitor, Sparkles, Volume2, Mic, ScrollText, Puzzle, Brain } from 'lucide-react'
+import { Users, Monitor, Sparkles, Volume2, Mic, ScrollText, Puzzle, Brain, Gamepad2 } from 'lucide-react'
 import { CharacterSettings } from './CharacterSettings'
 import { CharacterDisplaySettings } from './CharacterDisplaySettings'
 import { SettingsDialog } from './SettingsDialog'
@@ -9,6 +9,7 @@ import { ASRSettings } from './ASRSettings'
 import { LogsView } from './LogsView'
 import { PluginSettings } from './PluginSettings'
 import { MemorySettings } from './MemorySettings'
+import { EnvironmentSettings } from './EnvironmentSettings'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 
 interface SettingsCenterProps {
@@ -25,6 +26,7 @@ const SECTIONS = [
   { value: 'asr', label: 'STT', icon: Mic, description: '语音识别（ASR）参数' },
   { value: 'plugins', label: '插件', icon: Puzzle, description: '管理工具与界面扩展插件' },
   { value: 'memory', label: '记忆', icon: Brain, description: '查看与管理角色记忆' },
+  { value: 'environment', label: '环境', icon: Gamepad2, description: '游戏模式、联网搜索与文件搜索目录' },
   { value: 'logs', label: '日志', icon: ScrollText, description: '查看运行日志' }
 ] as const
 
@@ -75,6 +77,9 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
           </TabsContent>
           <TabsContent value="memory" className="mt-0">
             <MemorySettings />
+          </TabsContent>
+          <TabsContent value="environment" className="mt-0">
+            <EnvironmentSettings config={config} onSave={onSave} />
           </TabsContent>
           <TabsContent value="logs" className="mt-0">
             <LogsView />

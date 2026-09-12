@@ -1,5 +1,5 @@
 import { DialogueStreamParser, buildSystemPrompt } from '@shared/roleCard'
-import type { ChatMessage, LLMDialogueItem, RoleCard, ToolCall, ToolDefinition } from '@shared/types'
+import type { ChatMessage, LLMDialogueItem, MessageContentPart, RoleCard, ToolCall, ToolDefinition } from '@shared/types'
 import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
@@ -136,6 +136,47 @@ function resolveContextWindow(): number {
 const MAX_TOOL_ROUNDS = 5
 const MAX_RETRIES = 1
 const RETRY_BASE_MS = 2000
+const TURN_DEADLINE_MS = 5 * 60_000
+const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
+
+function buildEnvBlock(env: {
+  timeText: string
+  idleSeconds: number
+  justReturned: boolean
+  awayMinutes: number
+  game: { name: string; fullscreen: boolean } | null
+  foreground: { app: string; title: string; fullscreen: boolean } | null
+}): string {
+  const lines = [`现在时间：${env.timeText}`]
+  if (env.justReturned) {
+    lines.push(`用户刚刚离开了约 ${env.awayMinutes} 分钟，现在回来了`)
+  }
+  if (env.game) {
+    lines.push(
+      `用户正在玩游戏《${env.game.name}》${env.game.fullscreen ? '（全屏中）' : ''}——回复要更简短，不要频繁打扰`,
+    )
+  } else if (env.foreground?.fullscreen && env.foreground.app) {
+    lines.push(`用户正在全屏使用 ${env.foreground.app}`)
+  } else if (env.foreground?.app) {
+    lines.push(`用户当前前台应用：${env.foreground.app}`)
+  }
+  if (env.idleSeconds > 300) {
+    lines.push(`用户已约 ${Math.round(env.idleSeconds / 60)} 分钟没有操作电脑`)
+  }
+  return `【当前环境】\n${lines.join('\n')}`
+}
+
+async function fetchEnvBlock(): Promise<ChatMessage | null> {
+  try {
+    const res = await window.opengal.env.get()
+    if (res.success && res.data) {
+      return { role: 'system', content: buildEnvBlock(res.data) }
+    }
+  } catch {
+    /* 环境信息可选，失败不阻塞对话 */
+  }
+  return null
+}
 
 function isRetryableError(error: string): boolean {
   return /timeout|network|ECONNRESET|502|503|504|rate limit|overloaded/i.test(error)
@@ -258,6 +299,7 @@ export function startLLMWorker(): () => void {
   })
 
   async function runTurn(userText: string): Promise<void> {
+    const turnStartedAt = Date.now()
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
     const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, userText)
@@ -275,8 +317,10 @@ export function startLLMWorker(): () => void {
 
     let messagesForLLM: ChatMessage[] = [
       { role: 'system', content: systemContent },
-      ...sanitizeHistoryForLLM(compressedHistory),
     ]
+    const envMsg = await fetchEnvBlock()
+    if (envMsg) messagesForLLM.push(envMsg)
+    messagesForLLM.push(...sanitizeHistoryForLLM(compressedHistory))
 
     const toolsResp = await window.opengal.tools.list()
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
@@ -299,53 +343,105 @@ export function startLLMWorker(): () => void {
       },
     ])
 
+    let lastRoundSigs = ''
+    let repeatStreak = 0
+
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      if (Date.now() - turnStartedAt > TURN_DEADLINE_MS) {
+        currentStreamId = null
+        pipelineBus.emit('llm:done', { ok: false, error: '本轮对话超时（工具循环过长），已终止' })
+        return
+      }
+
       const prevToolCalls = messagesForLLM[messagesForLLM.length - 1].tool_calls ?? []
+      const roundSigs = prevToolCalls
+        .map((tc) => `${tc.function.name}:${tc.function.arguments}`)
+        .join('|')
+
       const toolMessages: ChatMessage[] = []
-      for (const tc of prevToolCalls) {
-        const start = performance.now()
-        const exec = await window.opengal.tools.execute(tc.function.name, tc.function.arguments)
-        const durationMs = Math.round(performance.now() - start)
-        let resultContent: string
-        let ok = true
-        if (exec.success && exec.data) {
-          if (exec.data.ok) {
-            resultContent = exec.data.result
+      const imageMessages: ChatMessage[] = []
+
+      if (roundSigs && roundSigs === lastRoundSigs) {
+        repeatStreak++
+        if (repeatStreak >= 2) {
+          useLogsStore.getState().appendLocal('warn', 'llm-worker', '工具连续重复调用，判定循环停滞，终止本轮')
+          currentStreamId = null
+          pipelineBus.emit('llm:done', { ok: false, error: '工具循环停滞（连续相同调用），已终止' })
+          return
+        }
+        for (const tc of prevToolCalls) {
+          toolMessages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            name: tc.function.name,
+            content: '重复调用已拦截：与上一轮完全相同的工具调用，不会重复执行。请勿再重试同一调用，直接基于已有结果回复用户。',
+          })
+        }
+      } else {
+        repeatStreak = 0
+        for (const tc of prevToolCalls) {
+          const start = performance.now()
+          const exec = await window.opengal.tools.execute(tc.function.name, tc.function.arguments)
+          const durationMs = Math.round(performance.now() - start)
+          let resultContent: string
+          let ok = true
+          if (exec.success && exec.data) {
+            if (exec.data.ok) {
+              resultContent = exec.data.result
+            } else {
+              resultContent = `工具执行失败: ${exec.data.error}`
+              ok = false
+            }
           } else {
-            resultContent = `工具执行失败: ${exec.data.error}`
+            resultContent = `工具执行失败: ${exec.error}`
             ok = false
           }
-        } else {
-          resultContent = `工具执行失败: ${exec.error}`
-          ok = false
+          let parsedArgs: Record<string, unknown> = {}
+          try {
+            parsedArgs = JSON.parse(tc.function.arguments) as Record<string, unknown>
+          } catch {
+            parsedArgs = { _raw: tc.function.arguments }
+          }
+          const record: ToolCallRecord = {
+            id: tc.id,
+            name: tc.function.name,
+            args: parsedArgs,
+            ok,
+            result: resultContent,
+            durationMs,
+          }
+          useToolCallsStore.getState().add(record)
+          pipelineBus.emit('llm:reasoning', {
+            delta: `[tool:${tc.function.name}] ${resultContent.slice(0, 200)}${resultContent.length > 200 ? '…' : ''}\n`,
+            accumulated: '',
+          })
+          if (ok && resultContent.startsWith(SCREENSHOT_MARKER)) {
+            const dataUrl = resultContent.slice(SCREENSHOT_MARKER.length)
+            toolMessages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              name: tc.function.name,
+              content: '已拍摄屏幕截图，图片见紧随其后的消息。',
+            })
+            imageMessages.push({
+              role: 'user',
+              content: [
+                { type: 'text', text: '[系统注入的屏幕截图，供你查看用户当前屏幕]' },
+                { type: 'image_url', image_url: { url: dataUrl } },
+              ] as MessageContentPart[],
+            })
+          } else {
+            toolMessages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              name: tc.function.name,
+              content: resultContent,
+            })
+          }
         }
-        let parsedArgs: Record<string, unknown> = {}
-        try {
-          parsedArgs = JSON.parse(tc.function.arguments) as Record<string, unknown>
-        } catch {
-          parsedArgs = { _raw: tc.function.arguments }
-        }
-        const record: ToolCallRecord = {
-          id: tc.id,
-          name: tc.function.name,
-          args: parsedArgs,
-          ok,
-          result: resultContent,
-          durationMs,
-        }
-        useToolCallsStore.getState().add(record)
-        pipelineBus.emit('llm:reasoning', {
-          delta: `[tool:${tc.function.name}] ${resultContent.slice(0, 200)}${resultContent.length > 200 ? '…' : ''}\n`,
-          accumulated: '',
-        })
-        toolMessages.push({
-          role: 'tool',
-          tool_call_id: tc.id,
-          name: tc.function.name,
-          content: resultContent,
-        })
       }
-      messagesForLLM = messagesForLLM.concat(toolMessages)
+      lastRoundSigs = roundSigs
+      messagesForLLM = messagesForLLM.concat(toolMessages, imageMessages)
 
       const nonStream = await window.opengal.llm.chat({
         messages: messagesForLLM,

@@ -1,5 +1,6 @@
 import { logBus } from '../logBus'
 import type { ToolDefinition } from '@shared/types'
+import { registerBuiltinTools } from './builtin'
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<string>
 
@@ -45,4 +46,5 @@ export async function executeTool(
   }
 }
 
+registerBuiltinTools()
 logBus.info('tools', `已注册 ${tools.size} 个工具`)

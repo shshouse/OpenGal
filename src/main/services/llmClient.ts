@@ -95,7 +95,22 @@ export async function callLLMStream(
   const adapter = chooseAdapter(settings)
   const controller = new AbortController()
   activeStreams.set(streamId, controller)
-  const timer = setTimeout(() => controller.abort(), 180_000)
+  const STREAM_IDLE_MS = 90_000
+  const STREAM_HARD_CAP_MS = 600_000
+  const startedAt = Date.now()
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  const hardTimer = setTimeout(() => {
+    logBus.warn('llm', `流总时长超过硬上限，强制中断 (id=${streamId})`)
+    controller.abort()
+  }, STREAM_HARD_CAP_MS)
+  const armIdle = (): void => {
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      logBus.warn('llm', `流空闲超过 ${STREAM_IDLE_MS / 1000}s，判定挂起并中断 (id=${streamId})`)
+      controller.abort()
+    }, STREAM_IDLE_MS)
+  }
+  armIdle()
 
   logBus.info(
     'llm',
@@ -112,15 +127,18 @@ export async function callLLMStream(
       { messages: request.messages, config: settings, signal: controller.signal, tools: request.tools, toolChoice: request.toolChoice },
       {
         onContent: (delta) => {
+          armIdle()
           contentChars += delta.length
           contentBuf.push(delta)
           sender.send('llm:stream:chunk', streamId, delta)
         },
         onReasoning: (delta) => {
+          armIdle()
           reasoningChars += delta.length
           sender.send('llm:stream:reasoning', streamId, delta)
         },
         onToolCalls: (calls) => {
+          armIdle()
           sender.send('llm:stream:tool_calls', streamId, calls)
         },
         onWarning: (msg) => {
@@ -131,7 +149,7 @@ export async function callLLMStream(
     sender.send('llm:stream:done', streamId)
     logBus.info(
       'llm',
-      `请求完成 (stream id=${streamId}) content=${contentChars}字 reasoning=${reasoningChars}字`,
+      `请求完成 (stream id=${streamId}) content=${contentChars}字 reasoning=${reasoningChars}字 耗时=${Math.round((Date.now() - startedAt) / 1000)}s`,
       contentBuf.join('').slice(0, 800),
     )
   } catch (err) {
@@ -147,7 +165,8 @@ export async function callLLMStream(
       )
     }
   } finally {
-    clearTimeout(timer)
+    if (idleTimer) clearTimeout(idleTimer)
+    clearTimeout(hardTimer)
     activeStreams.delete(streamId)
   }
 }
