@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
+import { assertLocalBaseURL } from '../ttsPort'
 import type { TTSAdapter, TTSGenerateRequest, TTSGenerateResponse } from './types'
 
 interface ResolvedGenieSettings {
@@ -121,7 +122,7 @@ export class GenieAdapter implements TTSAdapter {
       referenceLanguage: cfg.referenceLanguage,
     }
     if (cardVoice) {
-      for (const key of ['baseURL', 'characterName', 'onnxModelDir', 'referenceAudio', 'referenceText', 'referenceLanguage']) {
+      for (const key of ['characterName', 'onnxModelDir', 'referenceAudio', 'referenceText', 'referenceLanguage']) {
         if (cardVoice[key] !== undefined && cardVoice[key] !== null && cardVoice[key] !== '') {
           merged[key] = cardVoice[key]
         }
@@ -139,6 +140,7 @@ export class GenieAdapter implements TTSAdapter {
 
     const baseURL = normalizeBaseURL(String(merged.baseURL || ''))
     if (!baseURL) throw new Error('TTS baseURL is not configured')
+    assertLocalBaseURL(baseURL)
 
     const characterName = String(merged.characterName || '').trim()
     if (!characterName) throw new Error('Genie characterName is not configured')

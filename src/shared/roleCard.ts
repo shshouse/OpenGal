@@ -38,7 +38,7 @@ function formatMotionMenu(motionGroups: string[]): string[] {
     .map((g) => `- "${g}"：${MOTION_GROUP_LABELS[g] ?? g}`)
 }
 
-export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], memoryBlock?: string): string {
+export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], memoryBlock?: string, hasTools = false): string {
   const persona = card.persona
   const userIdentity = persona.userIdentity ?? '用户'
   const userTerm = persona.userTerm ?? card.name
@@ -79,6 +79,13 @@ export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], m
     lines.push('- 不要输出 action 字段。')
   }
   lines.push('- 不要输出 JSON 以外的任何字符（包括 Markdown 代码块、解释性文字、问候语）。')
+  if (hasTools) {
+    lines.push('')
+    lines.push('工具使用规则（重要）：')
+    lines.push('- 你可以调用工具（如联网搜索、查文件、截屏）。需要工具时，必须在本轮回复中直接发起工具调用。')
+    lines.push('- 一旦你输出台词，本轮就结束了，之后你没有任何机会再行动。禁止在台词里说「让我查一下」「稍等」却不发起工具调用。')
+    lines.push('- 正确做法：先发起工具调用（此时可以不输出台词），拿到工具结果后再生成带结果的台词。')
+  }
   if (motionGroups.length > 0) {
     lines.push('')
     lines.push('可用动作（action 只能从这里选，逐条是「组名：含义」）：')

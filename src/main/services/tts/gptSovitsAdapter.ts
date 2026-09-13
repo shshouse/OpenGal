@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
-import { applyTtsPortShift } from '../ttsPort'
+import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
 import type {
   TTSAdapter,
   TTSGenerateRequest,
@@ -118,7 +118,6 @@ export class GptSovitsAdapter implements TTSAdapter {
     }
     if (cardVoice) {
       for (const key of [
-        'baseURL',
         'gptModel',
         'sovitsModel',
         'referenceAudio',
@@ -150,6 +149,7 @@ export class GptSovitsAdapter implements TTSAdapter {
 
     const baseURL = applyTtsPortShift(normalizeBaseURL(String(merged.baseURL || '')))
     if (!baseURL) throw new Error('TTS baseURL is not configured')
+    assertLocalBaseURL(baseURL)
 
     const gptRel = String(merged.gptModel || '')
     const sovitsRel = String(merged.sovitsModel || '')

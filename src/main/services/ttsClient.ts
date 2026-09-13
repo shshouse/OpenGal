@@ -2,6 +2,7 @@ import type { TTSConfig } from '@shared/types'
 import { readConfig } from './configStore'
 import { getRoleCard } from './roleCardLoader'
 import { chooseTTSAdapter, resetAllTTSAdapters } from './tts/factory'
+import { startGptSovitsServer } from './ttsServer'
 import { logBus } from './logBus'
 
 export interface TTSSpeakRequest {
@@ -66,6 +67,8 @@ export async function warmupTTS(): Promise<boolean> {
   }
 }
 
+let autoStartBusy = false
+
 export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse> {
   const config = readConfig().tts
   const card = resolveActiveCard(request.roleCardId)
@@ -83,7 +86,29 @@ export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse>
     logBus.info('tts', `合成完成 长度=${res.audioBase64.length}B64 type=${res.mimeType}`)
     return res
   } catch (err) {
-    logBus.error('tts', `合成失败: ${(err as Error).message}`, (err as Error).stack)
+    const msg = (err as Error).message
+   const connRefused = /连接被拒绝|ECONNREFUSED/.test(msg)
+    if (connRefused && provider === 'gpt-sovits' && !autoStartBusy) {
+      autoStartBusy = true
+      try {
+        logBus.info('tts', '检测到 GPT-SoVITS 未启动，自动拉起服务（首次需 30-90 秒）...')
+        await startGptSovitsServer()
+        const res = await adapter.generateSpeech({
+          text: request.text,
+          globalConfig: config,
+          card,
+          overrides: request.overrides,
+        })
+        logBus.info('tts', `自动拉起后合成成功 长度=${res.audioBase64.length}B64`)
+        return res
+      } catch (retryErr) {
+        logBus.error('tts', `自动拉起后合成仍失败: ${(retryErr as Error).message}`, (retryErr as Error).stack)
+        throw retryErr
+      } finally {
+        autoStartBusy = false
+      }
+    }
+    logBus.error('tts', `合成失败: ${msg}`, (err as Error).stack)
     throw err
   }
 }

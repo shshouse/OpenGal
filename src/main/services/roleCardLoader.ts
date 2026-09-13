@@ -74,6 +74,7 @@ export function readRoleVoiceConfig(card: RoleCardEntry): Record<string, unknown
   const abs = path.isAbsolute(card.voice.configRef)
     ? card.voice.configRef
     : path.join(card.rootPath, card.voice.configRef)
+  if (path.relative(card.rootPath, abs).startsWith('..')) return null
   if (!fs.existsSync(abs)) return null
   try {
     return JSON.parse(fs.readFileSync(abs, 'utf-8')) as Record<string, unknown>

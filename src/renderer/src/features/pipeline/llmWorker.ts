@@ -271,7 +271,7 @@ export function startLLMWorker(): () => void {
   const parser = new DialogueStreamParser()
 
   let dialogCountThisTurn = 0
-  let retryCount = 0
+  let turnSeq = 0
 
   const emitDialog = (item: LLMDialogueItem): void => {
     dialogCountThisTurn++
@@ -292,21 +292,26 @@ export function startLLMWorker(): () => void {
     }
     resetForNewAttempt()
 
-    void runTurn(input.text).catch((err: Error) => {
+    const myTurn = ++turnSeq
+    void runTurn(input.text, myTurn).catch((err: Error) => {
       currentStreamId = null
       pipelineBus.emit('llm:done', { ok: false, error: err.message })
     })
   })
 
-  async function runTurn(userText: string): Promise<void> {
+  async function runTurn(userText: string, myTurn: number): Promise<void> {
+    const stale = (): boolean => myTurn !== turnSeq
     const turnStartedAt = Date.now()
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
     const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, userText)
+    const toolsResp = await window.opengal.tools.list()
+    const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
     const systemContent = buildSystemPrompt(
       activeRoleCard!,
       motionGroups,
       memoryBlock ?? undefined,
+      tools.length > 0,
     )
     const compressedHistory = await compressHistory(
       activeRoleCard!.id,
@@ -322,10 +327,8 @@ export function startLLMWorker(): () => void {
     if (envMsg) messagesForLLM.push(envMsg)
     messagesForLLM.push(...sanitizeHistoryForLLM(compressedHistory))
 
-    const toolsResp = await window.opengal.tools.list()
-    const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
-
     const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools)
+    if (stale()) return
     if (!firstResult.ok) {
       currentStreamId = null
       pipelineBus.emit('llm:done', { ok: false, error: firstResult.error })
@@ -347,6 +350,7 @@ export function startLLMWorker(): () => void {
     let repeatStreak = 0
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      if (stale()) return
       if (Date.now() - turnStartedAt > TURN_DEADLINE_MS) {
         currentStreamId = null
         pipelineBus.emit('llm:done', { ok: false, error: '本轮对话超时（工具循环过长），已终止' })
@@ -449,6 +453,7 @@ export function startLLMWorker(): () => void {
         tools,
         toolChoice: 'auto',
       })
+      if (stale()) return
       if (!nonStream.success) {
         currentStreamId = null
         pipelineBus.emit('llm:done', { ok: false, error: nonStream.error || 'Tool 续传失败' })
@@ -564,53 +569,13 @@ export function startLLMWorker(): () => void {
     pipelineBus.emit('llm:reasoning', { delta, accumulated: accumulatedReasoning })
   })
 
-  const offDone = window.opengal.llm.onStreamDone((id) => {
-    if (id !== currentStreamId) return
-  })
-
-  const offError = window.opengal.llm.onStreamError(async (id, error) => {
-    if (id !== currentStreamId) return
+  const offError = window.opengal.llm.onStreamError((id, error) => {
+   if (id !== currentStreamId) return
     useLogsStore.getState().appendLocal('error', 'llm-worker', `LLM 流错误: ${error}`)
-    if (retryCount < MAX_RETRIES && isRetryableError(error)) {
-      retryCount++
-      useLogsStore.getState().appendLocal('info', 'llm-worker', `流错误将重试 (${retryCount}/${MAX_RETRIES})`)
-      resetForNewAttempt()
-      const history = useChatStore.getState().messages
-      const motionGroups = getAvailableMotionGroups()
-      const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, history.slice(-3).map((m) => messageText(m)).join(' '))
-      const systemContent = buildSystemPrompt(
-        activeRoleCard!,
-        motionGroups,
-        memoryBlock ?? undefined,
-      )
-      const contextHistory = await compressHistory(
-        activeRoleCard!.id,
-        history,
-        resolveContextWindow(),
-        estimateTokens(systemContent),
-      )
-      const messages: ChatMessage[] = [
-        { role: 'system', content: systemContent },
-        ...sanitizeHistoryForLLM(contextHistory),
-      ]
-      void runStreamRoundWithRetry(messages, [])
-        .then((result) => {
-          if (!result.ok) {
-            currentStreamId = null
-            pipelineBus.emit('llm:done', { ok: false, error: result.error })
-          }
-        })
-        .catch(() => {
-          currentStreamId = null
-          pipelineBus.emit('llm:done', { ok: false, error })
-        })
-      return
-    }
-    currentStreamId = null
-    pipelineBus.emit('llm:done', { ok: false, error })
   })
 
   const offAbort = pipelineBus.on('pipeline:abort', () => {
+    turnSeq++
     const wasStreaming = currentStreamId !== null
     if (currentStreamId) {
       try {
@@ -621,13 +586,12 @@ export function startLLMWorker(): () => void {
       currentStreamId = null
     }
     parser.reset()
-    retryCount = 0
     if (wasStreaming) {
       pipelineBus.emit('llm:done', { ok: true })
     }
   })
 
-  unsubscribers = [offUserInput, offChunk, offReasoning, offDone, offError, offAbort]
+  unsubscribers = [offUserInput, offChunk, offReasoning, offError, offAbort]
   return stopLLMWorker
 }
 

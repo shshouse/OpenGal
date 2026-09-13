@@ -6,7 +6,11 @@ import { logBus } from './logBus'
 
 function resolveSettings(request: LLMRequest): LLMConfig {
   const config = readConfig()
-  const settings: LLMConfig = { ...config.llm, ...(request.overrides ?? {}) }
+  const overrides = { ...(request.overrides ?? {}) }
+  delete overrides.baseURL
+  delete overrides.apiKey
+  delete overrides.provider
+  const settings: LLMConfig = { ...config.llm, ...overrides }
   if (!settings.apiKey) throw new Error('API key is not configured')
   if (!settings.baseURL) {
     throw new Error('Base URL is not configured')
@@ -15,18 +19,31 @@ function resolveSettings(request: LLMRequest): LLMConfig {
   return settings
 }
 
-function describeMessages(messages: LLMRequest['messages']): string {
-  return messages
-    .map((m, i) => {
-      const text =
-        typeof m.content === 'string'
-          ? m.content
-          : m.content.map((p) => (p.type === 'text' ? p.text : '[图片]')).join(' ')
-      return `[${i}] ${m.role}: ${text.slice(0, 200)}${text.length > 200 ? '…' : ''}`
-    })
-    .join('\n')
+function messageTextOf(m: LLMRequest['messages'][number]): string {
+  return typeof m.content === 'string'
+    ? m.content
+    : m.content.map((p) => (p.type === 'text' ? p.text : '[图片]')).join(' ')
 }
 
+function describeRequest(request: LLMRequest): string {
+  const counts = new Map<string, number>()
+  let total = 0
+  for (const m of request.messages) {
+    counts.set(m.role, (counts.get(m.role) ?? 0) + 1)
+    total += messageTextOf(m).length
+  }
+  const parts = Array.from(counts.entries())
+    .map(([r, c]) => `${r}×${c}`)
+    .join('/')
+  let summary = `消息=${parts} 共${(total / 1000).toFixed(1)}k字`
+  if (request.tools?.length) summary += ` tools=${request.tools.length}`
+  const lastUser = [...request.messages].reverse().find((m) => m.role === 'user')
+  if (lastUser) {
+    const text = messageTextOf(lastUser).replace(/\s+/g, ' ')
+    if (text) summary += ` 末条="${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`
+  }
+  return summary
+}
 
 // 拉取服务商可用模型列表（OpenAI 兼容 /models 端点）
 export async function listProviderModels(
@@ -56,7 +73,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
   logBus.info(
     'llm',
     `请求开始 (non-stream) provider=${settings.provider} model=${settings.modelName}`,
-    describeMessages(request.messages),
+    describeRequest(request),
   )
   try {
     const res = await adapter.chat({
@@ -66,7 +83,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
       tools: request.tools,
       toolChoice: request.toolChoice,
     })
-    logBus.info('llm', `请求完成 (non-stream)`, res.content.slice(0, 500))
+    logBus.info('llm', `请求完成 (non-stream) 回复=${res.content.length}字`, res.content.slice(0, 300))
     return res
   } catch (err) {
     logBus.error('llm', `请求失败 (non-stream): ${(err as Error).message}`, (err as Error).stack)
@@ -115,7 +132,7 @@ export async function callLLMStream(
   logBus.info(
     'llm',
     `请求开始 (stream id=${streamId}) provider=${settings.provider} model=${settings.modelName}`,
-    describeMessages(request.messages),
+    describeRequest(request),
   )
 
   let contentChars = 0
@@ -150,7 +167,7 @@ export async function callLLMStream(
     logBus.info(
       'llm',
       `请求完成 (stream id=${streamId}) content=${contentChars}字 reasoning=${reasoningChars}字 耗时=${Math.round((Date.now() - startedAt) / 1000)}s`,
-      contentBuf.join('').slice(0, 800),
+      contentBuf.join('').slice(0, 300),
     )
   } catch (err) {
     if ((err as Error).name === 'AbortError') {

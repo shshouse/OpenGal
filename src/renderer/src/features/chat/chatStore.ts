@@ -128,7 +128,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   switchSession: (characterId) => {
     const { sessionId } = get()
     if (sessionId === characterId) return
-    suppressPersist++
     set((state) => {
       const sessions = { ...state.sessions }
       if (state.sessionId) {
@@ -147,23 +146,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   ensureHydrated: async (characterId) => {
     if (get().hydratedIds[characterId]) return
-    set((state) => ({ hydratedIds: { ...state.hydratedIds, [characterId]: true } }))
-    try {
-      const res = await window.opengal.chatHistory.load(characterId)
-      const loaded = (res.success && Array.isArray(res.data) ? res.data : []) as (
-        | PersistedAssistantMessage
-        | PersistedUserMessage
-      )[]
-      suppressPersist++
-      set((state) => {
-        const sessions = { ...state.sessions, [characterId]: { messages: loaded } }
-        if (state.sessionId === characterId) {
-          return { sessions, messages: loaded }
-        }
-        return { sessions }
-      })
-    } catch {
-    }
+   const res = await window.opengal.chatHistory.load(characterId).catch((err: Error) => {
+      console.error('[chatStore] 历史加载失败:', err.message)
+      return null
+    })
+    if (!res || !res.success) return
+    const loaded = (Array.isArray(res.data) ? res.data : []) as (
+      | PersistedAssistantMessage
+      | PersistedUserMessage
+    )[]
+    set((state) => {
+      const sessions = { ...state.sessions, [characterId]: { messages: loaded } }
+      const hydratedIds = { ...state.hydratedIds, [characterId]: true as const }
+      if (state.sessionId === characterId) {
+        suppressPersist++
+        return { sessions, hydratedIds, messages: loaded }
+      }
+      return { sessions, hydratedIds }
+    })
   }
 }))
 

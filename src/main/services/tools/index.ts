@@ -37,7 +37,7 @@ export async function executeTool(
   }
   try {
     const result = await entry.handle(args)
-    logBus.info('tools', `执行 ${name} 成功`, result.slice(0, 200))
+    logBus.info('tools', `执行 ${name} 成功`, result.slice(0, 1500))
     return { ok: true, result }
   } catch (err) {
     const msg = (err as Error).message

@@ -1,12 +1,18 @@
 import { desktopCapturer, app } from 'electron'
 import path from 'node:path'
 import fg from 'fast-glob'
-import pRetry from 'p-retry'
 import type { ToolDefinition } from '@shared/types'
 import { registerTool } from './index'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
 import { readConfig } from '../configStore'
 import { logBus } from '../logBus'
+
+type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
+async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
+  const mod = (await import('p-retry')) as unknown as { default?: RetryFn } & RetryFn
+  const pRetry = (mod.default ?? mod) as RetryFn
+  return pRetry(task, { retries })
+}
 
 export const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
 
@@ -76,33 +82,47 @@ function stripTags(html: string): string {
   return html
     .replace(/<[^>]{0,300}>/g, '')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&ensp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n: string) => {
+      try {
+        return String.fromCodePoint(Number(n))
+      } catch {
+        return ''
+      }
+    })
+    .replace(/\s{2,}/g, ' ')
     .trim()
 }
 
 function parseBingResults(html: string): BingResult[] {
   const results: BingResult[] = []
-  const liRe = /<li class="b_algo"[\s\S]*?<\/li>/g
-  for (const li of html.match(liRe) ?? []) {
-    const aMatch = li.match(/<h2>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i)
-    if (!aMatch) continue
-    const pMatch = li.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+  const seen = new Set<string>()
+  const h2Re = /<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+  let m: RegExpExecArray | null
+  while ((m = h2Re.exec(html)) !== null) {
+    const url = m[1]
+    const title = stripTags(m[2])
+    if (!url || !title || seen.has(url)) continue
+    seen.add(url)
+    const rest = html.slice(m.index + m[0].length, m.index + m[0].length + 3000)
+    const pMatch = rest.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
     results.push({
-      url: aMatch[1],
-      title: stripTags(aMatch[2]),
+      url,
+      title,
       snippet: pMatch ? stripTags(pMatch[1]).slice(0, MAX_SNIPPET_CHARS) : '',
     })
   }
-  return results
+  return results.slice(0, 10)
 }
 
 async function bingSearch(query: string): Promise<BingResult[]> {
   const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-hans&mkt=zh-CN`
-  const res = await pRetry(
+  const res = await withRetry(
     () =>
       fetch(url, {
         headers: {
@@ -112,14 +132,14 @@ async function bingSearch(query: string): Promise<BingResult[]> {
         },
         signal: AbortSignal.timeout(15_000),
       }),
-    { retries: 2 },
+    2,
   )
   if (!res.ok) throw new Error(`必应搜索 HTTP ${res.status}`)
   return parseBingResults(await res.text())
 }
 
 async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
-  const res = await pRetry(
+  const res = await withRetry(
     () =>
       fetch('https://api.tavily.com/search', {
         method: 'POST',
@@ -127,7 +147,7 @@ async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
         body: JSON.stringify({ api_key: key, query, max_results: 8 }),
         signal: AbortSignal.timeout(20_000),
       }),
-    { retries: 1 },
+    1,
   )
   if (!res.ok) throw new Error(`Tavily HTTP ${res.status}`)
   const data = (await res.json()) as { results?: Array<{ title?: string; url?: string; content?: string }> }
@@ -148,7 +168,9 @@ async function handleWebSearch(args: Record<string, unknown>): Promise<string> {
   } else {
     results = await bingSearch(query)
   }
-  if (results.length === 0) return `搜索「${sanitizeWebText(query, 100)}」无结果`
+  if (results.length === 0) {
+    return '搜索无结果：必应返回了页面但未解析出常规结果（可能被风控或页面结构变化）。可稍后重试，或在设置→环境中切换 Tavily 搜索源。'
+  }
   return wrapWebContent(
     `web_search: ${query}`,
     results.map((r) => ({ text: `标题: ${r.title}\n链接: ${r.url}\n摘要: ${r.snippet}` })),
@@ -158,9 +180,9 @@ async function handleWebSearch(args: Record<string, unknown>): Promise<string> {
 async function handleReadWebPage(args: Record<string, unknown>): Promise<string> {
   const url = String(args.url ?? '').trim()
   if (!/^https:\/\//i.test(url)) throw new Error('仅支持 https:// 链接')
-  const res = await pRetry(
+  const res = await withRetry(
     () => fetch(`https://r.jina.ai/${url}`, { signal: AbortSignal.timeout(30_000) }),
-    { retries: 1 },
+    1,
   )
   if (!res.ok) throw new Error(`网页读取 HTTP ${res.status}`)
   const text = await res.text()

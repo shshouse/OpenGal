@@ -72,7 +72,8 @@
       "package.json"
     ],
     "asarUnpack": [
-      "**/node_modules/get-windows/**"
+      "**/node_modules/get-windows/**",
+      "**/node_modules/onnxruntime-node/**"
     ],
     "extraResources": [
       {
@@ -97,9 +98,6 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"
-    },
-    "asarUnpack": [
-      "**/node_modules/onnxruntime-node/**"
-    ]
+    }
   }
 }

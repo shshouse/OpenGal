@@ -110,7 +110,7 @@ export async function startTTSServer(): Promise<TTSServerStatus> {
   return startGptSovitsServer()
 }
 
-async function startGptSovitsServer(): Promise<TTSServerStatus> {
+export async function startGptSovitsServer(): Promise<TTSServerStatus> {
   const root = getSoVITSRoot()
   const pythonExe = getPythonExe()
   const apiScript = path.join(root, 'api_v2.py')
