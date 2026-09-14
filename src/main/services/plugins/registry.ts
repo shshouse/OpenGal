@@ -41,6 +41,11 @@ function readManifest(id: string): PluginManifest {
   return v.manifest
 }
 
+// 供启用前确认弹窗展示
+export function getPluginManifest(id: string): PluginManifest {
+  return readManifest(id)
+}
+
 function toToolDef(fullName: string, name: string, description?: string, inputSchema?: unknown): ToolDefinition {
   return {
     type: 'function',

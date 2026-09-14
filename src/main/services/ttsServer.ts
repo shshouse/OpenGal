@@ -27,26 +27,11 @@ function appendLog(line: string): void {
   lastLog = (lastLog + entry).slice(-16_000)
 }
 
-async function pingSovits(port: number): Promise<boolean> {
+async function pingEndpoint(port: number, urlPath: string, timeoutMs: number): Promise<boolean> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 1_000)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/control?command=ping`, {
-      signal: controller.signal
-    })
-    return res.ok
-  } catch {
-    return false
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-async function pingGenie(port: number): Promise<boolean> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 2_000)
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/openapi.json`, {
+    const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
       signal: controller.signal
     })
     return res.ok
@@ -64,14 +49,6 @@ function isPortFree(port: number): Promise<boolean> {
     srv.once('listening', () => srv.close(() => resolve(true)))
     srv.listen(port, '127.0.0.1')
   })
-}
-
-function getSoVITSRoot(): string {
-  return path.join(getModRoot(), GPTSOVITS_DIR)
-}
-
-function getPythonExe(): string {
-  return path.join(getSoVITSRoot(), 'runtime', 'python.exe')
 }
 
 export function getTTSServerStatus(): TTSServerStatus {
@@ -92,6 +69,146 @@ export function getTTSServerLog(): string {
   return lastLog
 }
 
+interface ServerSpec {
+  label: string
+  provider: 'gpt-sovits' | 'genie'
+  pythonExe: string
+  script: string
+  args: (port: number) => string[]
+  cwd: string
+  extraEnv?: Record<string, string>
+  pingPath: string
+  pingTimeoutMs: number
+  readyTimeoutMs: number
+}
+
+function sovitsSpec(): ServerSpec {
+  const root = path.join(getModRoot(), GPTSOVITS_DIR)
+  const pythonExe = path.join(root, 'runtime', 'python.exe')
+  const script = path.join(root, 'api_v2.py')
+  if (!fs.existsSync(root)) throw new Error(`GPT-SoVITS folder not found: ${root}`)
+  if (!fs.existsSync(pythonExe)) throw new Error(`Bundled Python runtime not found: ${pythonExe}`)
+  if (!fs.existsSync(script)) throw new Error(`api_v2.py not found: ${script}`)
+  return {
+    label: 'GPT-SoVITS',
+    provider: 'gpt-sovits',
+    pythonExe,
+    script,
+    args: (port) => [script, '-a', '127.0.0.1', '-p', String(port)],
+    cwd: root,
+    pingPath: '/control?command=ping',
+    pingTimeoutMs: 1_000,
+    readyTimeoutMs: 90_000,
+  }
+}
+
+function genieSpec(): ServerSpec {
+  const genieRoot = getGenieTTSRoot()
+  const script = path.join(genieRoot, 'genie_server.py')
+  const bundledPython = getGeniePythonExe()
+  const sovitsPython = path.join(getModRoot(), GPTSOVITS_DIR, 'runtime', 'python.exe')
+  const pythonExe = fs.existsSync(bundledPython) ? bundledPython : sovitsPython
+  if (!fs.existsSync(genieRoot)) {
+    throw new Error(`Genie-TTS 目录未找到: ${genieRoot}。请确认 resources/tts/genie/ 存在。`)
+  }
+  if (!fs.existsSync(script)) throw new Error(`genie_server.py 未找到: ${script}`)
+  if (!fs.existsSync(pythonExe)) {
+    throw new Error(`Python 运行时未找到: ${pythonExe}。请安装 Genie runtime 或 GPT-SoVITS。`)
+  }
+  return {
+    label: 'Genie-TTS',
+    provider: 'genie',
+    pythonExe,
+    script,
+    args: (port) => [script, '--port', String(port)],
+    cwd: path.dirname(script),
+    extraEnv: {
+      GENIE_DATA_DIR: path.join(genieRoot, 'GenieData'),
+      NLTK_DATA: path.join(genieRoot, 'runtime', 'nltk_data'),
+    },
+    pingPath: '/openapi.json',
+    pingTimeoutMs: 2_000,
+    readyTimeoutMs: 60_000,
+  }
+}
+
+async function launchServer(spec: ServerSpec): Promise<TTSServerStatus> {
+  const configPort = parseTtsPort(readConfig().tts.baseURL)
+
+  if (await pingEndpoint(configPort, spec.pingPath, spec.pingTimeoutMs)) {
+    reusedPort = configPort
+    clearTtsPortShift()
+    appendLog(`Port ${configPort} answered ping, reusing existing ${spec.label}`)
+    logBus.info('tts-server', `端口 ${configPort} 已有 ${spec.label} 应答，直接复用`)
+    activeProvider = spec.provider
+    return { running: true, port: configPort, message: '复用已有服务', provider: spec.provider }
+  }
+  reusedPort = null
+  let port: number | null = null
+  for (let candidate = configPort; candidate < configPort + 20; candidate++) {
+    if (await isPortFree(candidate)) {
+      port = candidate
+      break
+    }
+  }
+  if (port === null) {
+    throw new Error(`端口 ${configPort} 至 ${configPort + 19} 全部被占用，无法启动 ${spec.label}`)
+  }
+  if (port === configPort) {
+    clearTtsPortShift()
+  } else {
+    setTtsPortShift(configPort, port)
+    appendLog(`Port ${configPort} occupied, using ${port} instead`)
+    logBus.warn('tts-server', `端口 ${configPort} 被其他程序占用，改用 ${port}`)
+  }
+
+  appendLog(`Starting ${spec.label} on port ${port}...`)
+  appendLog(`python: ${spec.pythonExe}`)
+  appendLog(`script: ${spec.script}`)
+  logBus.info('tts-server', `启动 ${spec.label} 服务 port=${port}`, `cwd=${spec.cwd}\npython=${spec.pythonExe}`)
+
+  childProcess = spawn(spec.pythonExe, spec.args(port), {
+    cwd: spec.cwd,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', ...spec.extraEnv },
+    windowsHide: true
+  })
+  activeProvider = spec.provider
+
+  childProcess.stdout?.on('data', (chunk: Buffer) => {
+    appendLog(`[stdout] ${chunk.toString('utf-8').trimEnd()}`)
+  })
+  childProcess.stderr?.on('data', (chunk: Buffer) => {
+    appendLog(`[stderr] ${chunk.toString('utf-8').trimEnd()}`)
+  })
+  childProcess.on('exit', (code, signal) => {
+    appendLog(`Process exited code=${code} signal=${signal}`)
+    if (code === 0 || signal === 'SIGTERM') {
+      logBus.info('tts-server', `${spec.label} 进程退出 code=${code} signal=${signal}`)
+    } else {
+      logBus.warn('tts-server', `${spec.label} 进程异常退出 code=${code} signal=${signal}`, lastLog.slice(-2000))
+    }
+  })
+  childProcess.on('error', (err) => {
+    appendLog(`Process error: ${err.message}`)
+    logBus.error('tts-server', `${spec.label} 进程错误: ${err.message}`)
+  })
+
+  const deadline = Date.now() + spec.readyTimeoutMs
+  while (Date.now() < deadline) {
+    if (!childProcess || childProcess.exitCode !== null) {
+      throw new Error(`${spec.label} server exited early. Log tail:\n${lastLog.slice(-1000)}`)
+    }
+    if (await pingEndpoint(port, spec.pingPath, spec.pingTimeoutMs)) {
+      appendLog(`${spec.label} is ready`)
+      logBus.info('tts-server', `${spec.label} 服务就绪 port=${port} pid=${childProcess?.pid}`)
+      return getTTSServerStatus()
+    }
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  logBus.error('tts-server', `${spec.label} 服务在 ${spec.readyTimeoutMs / 1000} 秒内未就绪`, lastLog.slice(-2000))
+  throw new Error(`${spec.label} server did not become ready within ${spec.readyTimeoutMs / 1000} seconds`)
+}
+
 export async function startTTSServer(): Promise<TTSServerStatus> {
   if (childProcess && childProcess.exitCode === null) {
     return getTTSServerStatus()
@@ -99,213 +216,12 @@ export async function startTTSServer(): Promise<TTSServerStatus> {
   if (reusedPort !== null) {
     return getTTSServerStatus()
   }
-
-  const config = readConfig()
-  const provider = config.tts.provider ?? 'gpt-sovits'
-
-  if (provider === 'genie') {
-    return startGenieServer()
-  }
-
-  return startGptSovitsServer()
+  const provider = readConfig().tts.provider ?? 'gpt-sovits'
+  return launchServer(provider === 'genie' ? genieSpec() : sovitsSpec())
 }
 
 export async function startGptSovitsServer(): Promise<TTSServerStatus> {
-  const root = getSoVITSRoot()
-  const pythonExe = getPythonExe()
-  const apiScript = path.join(root, 'api_v2.py')
-
-  if (!fs.existsSync(root)) {
-    throw new Error(`GPT-SoVITS folder not found: ${root}`)
-  }
-  if (!fs.existsSync(pythonExe)) {
-    throw new Error(`Bundled Python runtime not found: ${pythonExe}`)
-  }
-  if (!fs.existsSync(apiScript)) {
-    throw new Error(`api_v2.py not found: ${apiScript}`)
-  }
-
-  const configPort = parseTtsPort(readConfig().tts.baseURL)
-
-  if (await pingSovits(configPort)) {
-    reusedPort = configPort
-    clearTtsPortShift()
-    appendLog(`Port ${configPort} answered ping, reusing existing GPT-SoVITS`)
-    logBus.info('tts-server', `端口 ${configPort} 已有 GPT-SoVITS 应答，直接复用`)
-    activeProvider = 'gpt-sovits'
-    return { running: true, port: configPort, message: '复用已有服务', provider: 'gpt-sovits' }
-  }
-  reusedPort = null
-  let port: number | null = null
-  for (let candidate = configPort; candidate < configPort + 20; candidate++) {
-    if (await isPortFree(candidate)) {
-      port = candidate
-      break
-    }
-  }
-  if (port === null) {
-    throw new Error(`端口 ${configPort} 至 ${configPort + 19} 全部被占用，无法启动 GPT-SoVITS`)
-  }
-  if (port === configPort) {
-    clearTtsPortShift()
-  } else {
-    setTtsPortShift(configPort, port)
-    appendLog(`Port ${configPort} occupied, using ${port} instead`)
-    logBus.warn('tts-server', `端口 ${configPort} 被其他程序占用，改用 ${port}`)
-  }
-
-  appendLog(`Starting GPT-SoVITS api_v2.py on port ${port}...`)
-  appendLog(`python: ${pythonExe}`)
-  appendLog(`cwd: ${root}`)
-  logBus.info('tts-server', `启动 GPT-SoVITS 服务 port=${port}`, `cwd=${root}\npython=${pythonExe}`)
-
-  childProcess = spawn(pythonExe, [apiScript, '-a', '127.0.0.1', '-p', String(port)], {
-    cwd: root,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-    windowsHide: true
-  })
-  activeProvider = 'gpt-sovits'
-
-  childProcess.stdout?.on('data', (chunk: Buffer) => {
-    appendLog(`[stdout] ${chunk.toString('utf-8').trimEnd()}`)
-  })
-  childProcess.stderr?.on('data', (chunk: Buffer) => {
-    appendLog(`[stderr] ${chunk.toString('utf-8').trimEnd()}`)
-  })
-  childProcess.on('exit', (code, signal) => {
-    appendLog(`Process exited code=${code} signal=${signal}`)
-    if (code === 0 || signal === 'SIGTERM') {
-      logBus.info('tts-server', `进程退出 code=${code} signal=${signal}`)
-    } else {
-      logBus.warn('tts-server', `进程异常退出 code=${code} signal=${signal}`, lastLog.slice(-2000))
-    }
-  })
-  childProcess.on('error', (err) => {
-    appendLog(`Process error: ${err.message}`)
-    logBus.error('tts-server', `进程错误: ${err.message}`)
-  })
-  const deadline = Date.now() + 90_000
-  while (Date.now() < deadline) {
-    if (!childProcess || childProcess.exitCode !== null) {
-      throw new Error(`TTS server exited early. Log tail:\n${lastLog.slice(-1000)}`)
-    }
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 1000)
-      const res = await fetch(`http://127.0.0.1:${port}/control?command=ping`, {
-        signal: controller.signal
-      }).catch(() => null)
-      clearTimeout(timer)
-      if (res) {
-        appendLog('Server is ready')
-        logBus.info('tts-server', `GPT-SoVITS 服务就绪 port=${port} pid=${childProcess?.pid}`)
-        return getTTSServerStatus()
-      }
-    } catch {}
-    await new Promise((r) => setTimeout(r, 1000))
-  }
-  logBus.error('tts-server', '服务在 90 秒内未就绪', lastLog.slice(-2000))
-  throw new Error('TTS server did not become ready within 90 seconds')
-}
-
-async function startGenieServer(): Promise<TTSServerStatus> {
-  const genieRoot = getGenieTTSRoot()
-  const serverScript = path.join(genieRoot, 'genie_server.py')
-  // 优先用 Genie 自带 runtime，其次用 GPT-SoVITS 的
-  const bundledPython = getGeniePythonExe()
-  const sovitsPython = getPythonExe()
-  const pythonExe = fs.existsSync(bundledPython) ? bundledPython : sovitsPython
-  const scriptDir = path.dirname(serverScript)
-
-  if (!fs.existsSync(genieRoot)) {
-    throw new Error(`Genie-TTS 目录未找到: ${genieRoot}。请确认 resources/tts/genie/ 存在。`)
-  }
-  if (!fs.existsSync(serverScript)) {
-    throw new Error(`genie_server.py 未找到: ${serverScript}`)
-  }
-  if (!fs.existsSync(pythonExe)) {
-    throw new Error(`Python 运行时未找到: ${pythonExe}。请安装 Genie runtime 或 GPT-SoVITS。`)
-  }
-
-  const configPort = parseTtsPort(readConfig().tts.baseURL)
-
-  if (await pingGenie(configPort)) {
-    reusedPort = configPort
-    clearTtsPortShift()
-    appendLog(`Port ${configPort} answered ping, reusing existing Genie-TTS`)
-    logBus.info('tts-server', `端口 ${configPort} 已有 Genie-TTS 应答，直接复用`)
-    activeProvider = 'genie'
-    return { running: true, port: configPort, message: '复用已有服务', provider: 'genie' }
-  }
-  reusedPort = null
-  let port: number | null = null
-  for (let candidate = configPort; candidate < configPort + 20; candidate++) {
-    if (await isPortFree(candidate)) {
-      port = candidate
-      break
-    }
-  }
-  if (port === null) {
-    throw new Error(`端口 ${configPort} 至 ${configPort + 19} 全部被占用，无法启动 Genie-TTS`)
-  }
-  if (port === configPort) {
-    clearTtsPortShift()
-  } else {
-    setTtsPortShift(configPort, port)
-    appendLog(`Port ${configPort} occupied, using ${port} instead`)
-    logBus.warn('tts-server', `端口 ${configPort} 被其他程序占用，改用 ${port}`)
-  }
-
-  appendLog(`Starting Genie-TTS server on port ${port}...`)
-  appendLog(`python: ${pythonExe}`)
-  appendLog(`script: ${serverScript}`)
-  logBus.info('tts-server', `启动 Genie-TTS 服务 port=${port}`, `script=${serverScript}`)
-
-  childProcess = spawn(pythonExe, [serverScript, '--port', String(port)], {
-    cwd: scriptDir,
-    env: {
-      ...process.env,
-      PYTHONIOENCODING: 'utf-8',
-      GENIE_DATA_DIR: path.join(genieRoot, 'GenieData'),
-      NLTK_DATA: path.join(genieRoot, 'runtime', 'nltk_data'),
-    },
-    windowsHide: true,
-  })
-  activeProvider = 'genie'
-
-  childProcess.stdout?.on('data', (chunk: Buffer) => {
-    appendLog(`[stdout] ${chunk.toString('utf-8').trimEnd()}`)
-  })
-  childProcess.stderr?.on('data', (chunk: Buffer) => {
-    appendLog(`[stderr] ${chunk.toString('utf-8').trimEnd()}`)
-  })
-  childProcess.on('exit', (code, signal) => {
-    appendLog(`Process exited code=${code} signal=${signal}`)
-    if (code === 0 || signal === 'SIGTERM') {
-      logBus.info('tts-server', `Genie-TTS 进程退出 code=${code} signal=${signal}`)
-    } else {
-      logBus.warn('tts-server', `Genie-TTS 进程异常退出 code=${code} signal=${signal}`, lastLog.slice(-2000))
-    }
-  })
-  childProcess.on('error', (err) => {
-    appendLog(`Process error: ${err.message}`)
-    logBus.error('tts-server', `Genie-TTS 进程错误: ${err.message}`)
-  })
-
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    if (!childProcess || childProcess.exitCode !== null) {
-      throw new Error(`Genie-TTS server exited early. Log tail:\n${lastLog.slice(-1000)}`)
-    }
-    if (await pingGenie(port)) {
-      appendLog('Genie-TTS is ready')
-      logBus.info('tts-server', `Genie-TTS 服务就绪 port=${port} pid=${childProcess?.pid}`)
-      return getTTSServerStatus()
-    }
-    await new Promise((r) => setTimeout(r, 1000))
-  }
-  logBus.error('tts-server', 'Genie-TTS 服务在 60 秒内未就绪', lastLog.slice(-2000))
-  throw new Error('Genie-TTS server did not become ready within 60 seconds')
+  return launchServer(sovitsSpec())
 }
 
 export async function stopTTSServer(): Promise<TTSServerStatus> {
@@ -314,8 +230,8 @@ export async function stopTTSServer(): Promise<TTSServerStatus> {
   if (!childProcess || childProcess.exitCode !== null) {
     return { running: false }
   }
-  appendLog('Stopping GPT-SoVITS server...')
-  logBus.info('tts-server', '停止 GPT-SoVITS 服务')
+  appendLog('Stopping TTS server...')
+  logBus.info('tts-server', `停止 ${activeProvider ?? 'TTS'} 服务`)
   const proc = childProcess
   try {
     if (process.platform === 'win32' && proc.pid) {
@@ -329,6 +245,7 @@ export async function stopTTSServer(): Promise<TTSServerStatus> {
   childProcess = null
   return { running: false }
 }
+
 export function registerTTSServerCleanup(): void {
   const cleanup = (): void => {
     if (childProcess && childProcess.exitCode === null && childProcess.pid) {

@@ -42,7 +42,6 @@ export function ModCard({ mod, onGet, onOpen }: ModCardProps) {
       className="flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors duration-200 hover:border-foreground/30"
       onClick={() => onOpen(mod)}
     >
-      {/* 封面图 */}
       <div className="relative h-44 overflow-hidden bg-muted">
         {mod.media?.thumbnail_url && !imageError ? (
           <img
@@ -59,7 +58,6 @@ export function ModCard({ mod, onGet, onOpen }: ModCardProps) {
         )}
       </div>
 
-      {/* 内容区 */}
       <div className="flex flex-1 flex-col p-2.5">
         <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{mod.title}</h3>
 

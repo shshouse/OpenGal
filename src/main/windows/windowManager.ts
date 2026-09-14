@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, shell } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
+import { IpcChannels } from '@shared/ipc-channels'
 
 const windowIcon = join(process.cwd(), 'public/Logo/icon.png')
 
@@ -13,6 +14,8 @@ interface WindowDeps {
 export class WindowManager {
   private main: BrowserWindow | null = null
   private pet: BrowserWindow | null = null
+  private petDragCursor: { x: number; y: number } | null = null
+  private petDragPos: number[] | null = null
 
   constructor(private readonly deps: WindowDeps) {}
 
@@ -102,11 +105,25 @@ export class WindowManager {
     return { success: true }
   }
 
-  sendPetBubble(text: string): { success: true } {
+  dragPetStart(): void {
+    if (!this.pet || this.pet.isDestroyed()) return
+    this.petDragCursor = screen.getCursorScreenPoint()
+    this.petDragPos = this.pet.getPosition()
+  }
+
+  dragPetMove(): void {
+    if (!this.pet || this.pet.isDestroyed() || !this.petDragCursor || !this.petDragPos) return
+    const now = screen.getCursorScreenPoint()
+    this.pet.setPosition(
+      this.petDragPos[0] + now.x - this.petDragCursor.x,
+      this.petDragPos[1] + now.y - this.petDragCursor.y
+    )
+  }
+
+  sendPetBubble(text: string): void {
     if (this.pet && !this.pet.isDestroyed()) {
-      this.pet.webContents.send('pet:bubble', text)
+      this.pet.webContents.send(IpcChannels.pet.bubble, text)
     }
-    return { success: true }
   }
 
   minimizeMain(): void {

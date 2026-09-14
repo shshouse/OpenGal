@@ -24,8 +24,8 @@ export function startUIWorker(extraHandlers: MessageHandler<TTSOutputMessage>[] 
   })
 
   const offAbort = pipelineBus.on('pipeline:abort', () => {
+    // 不改写 processing：在途 dispatch 的 finally 会复位，外部强置 false 会放第二个 drain 进来
     queue = []
-    processing = false
     stopFallbackAudio()
   })
 

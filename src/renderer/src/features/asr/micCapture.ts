@@ -43,33 +43,49 @@ export async function listAudioInputs(): Promise<MediaDeviceInfo[]> {
   return devices.filter((d) => d.kind === 'audioinput')
 }
 
+let starting: Promise<void> | null = null
+
 export async function startMicCapture(targetRate: number, deviceId?: string): Promise<void> {
   if (stream) return
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      deviceId: deviceId ? { exact: deviceId } : undefined,
-      channelCount: 1,
-      echoCancellation: true,
-      noiseSuppression: true
+  if (starting) return starting
+  starting = (async () => {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true
+      }
+    })
+    try {
+      audioCtx = new AudioContext()
+      const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' })
+      const url = URL.createObjectURL(blob)
+      await audioCtx.audioWorklet.addModule(url)
+      URL.revokeObjectURL(url)
+      workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor', {
+        processorOptions: { targetRate }
+      })
+      workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        window.opengal.asr.feed(e.data)
+      }
+      analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.6
+      const source = audioCtx.createMediaStreamSource(stream)
+      source.connect(analyser)
+      analyser.connect(workletNode)
+    } catch (err) {
+      // 半初始化回滚：不泄漏麦克风，也不让 stream 非空卡住后续重试
+      stopMicCapture()
+      throw err
     }
-  })
-  audioCtx = new AudioContext()
-  const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' })
-  const url = URL.createObjectURL(blob)
-  await audioCtx.audioWorklet.addModule(url)
-  URL.revokeObjectURL(url)
-  workletNode = new AudioWorkletNode(audioCtx, 'pcm-processor', {
-    processorOptions: { targetRate }
-  })
-  workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-    window.opengal.asr.feed(e.data)
+  })()
+  try {
+    await starting
+  } finally {
+    starting = null
   }
-  analyser = audioCtx.createAnalyser()
-  analyser.fftSize = 256
-  analyser.smoothingTimeConstant = 0.6
-  const source = audioCtx.createMediaStreamSource(stream)
-  source.connect(analyser)
-  analyser.connect(workletNode)
 }
 
 export function stopMicCapture(): void {

@@ -44,7 +44,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
     hotwords: [],
     vadSilenceMs: 600,
     directorEnabled: false,
-    directorScreenContext: true,
+    directorScreenContext: false,
     directorCooldownSec: 20
   })
   const [saving, setSaving] = React.useState(false)
@@ -62,7 +62,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         hotwords: a.hotwords ?? [],
         vadSilenceMs: a.vadSilenceMs ?? 600,
         directorEnabled: a.directorEnabled ?? false,
-        directorScreenContext: a.directorScreenContext ?? true,
+        directorScreenContext: a.directorScreenContext ?? false,
         directorCooldownSec: a.directorCooldownSec ?? 20
       })
     }

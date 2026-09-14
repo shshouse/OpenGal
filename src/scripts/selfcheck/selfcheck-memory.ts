@@ -118,7 +118,6 @@ initMemoryStore(root, {
   batchTurns: 8,
   idleMinutes: 5,
   fallbackHours: 12,
-  windowBatchTurns: 10,
 })
 await memoryDbReady()
 assert.strictEqual(listFacts('c1').length, 1)

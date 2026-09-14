@@ -38,19 +38,6 @@ export interface Live2DModelConfig {
   }
 }
 
-export interface CharacterCard {
-  id: string
-  name: string
-  userIdentity: string
-  userTerm: string
-  description: string
-  personality: string
-  scenario: string
-  rules: string
-  language: string
-  builtin?: boolean
-}
-
 export type TTSLanguage =
   | 'auto'
   | 'auto_yue'
@@ -152,7 +139,6 @@ export interface MemoryConfig {
   batchTurns: number
   idleMinutes: number
   fallbackHours: number
-  windowBatchTurns: number
 }
 
 export interface ToolsConfig {
@@ -284,24 +270,6 @@ export type EmotionTag =
 export type WindowMode = 'pet' | 'theater'
 
 export type PerformanceMode = 'live2d' | 'sprite' | 'auto'
-
-export interface Live2DEmotionMapping {
-  expression?: string
-  motion?: string
-  intensity?: number
-}
-
-export interface SpriteEmotionMapping {
-  sprite: string
-  scale?: number
-  enter?: 'fade' | 'slide' | 'none'
-}
-
-export interface PerformanceManifest {
-  default?: EmotionTag | string
-  live2d?: Record<string, Live2DEmotionMapping>
-  sprite?: Record<string, SpriteEmotionMapping>
-}
 
 export interface RoleLive2DConfig {
   modelPath: string

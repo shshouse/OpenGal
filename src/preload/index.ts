@@ -142,11 +142,15 @@ const api = {
   pet: {
     open: () => invoke(IpcChannels.pet.open),
     close: () => invoke(IpcChannels.pet.close),
-    sendBubble: (text: string) => invoke(IpcChannels.pet.bubble, text),
+    dragStart: () => invoke(IpcChannels.pet.dragStart),
+    dragMove: () => invoke(IpcChannels.pet.dragMove),
+    setBubble: (text: string) => ipcRenderer.send(IpcChannels.pet.setBubble, text),
     onBubble: (listener: (text: string) => void) => {
       const handler = (_: unknown, text: string) => listener(text)
-      ipcRenderer.on('pet:bubble', handler)
-      return () => ipcRenderer.off('pet:bubble', handler)
+      ipcRenderer.on(IpcChannels.pet.bubble, handler)
+      return () => {
+        ipcRenderer.off(IpcChannels.pet.bubble, handler)
+      }
     }
   },
   tts: {

@@ -110,7 +110,6 @@ async function runExtract(force = false): Promise<void> {
   if (extractBusySince) {
     log('warn', '记忆提取闩锁超时，强制复位')
   }
-  extractBusySince = Date.now()
   const groups = new Map<string, CorpusEntry[]>()
   for (const e of buffer) {
     if (e.role === 'user' && (e.source === 'plugin' || e.source === 'live')) continue
@@ -126,6 +125,8 @@ async function runExtract(force = false): Promise<void> {
     if (userTurns === 0 && groups.size === 1) return
   }
 
+  // 闩锁在早退之后上锁，避免空跑路径泄漏闩锁
+  extractBusySince = Date.now()
   try {
     for (const [characterId, entries] of groups) {
       if (!entries.some((e) => e.role === 'user')) continue

@@ -31,16 +31,11 @@ let config: MemoryConfig = {
   batchTurns: 8,
   idleMinutes: 5,
   fallbackHours: 12,
-  windowBatchTurns: 10,
 }
 
 export function initMemoryStore(root: string, cfg?: Partial<MemoryConfig>): void {
   if (cfg) config = { ...config, ...cfg }
   void initMemoryDb(root).catch(() => {})
-}
-
-export function getMemoryConfig(): MemoryConfig {
-  return config
 }
 
 // ---- 行 <-> 类型转换 ----
@@ -422,26 +417,26 @@ export function relevanceScore(factText: string, context: string): number {
   return (2 * inter) / (bf.size + bc.size)
 }
 
-export function buildMemoryBlock(
-  facts: MemoryFact[],
-  stories: MemoryStory[],
-  charCap = config.injectCharCap,
-  context?: string,
+// 记忆块装配核心：分组→打分→预算截断，相关度来源由调用方注入（关键词 / 向量）
+function assembleMemoryBlock(
+  actives: MemoryFact[],
+  activeStoriesList: MemoryStory[],
+  charCap: number,
+  relOfFact: (f: MemoryFact) => number,
+  relOfStory: (text: string) => number,
+  factScoreScale: number,
 ): string | null {
-  const actives = activeFacts(facts)
-  const activeStoriesList = activeStories(stories)
   if (actives.length === 0 && activeStoriesList.length === 0) return null
 
-  type Item = { text: string; score: number; rel: number }
+  type Item = { text: string; score: number }
   const groups: Record<'user' | 'character' | 'relationship', Item[]> = {
     user: [],
     character: [],
     relationship: [],
   }
-  for (const f of [...actives].sort((a, b) => factScore(b) - factScore(a))) {
-    const rel = context ? relevanceScore(f.text, context) : 0.5
-    const score = factScore(f) * (0.5 + rel)
-    groups[f.entity].push({ text: f.text.slice(0, 60), score, rel })
+  for (const f of actives) {
+    const score = factScore(f) * (factScoreScale + relOfFact(f))
+    groups[f.entity].push({ text: f.text.slice(0, 60), score })
   }
 
   const promises = activeStoriesList
@@ -456,12 +451,13 @@ export function buildMemoryBlock(
   const relationshipItems: Item[] = []
   for (const p of promises) {
     const due = p.due_at ? `（约 ${p.due_at.slice(0, 10)}）` : ''
-    const rel = context ? relevanceScore(p.text, context) : 0.5
-    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5, rel })
+    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5 })
   }
   for (const s of others) {
-    const rel = context ? relevanceScore(s.text, context) : 0.5
-    relationshipItems.push({ text: s.text.slice(0, 60), score: storyScore(s) * (0.5 + rel), rel })
+    relationshipItems.push({
+      text: s.text.slice(0, 60),
+      score: storyScore(s) * (factScoreScale + relOfStory(s.text)),
+    })
   }
 
   let total = 0
@@ -485,6 +481,22 @@ export function buildMemoryBlock(
   if (lines.length === 0) return null
   lines.push('（以上是过往记忆，可能过时，以对方现在说的为准）')
   return `【你记得的事】\n${lines.join('\n')}`
+}
+
+export function buildMemoryBlock(
+  facts: MemoryFact[],
+  stories: MemoryStory[],
+  charCap = config.injectCharCap,
+  context?: string,
+): string | null {
+  return assembleMemoryBlock(
+    activeFacts(facts),
+    activeStories(stories),
+    charCap,
+    (f) => (context ? relevanceScore(f.text, context) : 0.5),
+    (t) => (context ? relevanceScore(t, context) : 0.5),
+    0.5,
+  )
 }
 
 export async function getMemoryBlock(
@@ -510,12 +522,9 @@ export async function buildMemoryBlockVector(
   charCap: number,
 ): Promise<string | null> {
   const actives = activeFacts(facts)
-  const activeStoriesList = activeStories(stories)
-  if (actives.length === 0 && activeStoriesList.length === 0) return null
 
   // 模型未就绪时降级到关键词检索，并记录日志
   let vectorHits: Array<{ fact: MemoryFact; similarity: number }> = []
-  let vectorFailed = false
   try {
     const needEmbedding = actives.filter((f) => !f.embedding)
     if (needEmbedding.length > 0) {
@@ -529,66 +538,16 @@ export async function buildMemoryBlockVector(
   } catch (err) {
     console.warn(`[memory] 向量检索失败，降级到关键词: ${(err as Error).message}`)
   }
-  const hitIds = new Set(vectorHits.map((h) => h.fact.id))
+  const hitMap = new Map(vectorHits.map((h) => [h.fact.id, h.similarity]))
 
-  type Item = { text: string; score: number; source: 'vector' | 'keyword' }
-  const groups: Record<'user' | 'character' | 'relationship', Item[]> = {
-    user: [],
-    character: [],
-    relationship: [],
-  }
-
-  for (const f of actives) {
-    const isVectorHit = hitIds.has(f.id)
-    const rel = isVectorHit
-      ? vectorHits.find((h) => h.fact.id === f.id)!.similarity
-      : relevanceScore(f.text, context)
-    const score = factScore(f) * (0.3 + rel)
-    const item: Item = { text: f.text.slice(0, 60), score, source: isVectorHit ? 'vector' : 'keyword' }
-    groups[f.entity].push(item)
-  }
-
-  const promises = activeStoriesList
-    .filter((s) => s.kind === 'promise' && !s.fulfilled)
-    .sort((a, b) => storyScore(b) - storyScore(a))
-  const others = activeStoriesList
-    .filter((s) => s.kind !== 'promise' || s.fulfilled)
-    .sort((a, b) => storyScore(b) - storyScore(a))
-    .slice(0, 6)
-
-  const lines: string[] = []
-  const relationshipItems: Item[] = []
-  for (const p of promises) {
-    const due = p.due_at ? `（约 ${p.due_at.slice(0, 10)}）` : ''
-    const rel = relevanceScore(p.text, context)
-    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5, source: 'keyword' })
-  }
-  for (const s of others) {
-    const rel = relevanceScore(s.text, context)
-    relationshipItems.push({ text: s.text.slice(0, 60), score: storyScore(s) * (0.3 + rel), source: 'keyword' })
-  }
-
-  let total = 0
-  const kept: string[] = []
-  const emit: Array<[string, Item[]]> = [
-    ['关于他', groups.user],
-    ['关于你自己', groups.character],
-    ['关于你们', relationshipItems],
-  ]
-  for (const [label, items] of emit) {
-    items.sort((a, b) => b.score - a.score)
-    const groupLines: string[] = []
-    for (const item of items) {
-      if (total + item.text.length > charCap) break
-      total += item.text.length
-      groupLines.push(item.text)
-    }
-    if (groupLines.length > 0) kept.push(`${label}：${groupLines.join('；')}`)
-  }
-  lines.push(...kept)
-  if (lines.length === 0) return null
-  lines.push('（以上是过往记忆，可能过时，以对方现在说的为准）')
-  return `【你记得的事】\n${lines.join('\n')}`
+  return assembleMemoryBlock(
+    actives,
+    activeStories(stories),
+    charCap,
+    (f) => hitMap.get(f.id) ?? relevanceScore(f.text, context),
+    (t) => relevanceScore(t, context),
+    0.3,
+  )
 }
 
 // 遗忘曲线清理：retention < 0.1 且未冻结/未保护的记忆自动归档

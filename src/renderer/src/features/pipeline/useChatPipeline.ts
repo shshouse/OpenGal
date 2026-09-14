@@ -36,17 +36,10 @@ export function useChatPipeline() {
           )
         }
       }
-      const visibleText = useChatStore
-        .getState()
-        .streamingSegments.map((s) => s.item.text)
-        .join('')
       finalizeStream(
         raw,
         toolCallsSnapshot.length > 0 ? toolCallsSnapshot : undefined,
       )
-      if (visibleText) {
-        window.opengal.pet.sendBubble(visibleText).catch(() => {})
-      }
       setSending(false)
     })
     return off

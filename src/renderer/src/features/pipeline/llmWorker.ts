@@ -48,7 +48,6 @@ interface ContextUsage {
   maxTokens: number
 }
 
-// 按需取相关记忆：优先用向量检索（getRelevant），失败时回退到快照
 async function fetchRelevantMemory(characterId: string, context: string): Promise<string | null> {
   try {
     const res = await window.opengal.memory.getRelevant(characterId, context.slice(0, 500))

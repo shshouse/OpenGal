@@ -1,6 +1,5 @@
 import * as React from 'react'
-import { Settings, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 import { TitleBar } from '@/components/titlebar/TitleBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
@@ -13,33 +12,16 @@ import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
-import { isMobile } from '@/lib/utils'
+import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 
 type View = 'chat' | 'market' | 'settings' | 'logs'
 const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
-
-function mergeSavedTransform(
-  cardConfig: Live2DModelConfig,
-  saved: Live2DModelConfig | null | undefined
-): Live2DModelConfig {
-  const sameModel = !!saved?.modelPath && saved.modelPath === cardConfig.modelPath
-  return {
-    ...cardConfig,
-    ...(sameModel && saved?.scale !== undefined ? { scale: saved.scale } : {}),
-    ...(sameModel && saved?.xRatio !== undefined ? { xRatio: saved.xRatio } : {}),
-    ...(sameModel && saved?.canvasYRatio !== undefined
-      ? { canvasYRatio: saved.canvasYRatio }
-      : {})
-  }
-}
 
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [petOpen, setPetOpen] = React.useState(false)
-  const [mobile] = React.useState(() => isMobile())
   const [view, setView] = React.useState<View>('chat')
-  const [showSettings, setShowSettings] = React.useState(false)
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
   const activeId = useCharacterStore((s) => s.activeId)
 
@@ -162,55 +144,6 @@ export default function App() {
   ) : (
     <div className="h-full w-full bg-background" />
   )
-
-  if (mobile) {
-    return (
-      <div className="flex h-full flex-col">
-        <main className="relative flex flex-1 overflow-hidden">
-          <div className="absolute inset-0">
-            {config?.showLive2D ? (
-              live2dLayer
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-background">
-                <Button variant="ghost" size="sm" onClick={toggleLive2D}>
-                  <Settings className="size-4" />显示人物
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {showSettings && config ? (
-            <div className="absolute inset-0 z-20 flex flex-col bg-background">
-              <div className="flex h-10 items-center gap-2 border-b px-3">
-                <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)}>
-                  返回
-                </Button>
-                <span className="text-sm font-semibold">设置</span>
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <SettingsCenter config={config} model={model} onSave={saveConfig} />
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 rounded-full bg-background/60 p-0 backdrop-blur-sm"
-                  onClick={() => setShowSettings(true)}
-                  title="设置"
-                >
-                  <Settings className="size-4" />
-                </Button>
-              </div>
-              <GalgameChatPanel />
-            </>
-          )}
-        </main>
-      </div>
-    )
-  }
 
   return (
     <div className="flex h-full overflow-hidden">

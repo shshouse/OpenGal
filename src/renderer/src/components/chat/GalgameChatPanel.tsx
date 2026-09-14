@@ -90,8 +90,7 @@ export function GalgameChatPanel() {
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
-      {/* 历史对话（上滑展开）。收起时必须 pointer-events-none，
-          否则透明的 flex-1 容器会盖住画布，吃掉拖拽/滚轮，导致无法移动缩放人物。 */}
+      {/* 历史对话（上滑展开）：收起时必须 pointer-events-none，否则透明容器会盖住画布吃掉拖拽/滚轮 */}
       <div
         className={cn(
           'flex-1 overflow-hidden transition-all duration-200',

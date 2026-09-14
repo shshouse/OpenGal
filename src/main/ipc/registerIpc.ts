@@ -1,10 +1,10 @@
-import { ipcMain, BrowserWindow, desktopCapturer } from 'electron'
+import { ipcMain, BrowserWindow, desktopCapturer, dialog } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
-import { readConfig, writeConfig } from '../services/configStore'
+import { readConfig, writeConfig, redactSecrets, resolveMaskedApiKey } from '../services/configStore'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
 import { fetchMarketMods, openMarketMod } from '../services/marketService'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
@@ -23,7 +23,7 @@ import { getDataRoot } from '../services/paths'
 import { startEnvMonitor, getEnvSnapshot } from '../services/envContext'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
-import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins } from '../services/plugins/registry'
+import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
 import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, decaySweep, freezeFact, unfreezeFact, deleteFact } from '../services/memoryStore'
 import {
   setMemoryDbLogger,
@@ -35,7 +35,6 @@ import {
   latestMessageId,
   listSummaries,
   addSummary,
-  clearCharacterMessages,
 } from '../services/memoryDb'
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryFact } from '@shared/types'
 import type { WindowManager } from '../windows/windowManager'
@@ -72,7 +71,9 @@ export function registerIpc(windows: WindowManager): void {
     return parsed.verdict === 'negates' ? 'negates' : 'reinforces'
   }
 
-  ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
+  ipcMain.handle(IpcChannels.config.get, () =>
+    wrap<AppConfig>(() => redactSecrets(readConfig())),
+  )
 
   ipcMain.handle(IpcChannels.config.set, (_, patch: Partial<AppConfig>) =>
     wrap<AppConfig>(() => {
@@ -104,7 +105,7 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(
     IpcChannels.llm.listModels,
     (_, baseURL: string, apiKey: string) =>
-      wrap<string[]>(() => listProviderModels(baseURL, apiKey))
+      wrap<string[]>(() => listProviderModels(baseURL, resolveMaskedApiKey(baseURL, apiKey)))
   )
 
   ipcMain.handle(IpcChannels.model.resolveDefault, () =>
@@ -199,9 +200,12 @@ export function registerIpc(windows: WindowManager): void {
 
   ipcMain.handle(IpcChannels.pet.open, () => wrap(() => windows.openPetWindow()))
   ipcMain.handle(IpcChannels.pet.close, () => wrap(() => windows.closePetWindow()))
-  ipcMain.handle(IpcChannels.pet.bubble, (_, text: string) =>
-    wrap(() => windows.sendPetBubble(text))
-  )
+  ipcMain.handle(IpcChannels.pet.dragStart, () => wrap(() => windows.dragPetStart()))
+  ipcMain.handle(IpcChannels.pet.dragMove, () => wrap(() => windows.dragPetMove()))
+  // 桌宠气泡是高频推送，走 send/on；文本截断防御
+  ipcMain.on(IpcChannels.pet.setBubble, (_, text: unknown) => {
+    if (typeof text === 'string') windows.sendPetBubble(text.slice(0, 500))
+  })
 
   ipcMain.handle(IpcChannels.tts.speak, (_, request: TTSSpeakRequest) =>
     wrap<TTSSpeakResponse>(() => speak(request))
@@ -322,8 +326,30 @@ export function registerIpc(windows: WindowManager): void {
     wrap(() => executeTool(name, argsJson))
   )
   ipcMain.handle(IpcChannels.plugins.list, () => wrap(() => scanPlugins()))
-  ipcMain.handle(IpcChannels.plugins.setEnabled, (_, pluginId: string, enabled: boolean) =>
+  ipcMain.handle(IpcChannels.plugins.setEnabled, (event, pluginId: string, enabled: boolean) =>
     wrap(async () => {
+      if (enabled) {
+        const m = getPluginManifest(pluginId)
+        const servers = m.contributions?.mcpServers ?? []
+        if (servers.length > 0) {
+          // 启用即 spawn 本地进程：必须用户在本机原生弹窗里明确同意，渲染进程无法绕过
+          const win = BrowserWindow.fromWebContents(event.sender)
+          const cmds = servers
+            .map((s) => (s.command ? `${s.command} ${(s.args ?? []).join(' ')}`.trim() : (s.url ?? '')))
+            .join('\n')
+          const perms = (m.permissions ?? []).join('、') || '无声明'
+          const { response } = await dialog.showMessageBox(win!, {
+            type: 'warning',
+            title: '启用插件',
+            message: `启用插件「${m.name}」？`,
+            detail: `该插件将在你的电脑上启动本地进程：\n${cmds}\n\n声明权限：${perms}`,
+            buttons: ['启用', '取消'],
+            defaultId: 1,
+            cancelId: 1,
+          })
+          if (response !== 0) return scanPlugins()
+        }
+      }
       await setPluginEnabled(pluginId, enabled)
       return scanPlugins()
     })

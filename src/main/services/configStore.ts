@@ -22,8 +22,7 @@ const defaultConfig: AppConfig = {
     injectCharCap: 900,
     batchTurns: 8,
     idleMinutes: 5,
-    fallbackHours: 12,
-    windowBatchTurns: 10
+    fallbackHours: 12
   },
   tts: {
     enabled: false,
@@ -51,7 +50,7 @@ const defaultConfig: AppConfig = {
     hotwords: [],
     vadSilenceMs: 600,
     directorEnabled: false,
-    directorScreenContext: true,
+    directorScreenContext: false,
     directorCooldownSec: 20
   },
   model: null,
@@ -101,6 +100,51 @@ function decryptApiKey(value: string): string {
   } catch {
     return value
   }
+}
+
+// 密钥掩码：config.get 下发渲染进程时隐藏真实密钥；回写时遇掩码则从当前配置还原
+export const SECRET_MASK = '••••••••••••'
+
+function mask(value: string): string {
+  return value ? SECRET_MASK : ''
+}
+
+export function redactSecrets(cfg: AppConfig): AppConfig {
+  return {
+    ...cfg,
+    llm: { ...cfg.llm, apiKey: mask(cfg.llm.apiKey) },
+    llmPresets: cfg.llmPresets?.map((p) => ({ ...p, apiKey: mask(p.apiKey) })),
+    tools: {
+      ...cfg.tools,
+      webSearch: { ...cfg.tools.webSearch, tavilyKey: mask(cfg.tools.webSearch.tavilyKey) },
+    },
+  }
+}
+
+function restoreMaskedSecrets(patch: Partial<AppConfig>, current: AppConfig): void {
+  if (patch.llm?.apiKey === SECRET_MASK) {
+    patch.llm.apiKey =
+      current.llmPresets?.find(
+        (p) => p.baseURL === patch.llm!.baseURL && p.modelName === patch.llm!.modelName,
+      )?.apiKey ?? current.llm.apiKey
+  }
+  if (patch.llmPresets) {
+    for (const p of patch.llmPresets) {
+      if (p.apiKey === SECRET_MASK) {
+        p.apiKey = current.llmPresets?.find((c) => c.id === p.id)?.apiKey ?? ''
+      }
+    }
+  }
+  if (patch.tools?.webSearch?.tavilyKey === SECRET_MASK) {
+    patch.tools.webSearch.tavilyKey = current.tools.webSearch.tavilyKey
+  }
+}
+
+// 渲染进程拿着掩码发起需要真实密钥的请求（如拉模型列表）时还原
+export function resolveMaskedApiKey(baseURL: string, apiKey: string): string {
+  if (apiKey !== SECRET_MASK) return apiKey
+  const cfg = readConfig()
+  return cfg.llmPresets?.find((p) => p.baseURL === baseURL)?.apiKey ?? cfg.llm.apiKey
 }
 
 function patchTTSFromVoiceConfig(tts: AppConfig['tts']): void {
@@ -167,6 +211,7 @@ function summarizePatch(patch: Partial<AppConfig>): string {
 
 export function writeConfig(patch: Partial<AppConfig>): AppConfig {
   const current = readConfig()
+  restoreMaskedSecrets(patch, current)
   const next: AppConfig = {
     ...current,
     ...patch,

@@ -4,7 +4,6 @@ import type { ToolCallRecord } from '@/features/tools/toolCallsStore'
 
 export interface StreamingSegment {
   item: LLMDialogueItem
-  ttsQueued: boolean
 }
 
 export interface PersistedAssistantMessage extends ChatMessage {
@@ -32,7 +31,6 @@ interface ChatState {
   replaceError: (error: string | null) => void
   setSending: (sending: boolean) => void
   appendStreamingSegment: (segment: StreamingSegment) => void
-  markSegmentTTSQueued: (index: number) => void
   finalizeStream: (rawContent?: string, toolCalls?: ToolCallRecord[]) => void
   archiveFront: (count: number) => Promise<void>
   clear: () => void
@@ -82,12 +80,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setSending: (isSending) => set({ isSending }),
   appendStreamingSegment: (segment) =>
     set((state) => ({ streamingSegments: [...state.streamingSegments, segment] })),
-  markSegmentTTSQueued: (index) =>
-    set((state) => {
-      const segments = [...state.streamingSegments]
-      if (segments[index]) segments[index] = { ...segments[index], ttsQueued: true }
-      return { streamingSegments: segments }
-    }),
   finalizeStream: (rawContent, toolCalls) => {
     const { streamingSegments } = get()
     const trimmed = (rawContent ?? '').trim()
@@ -146,7 +138,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   ensureHydrated: async (characterId) => {
     if (get().hydratedIds[characterId]) return
-   const res = await window.opengal.chatHistory.load(characterId).catch((err: Error) => {
+    const res = await window.opengal.chatHistory.load(characterId).catch((err: Error) => {
       console.error('[chatStore] 历史加载失败:', err.message)
       return null
     })

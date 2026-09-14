@@ -45,7 +45,7 @@ function describeRequest(request: LLMRequest): string {
   return summary
 }
 
-// 拉取服务商可用模型列表（OpenAI 兼容 /models 端点）
+// OpenAI 兼容 /models 端点
 export async function listProviderModels(
   baseURL: string,
   apiKey: string,

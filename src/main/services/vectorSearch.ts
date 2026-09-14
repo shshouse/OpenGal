@@ -32,7 +32,6 @@ function localModelPath(): string | null {
 
 let extractor: FeatureExtractionPipeline | null = null
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null
-let modelReady = false
 let modelError: string | null = null
 
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
@@ -58,7 +57,6 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
 
   try {
     extractor = await extractorPromise
-    modelReady = true
     return extractor
   } catch (err) {
     modelError = (err as Error).message
@@ -106,12 +104,4 @@ export async function searchSimilarAsync(
     }
   }
   return scored.sort((a, b) => b.similarity - a.similarity).slice(0, topK)
-}
-
-export function isModelReady(): boolean {
-  return modelReady
-}
-
-export function getModelError(): string | null {
-  return modelError
 }

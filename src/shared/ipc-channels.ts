@@ -37,6 +37,9 @@ export const IpcChannels = {
   pet: {
     open: 'pet:open',
     close: 'pet:close',
+    dragStart: 'pet:dragStart',
+    dragMove: 'pet:dragMove',
+    setBubble: 'pet:setBubble',
     bubble: 'pet:bubble'
   },
   model: {
@@ -79,9 +82,7 @@ export const IpcChannels = {
     feed: 'asr:feed',
     partial: 'asr:partial',
     final: 'asr:final',
-    error: 'asr:error',
-    status: 'asr:status',
-    event: 'asr:event'
+    status: 'asr:status'
   },
   director: {
     log: 'director:log'

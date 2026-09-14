@@ -6,6 +6,8 @@ let bound = false
 let unsubscribers: Array<() => void> = []
 let queue: Array<LLMDialogMessage> = []
 let processing = false
+// 代次：abort/新输入时自增，作废旧 drain 循环的在途结果，避免外部直接改写 processing 造成双 drain
+let drainGen = 0
 let hasWarnedThisSession = false
 let lastWarnedMessage = ''
 
@@ -32,11 +34,12 @@ export function startTTSWorker(): () => void {
 
   const offAbort = pipelineBus.on('pipeline:abort', () => {
     clearQueue()
-    processing = false
+    drainGen++
   })
 
   const offUserInput = pipelineBus.on('user:input', () => {
     clearQueue()
+    drainGen++
   })
 
   unsubscribers = [offDialog, offAbort, offUserInput]
@@ -54,10 +57,12 @@ export function stopTTSWorker(): void {
 async function drainQueue(): Promise<void> {
   if (processing) return
   processing = true
+  const gen = drainGen
   try {
     while (queue.length > 0) {
       const msg = queue.shift()!
       const out = await synthesize(msg)
+      if (gen !== drainGen) return // 已被 abort/新输入作废：在途结果丢弃
       pipelineBus.emit('tts:output', out)
       if (!out.audioUrl && out.text) {
         await sleepSilentSegment(out.text)
@@ -65,6 +70,8 @@ async function drainQueue(): Promise<void> {
     }
   } finally {
     processing = false
+    // 旧循环被作废退出时，接管其间新到的队列项
+    if (queue.length > 0) void drainQueue()
   }
 }
 

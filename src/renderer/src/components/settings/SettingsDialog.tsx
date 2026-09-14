@@ -250,7 +250,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   async function handleSwitch(p: LLMPreset): Promise<void> {
     if (p.id === activePresetId) return
     if (!p.apiKey) {
-      // 无 key 的内置模型：转编辑模式填 key
       startEdit(p)
       return
     }
@@ -283,7 +282,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       (t) => form.baseURL && form.baseURL.startsWith(t.defaultBaseURL),
     ) ?? pickedTemplate
 
-  // ---- 编辑对话框（服务商选择 / 表单） ----
   const editorOpen = editingId !== null
 
   return (
@@ -318,7 +316,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           </div>
 
           <div className="space-y-4 p-5">
-            {/* 步骤 1：自定义新建 → 选服务商 */}
             {editingId === 'new' && (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {PROVIDER_TEMPLATES.map((t) => (
@@ -346,7 +343,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
               </div>
             )}
 
-            {/* 步骤 2：表单 */}
             {editingId !== 'new' && (
               <>
                 <div className="space-y-1.5">
@@ -446,7 +442,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                   </div>
                 </div>
 
-                {/* 高级配置 */}
                 <button
                   type="button"
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -579,7 +574,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       {/* 模型列表 */}
       {!editorOpen && (
         <div className="space-y-2">
-          {/* 内置组 */}
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm font-medium"
@@ -615,7 +609,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
             </div>
           )}
 
-          {/* 自定义组 */}
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm font-medium"

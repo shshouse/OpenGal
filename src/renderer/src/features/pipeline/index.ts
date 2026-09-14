@@ -23,10 +23,25 @@ function startChatStreamBridge(): () => void {
         emotion: msg.emotion,
         action: msg.effect,
       },
-      ttsQueued: false,
     })
   })
   return off
+}
+
+// segments 清空时不推空串，气泡由宠物端计时自动隐藏
+function startPetBubbleBridge(): () => void {
+  let last = ''
+  return useChatStore.subscribe((state) => {
+    const segs = state.streamingSegments
+    if (segs.length === 0) {
+      last = ''
+      return
+    }
+    const text = segs.map((s) => s.item.text).join('').trim()
+    if (!text || text === last) return
+    last = text
+    window.opengal.pet.setBubble(text)
+  })
 }
 
 export function startPipeline(): PipelineHandle {
@@ -42,8 +57,10 @@ export function startPipeline(): PipelineHandle {
   const stopMemory = startMemoryService()
   const stopBridge = startChatStreamBridge()
   const stopASR = startASRBridge()
+  const stopPetBubble = startPetBubbleBridge()
   return {
     dispose: () => {
+      stopPetBubble()
       stopASR()
       stopBridge()
       stopMemory()

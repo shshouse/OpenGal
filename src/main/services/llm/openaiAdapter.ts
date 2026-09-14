@@ -220,11 +220,3 @@ export class OpenAIAdapter implements LLMAdapter {
     }
   }
 }
-
-function cleanResponse(text: string): string {
-  return text
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
-    .replace(/\n\s*\n\s*\n/g, '\n\n')
-    .trim()
-}

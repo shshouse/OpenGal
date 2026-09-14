@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import PetView from './components/pet/PetView'
 import './styles/globals.css'
 
 class RootErrorBoundary extends React.Component<
@@ -39,10 +40,11 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
+// 桌宠窗加载 #pet 路由，挂载精简视图而非完整 App（不起管线/侧栏/设置）
+const isPet = window.location.hash === '#pet'
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <RootErrorBoundary>
-      <App />
-    </RootErrorBoundary>
+    <RootErrorBoundary>{isPet ? <PetView /> : <App />}</RootErrorBoundary>
   </React.StrictMode>
 )

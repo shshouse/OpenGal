@@ -27,6 +27,7 @@ interface Props {
   model: Live2DModelConfig | null
   interactive?: boolean
   transparent?: boolean
+  transformGestures?: boolean
   onChange?: (next: { scale: number; xRatio: number; yRatio: number }) => void
 }
 
@@ -34,6 +35,7 @@ export function Live2DStage({
   model,
   interactive = true,
   transparent = false,
+  transformGestures = true,
   onChange
 }: Props) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
@@ -168,7 +170,18 @@ export function Live2DStage({
       cancelled = true
       disposeIdleKeeper()
     }
-  }, [model?.modelUrl, model?.canvasYRatio, model?.scale, model?.xRatio, appReady])
+  }, [model?.modelUrl, appReady])
+
+  // 变换参数变化只重新排版，不触发整模重载；外部改动（设置页）同步进 refs
+  React.useEffect(() => {
+    if (!model) return
+    userScaleRef.current = model.scale
+    userXRatioRef.current = model.xRatio
+    userYRatioRef.current = model.canvasYRatio
+    const app = appRef.current
+    if (!app || !modelRef.current) return
+    fitModel(app, modelRef.current, getCurrentScale(), getCurrentXRatio(), getCurrentYRatio())
+  }, [model?.canvasYRatio, model?.scale, model?.xRatio])
 
   React.useEffect(() => {
     const container = containerRef.current
@@ -204,6 +217,7 @@ export function Live2DStage({
   }, [])
 
   React.useEffect(() => {
+    if (!transformGestures) return
     const container = containerRef.current
     if (!container) return
 
@@ -314,7 +328,7 @@ export function Live2DStage({
       container.removeEventListener('pointercancel', onPointerUp)
       container.removeEventListener('wheel', onWheel)
     }
-  }, [onChange])
+  }, [onChange, transformGestures])
 
   React.useEffect(() => {
     if (!interactive) return
@@ -342,7 +356,7 @@ export function Live2DStage({
       }}
     >
       <canvas ref={canvasRef} className="block h-full w-full" />
-      {status === 'ready' && (
+      {status === 'ready' && transformGestures && (
         <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/30 px-2 py-0.5 text-[10px] text-white/60">
           拖拽移动 · 滚轮缩放
         </div>
