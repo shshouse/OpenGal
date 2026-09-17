@@ -97,6 +97,10 @@ export const IpcChannels = {
   env: {
     get: 'env:get'
   },
+  boot: {
+    start: 'boot:start',
+    step: 'boot:step'
+  },
   logs: {
     list: 'logs:list',
     clear: 'logs:clear',

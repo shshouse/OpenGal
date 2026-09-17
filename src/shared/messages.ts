@@ -1,6 +1,8 @@
 export interface UserInputMessage {
   text: string
-  source?: 'user' | 'option' | 'voice' | 'plugin' | 'live'
+  source?: 'user' | 'option' | 'voice' | 'plugin' | 'live' | 'system'
+  // 仅注入 LLM 上下文、不落聊天历史的系统提示（如唤醒问候）
+  systemPrompt?: string
 }
 
 export interface LLMDialogMessage {

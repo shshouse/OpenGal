@@ -66,6 +66,9 @@ const defaultConfig: AppConfig = {
   gameMode: {
     enabled: true,
     games: []
+  },
+  startup: {
+    greetingEnabled: true
   }
 }
 
@@ -188,7 +191,8 @@ export function readConfig(): AppConfig {
       webSearch: { ...defaultConfig.tools.webSearch, ...(raw.tools?.webSearch ?? {}) },
       fileSearchDirs: raw.tools?.fileSearchDirs ?? defaultConfig.tools.fileSearchDirs,
     },
-    gameMode: { ...defaultConfig.gameMode, ...(raw.gameMode ?? {}) }
+    gameMode: { ...defaultConfig.gameMode, ...(raw.gameMode ?? {}) },
+    startup: { ...defaultConfig.startup, ...(raw.startup ?? {}) }
   }
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)

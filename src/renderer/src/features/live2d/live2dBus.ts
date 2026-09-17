@@ -14,6 +14,8 @@ export interface Live2DLike {
   expression?: (name: string) => void
   motion?: (group: string, index?: number) => void
   internalModel?: {
+    on?: (event: string, cb: (...args: unknown[]) => void) => void
+    off?: (event: string, cb: (...args: unknown[]) => void) => void
     motionManager?: {
       expressionManager?: {
         setExpression: (name: string) => void
@@ -57,6 +59,42 @@ function capturePose(model: Live2DLike | null): number[] | null {
 export function registerLive2DModel(model: Live2DLike | null): void {
   currentModel = model
   initialPose = capturePose(model)
+  if (model && eyesClosed) model.internalModel?.on?.('beforeModelUpdate', forceEyesClosed)
+}
+
+// 睡眠态：每帧渲染前把眼睑参数压到 0，blink/动作里的眨眼都会被盖掉
+// 参数 id 因模型而异（Cubism4: ParamEyeLOpen；旧模: PARAM_EYE_L_OPEN），优先用模型自带的 EyeBlink 组
+let eyesClosed = false
+
+function eyeParamIds(model: Live2DLike): string[] {
+  const im = model.internalModel as { eyeBlinkIds?: string[] } | undefined
+  if (im?.eyeBlinkIds?.length) return im.eyeBlinkIds
+  return ['ParamEyeLOpen', 'ParamEyeROpen', 'PARAM_EYE_L_OPEN', 'PARAM_EYE_R_OPEN']
+}
+
+const forceEyesClosed = (): void => {
+  const model = currentModel
+  const core = model?.internalModel?.coreModel
+  if (!model || !core?.setParameterValueById) return
+  for (const id of eyeParamIds(model)) {
+    try {
+      core.setParameterValueById(id, 0)
+    } catch {
+      // 模型缺该参数时忽略
+    }
+  }
+}
+
+export function setEyesClosed(closed: boolean): void {
+  if (eyesClosed === closed) return
+  eyesClosed = closed
+  const internal = currentModel?.internalModel
+  if (closed) {
+    internal?.on?.('beforeModelUpdate', forceEyesClosed)
+    forceEyesClosed()
+  } else {
+    internal?.off?.('beforeModelUpdate', forceEyesClosed)
+  }
 }
 
 export function getLive2DModel(): Live2DLike | null {
@@ -156,6 +194,31 @@ if (import.meta.env.DEV) {
     getMotionGroups: getAvailableMotionGroups,
     playMotionGroup,
     resetPose,
+    setEyesClosed,
+    eyeDebug: (): Record<string, unknown> | null => {
+      const model = currentModel
+      const im = model?.internalModel as { _events?: Record<string, unknown> } | undefined
+      const lst = im?._events?.['beforeModelUpdate']
+      return {
+        eyesClosed,
+        listenerCount: lst ? (Array.isArray(lst) ? lst.length : 1) : 0,
+        ids: model ? eyeParamIds(model) : null
+      }
+    },
+    eyeState: (): Record<string, number> | null => {
+      const model = currentModel
+      const core = model?.internalModel?.coreModel
+      if (!model || !core?.getParameterValueById) return null
+      const out: Record<string, number> = {}
+      for (const id of eyeParamIds(model)) {
+        try {
+          out[id] = Math.round((core.getParameterValueById(id) ?? -1) * 100) / 100
+        } catch {
+          out[id] = -1
+        }
+      }
+      return out
+    },
     paramStats: (): Record<string, number | boolean | string[] | null> | null => {
       const core = currentModel?.internalModel?.coreModel
       if (!core?.getParameterCount || !core.getParameterValueByIndex) return null

@@ -13,6 +13,8 @@ import { startPipeline } from '@/features/pipeline'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
+import { useStartupStore } from '@/features/startup/startupStore'
+import { BootOverlay } from '@/components/startup/BootOverlay'
 
 type View = 'chat' | 'market' | 'settings' | 'logs'
 const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
@@ -58,6 +60,8 @@ export default function App() {
       const cfg = await window.opengal.config.get()
       if (cfg.success && cfg.data) {
         setConfig(cfg.data)
+        useStartupStore.getState().beginBoot()
+        if (!cfg.data.showLive2D) useStartupStore.getState().reportLive2d('skipped')
         await loadCharacters(cfg.data.activeCharacterId)
         const active = useCharacterStore.getState().getActive()
         if (active) {
@@ -166,6 +170,7 @@ export default function App() {
             <>
               <div className="absolute inset-0">{live2dLayer}</div>
               <GalgameChatPanel />
+              <BootOverlay />
             </>
           )}
 

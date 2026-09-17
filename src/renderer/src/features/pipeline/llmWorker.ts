@@ -205,7 +205,15 @@ async function compressHistory(
     return summaryMessage ? [summaryMessage, ...history] : history
   }
 
-  const keepRecent = Math.max(10, Math.floor(history.length * 0.3))
+  // 尾巴按 token 预算保留（非消息比例），避免大窗口下保留过多无效原文
+  const tailBudget = Math.max(4000, Math.floor(contextWindow * 0.2))
+  let tailTokens = 0
+  let keepFrom = history.length
+  while (keepFrom > 0 && tailTokens < tailBudget) {
+    keepFrom--
+    tailTokens += estimateTokens(messageText(history[keepFrom]))
+  }
+  const keepRecent = history.length - keepFrom
   if (history.length <= keepRecent) {
     return summaryMessage ? [summaryMessage, ...history] : history
   }
@@ -292,13 +300,13 @@ export function startLLMWorker(): () => void {
     resetForNewAttempt()
 
     const myTurn = ++turnSeq
-    void runTurn(input.text, myTurn).catch((err: Error) => {
+    void runTurn(input.text, myTurn, input.systemPrompt).catch((err: Error) => {
       currentStreamId = null
       pipelineBus.emit('llm:done', { ok: false, error: err.message })
     })
   })
 
-  async function runTurn(userText: string, myTurn: number): Promise<void> {
+  async function runTurn(userText: string, myTurn: number, systemPrompt?: string): Promise<void> {
     const stale = (): boolean => myTurn !== turnSeq
     const turnStartedAt = Date.now()
     const history = useChatStore.getState().messages
@@ -325,6 +333,7 @@ export function startLLMWorker(): () => void {
     const envMsg = await fetchEnvBlock()
     if (envMsg) messagesForLLM.push(envMsg)
     messagesForLLM.push(...sanitizeHistoryForLLM(compressedHistory))
+    if (systemPrompt) messagesForLLM.push({ role: 'user', content: systemPrompt })
 
     const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools)
     if (stale()) return

@@ -57,6 +57,7 @@ export function CharacterDisplaySettings({
   const [scale, setScale] = React.useState(model?.scale ?? DEFAULTS.scale)
   const [xRatio, setXRatio] = React.useState(model?.xRatio ?? DEFAULTS.xRatio)
   const [yRatio, setYRatio] = React.useState(model?.canvasYRatio ?? DEFAULTS.yRatio)
+  const [greetingEnabled, setGreetingEnabled] = React.useState(config?.startup.greetingEnabled ?? true)
   const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
@@ -66,6 +67,10 @@ export function CharacterDisplaySettings({
       setYRatio(model.canvasYRatio)
     }
   }, [model?.scale, model?.xRatio, model?.canvasYRatio])
+
+  React.useEffect(() => {
+    if (config) setGreetingEnabled(config.startup.greetingEnabled)
+  }, [config?.startup.greetingEnabled])
 
   async function persist(
     nextScale: number,
@@ -148,6 +153,23 @@ export function CharacterDisplaySettings({
       <p className="pt-1 text-[11px] text-muted-foreground">
         提示：也可以在右侧面板直接按住拖拽移动人物，滚轮缩放。
       </p>
+
+      <div className="flex items-center justify-between border-t pt-4">
+        <div className="space-y-0.5">
+          <div className="text-sm font-semibold">启动唤醒</div>
+          <p className="text-xs text-muted-foreground">启动自检完成后，自动开口打招呼</p>
+        </div>
+        <input
+          type="checkbox"
+          checked={greetingEnabled}
+          disabled={saving}
+          onChange={(e) => {
+            setGreetingEnabled(e.target.checked)
+            void onSave({ startup: { greetingEnabled: e.target.checked } })
+          }}
+          className="size-4"
+        />
+      </div>
     </div>
   )
 }

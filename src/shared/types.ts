@@ -130,6 +130,25 @@ export interface AppConfig {
   memory: MemoryConfig
   tools: ToolsConfig
   gameMode: GameModeConfig
+  startup: StartupConfig
+}
+
+export interface StartupConfig {
+  greetingEnabled: boolean
+}
+
+export type BootStepStatus = 'pending' | 'running' | 'ok' | 'failed' | 'skipped'
+
+export interface BootStep {
+  id: 'live2d' | 'memory' | 'tts'
+  label: string
+  status: BootStepStatus
+  detail?: string
+}
+
+export interface BootResult {
+  steps: BootStep[]
+  llmConfigured: boolean
 }
 
 export interface MemoryConfig {

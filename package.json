@@ -7,14 +7,18 @@
   "license": "GPL-3.0-or-later",
   "scripts": {
     "dev": "chcp 65001 && electron-vite dev",
-    "build": "electron-vite build",
+    "build": "electron-vite build && electron-builder",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "selfcheck": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-ttsport.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-mcp.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts && node --experimental-strip-types src/scripts/selfcheck/selfcheck-tools.ts",
-    "package": "electron-vite build && electron-builder"
+    "selfcheck:tts": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-ttsport.ts",
+    "selfcheck:mcp": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-mcp.ts",
+    "selfcheck:stream": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts",
+    "selfcheck:memory": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts",
+    "selfcheck:tools": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-tools.ts",
+    "selfcheck": "npm run selfcheck:*"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",
@@ -54,6 +58,9 @@
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   },
+  "overrides": {
+    "node-abi": "^4.35.0"
+  },
   "build": {
     "appId": "com.opengal.app",
     "productName": "OpenGal",
@@ -62,12 +69,16 @@
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/linux/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
     ],
     "asarUnpack": [
       "**/node_modules/get-windows/**",
       "**/node_modules/onnxruntime-node/**"
     ],
+    "npmRebuild": false,
     "extraResources": [
       {
         "from": "resources/models",
@@ -79,18 +90,19 @@
         ]
       },
       {
+        "from": "resources/asr",
+        "to": "asr"
+      },
+      {
         "from": "resources/tts",
         "to": "tts"
       }
     ],
     "win": {
       "target": [
-        "portable"
+        "dir"
       ],
       "icon": "public/Logo/icon.png"
-    },
-    "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
     }
   }
 }

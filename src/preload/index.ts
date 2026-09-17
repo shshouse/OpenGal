@@ -200,6 +200,14 @@ const api = {
   env: {
     get: () => invoke<import('@shared/types').EnvSnapshot>(IpcChannels.env.get)
   },
+  boot: {
+    start: () => invoke<import('@shared/types').BootResult>(IpcChannels.boot.start),
+    onStep: (listener: (step: import('@shared/types').BootStep) => void) => {
+      const handler = (_: unknown, step: import('@shared/types').BootStep) => listener(step)
+      ipcRenderer.on(IpcChannels.boot.step, handler)
+      return () => ipcRenderer.off(IpcChannels.boot.step, handler)
+    }
+  },
   market: {
     list: (options: { page?: number; sort?: string; category?: string }) =>
       invoke<import('@shared/types').MarketListResult>(IpcChannels.market.list, options),

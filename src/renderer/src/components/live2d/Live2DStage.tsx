@@ -4,6 +4,7 @@ import { Loader2, AlertCircle } from 'lucide-react'
 import type { Live2DModelConfig } from '@shared/types'
 import { registerLive2DModel, playMotionGroup, resetPose } from '@/features/live2d/live2dBus'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { useStartupStore } from '@/features/startup/startupStore'
 
 ;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
 
@@ -215,6 +216,11 @@ export function Live2DStage({
       registerLive2DModel(null)
     }
   }, [])
+
+  React.useEffect(() => {
+    if (status === 'ready') useStartupStore.getState().reportLive2d('ok')
+    else if (status === 'error') useStartupStore.getState().reportLive2d('failed', '模型加载失败')
+  }, [status])
 
   React.useEffect(() => {
     if (!transformGestures) return

@@ -11,6 +11,7 @@ import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directorWorker'
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
+import { useStartupStore } from '@/features/startup/startupStore'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
@@ -35,6 +36,7 @@ export function GalgameChatPanel() {
   const [historyOpen, setHistoryOpen] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
+  const bootAwake = useStartupStore((s) => s.phase === 'awake')
 
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
 
@@ -205,7 +207,8 @@ export function GalgameChatPanel() {
                 }
               }}
               onPaste={pendingImages.handlePaste}
-              placeholder="输入消息，可粘贴图片..."
+              placeholder={bootAwake ? '输入消息，可粘贴图片...' : '正在唤醒…'}
+              disabled={!bootAwake}
               className="min-h-[40px] resize-none bg-muted/50 text-sm"
               rows={1}
             />
@@ -214,11 +217,14 @@ export function GalgameChatPanel() {
               size="icon"
               className="size-10 shrink-0"
               title="添加图片"
+              disabled={!bootAwake}
               onClick={() => fileInputRef.current?.click()}
             >
               <ImagePlus className="size-4" />
             </Button>
-            <MicButton />
+            <div className={cn(!bootAwake && 'pointer-events-none opacity-40')}>
+              <MicButton />
+            </div>
             <ContextUsageIndicator />
             {isSending ? (
               <Button
@@ -234,7 +240,7 @@ export function GalgameChatPanel() {
                 size="icon"
                 className="size-10 shrink-0"
                 onClick={handleSend}
-                disabled={!draft.trim() && pendingImages.images.length === 0}
+                disabled={(!draft.trim() && pendingImages.images.length === 0) || !bootAwake}
               >
                 <Send className="size-4" />
               </Button>
