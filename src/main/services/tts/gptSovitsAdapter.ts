@@ -29,11 +29,13 @@ export class GptSovitsAdapter implements TTSAdapter {
     this.appliedWeights.clear()
   }
 
-  async ping(req: { globalConfig: TTSConfig }): Promise<{ ok: boolean; message?: string }> {
+  async ping(req: { globalConfig: TTSConfig; card?: RoleCardEntry | null }): Promise<{ ok: boolean; message?: string }> {
     const cfg = req.globalConfig
     if (!cfg.enabled) return { ok: false, message: 'TTS 未启用' }
-    const base = applyTtsPortShift(normalizeBaseURL(cfg.baseURL))
+    const cardVoice = req.card ? readRoleVoiceConfig(req.card) : null
+    const base = applyTtsPortShift(normalizeBaseURL(String(cardVoice?.baseURL || cfg.baseURL)))
     if (!base) return { ok: false, message: 'TTS baseURL is not configured' }
+    assertLocalBaseURL(base)
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 3_000)
     try {
@@ -47,6 +49,15 @@ export class GptSovitsAdapter implements TTSAdapter {
       return { ok: false, message: (err as Error).message }
     } finally {
       clearTimeout(timer)
+    }
+  }
+
+  checkAvailability(req: { globalConfig: TTSConfig; card?: RoleCardEntry | null }): { ok: boolean; reason?: string } {
+    try {
+      this.resolveSettings({ text: '', globalConfig: req.globalConfig, card: req.card ?? null })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, reason: (err as Error).message }
     }
   }
 
@@ -118,6 +129,7 @@ export class GptSovitsAdapter implements TTSAdapter {
     }
     if (cardVoice) {
       for (const key of [
+        'baseURL',
         'gptModel',
         'sovitsModel',
         'referenceAudio',

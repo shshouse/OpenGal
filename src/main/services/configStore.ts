@@ -2,7 +2,6 @@ import Store from 'electron-store'
 import { safeStorage } from 'electron'
 import type { AppConfig } from '@shared/types'
 import { toModUrl, getDataRoot } from './paths'
-import { listRoleCards, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
 import { normalizeAsrEngine } from '../../shared/asrKinds'
 
@@ -150,32 +149,6 @@ export function resolveMaskedApiKey(baseURL: string, apiKey: string): string {
   return cfg.llmPresets?.find((p) => p.baseURL === baseURL)?.apiKey ?? cfg.llm.apiKey
 }
 
-function patchTTSFromVoiceConfig(tts: AppConfig['tts']): void {
-  if (tts.gptModelRelPath && tts.sovitsModelRelPath) return
-  try {
-    for (const card of listRoleCards()) {
-      const raw = readRoleVoiceConfig(card)
-      if (!raw) continue
-      if (!tts.gptModelRelPath && raw.gptModel) tts.gptModelRelPath = raw.gptModel as string
-      if (!tts.sovitsModelRelPath && raw.sovitsModel) tts.sovitsModelRelPath = raw.sovitsModel as string
-      if (!tts.referenceAudioRelPath && raw.referenceAudio) {
-        tts.referenceAudioRelPath = raw.referenceAudio as string
-      }
-      if (!tts.referenceText && raw.referenceText) tts.referenceText = raw.referenceText as string
-      if (!tts.referenceLanguage && raw.referenceLanguage) {
-        tts.referenceLanguage = raw.referenceLanguage as AppConfig['tts']['referenceLanguage']
-      }
-      if (!tts.outputLanguage && raw.outputLanguage) {
-        tts.outputLanguage = raw.outputLanguage as AppConfig['tts']['outputLanguage']
-      }
-      if (!tts.baseURL && raw.baseURL) tts.baseURL = raw.baseURL as string
-      return
-    }
-  } catch (err) {
-    console.error('[TTS] patchTTSFromVoiceConfig failed:', err)
-  }
-}
-
 export function readConfig(): AppConfig {
   const raw = getStore().store as unknown as AppConfig
   const merged: AppConfig = {
@@ -199,7 +172,6 @@ export function readConfig(): AppConfig {
   if (merged.model && !merged.model.modelUrl && merged.model.modelPath) {
     merged.model.modelUrl = toModUrl(merged.model.modelPath)
   }
-  patchTTSFromVoiceConfig(merged.tts)
   return merged
 }
 

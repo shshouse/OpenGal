@@ -4,7 +4,7 @@ out
 mods
 *.tsbuildinfo
 data
-temp
+tmp
 docs
 dist
 release

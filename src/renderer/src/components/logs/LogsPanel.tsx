@@ -40,22 +40,24 @@ export function LogsPanel({ forceOpen = false }: { forceOpen?: boolean } = {}) {
 
   const filtered = React.useMemo(() => {
     const q = filter.query.trim().toLowerCase()
-    return entries.filter((e) => {
-      if (!filter.levels.has(e.level)) return false
-      if (!q) return true
-      return (
-        e.source.toLowerCase().includes(q) ||
-        e.message.toLowerCase().includes(q) ||
-        (e.details ?? '').toLowerCase().includes(q)
-      )
-    })
+    return entries
+      .filter((e) => {
+        if (!filter.levels.has(e.level)) return false
+        if (!q) return true
+        return (
+          e.source.toLowerCase().includes(q) ||
+          e.message.toLowerCase().includes(q) ||
+          (e.details ?? '').toLowerCase().includes(q)
+        )
+      })
+      .reverse()
   }, [entries, filter])
 
   React.useEffect(() => {
     if (!autoScroll) return
     const el = viewportRef.current
     if (!el) return
-    el.scrollTop = el.scrollHeight
+    el.scrollTop = 0
   }, [filtered.length, autoScroll])
 
   if (!open && !forceOpen) return null

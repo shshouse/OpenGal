@@ -1,4 +1,5 @@
 import type { EmotionTag } from '@shared/types'
+import { wakeEyeOpen } from '@shared/wake'
 import { useLogsStore } from '@/features/logs/logsStore'
 
 export interface Live2DSpeakOptions {
@@ -59,12 +60,15 @@ function capturePose(model: Live2DLike | null): number[] | null {
 export function registerLive2DModel(model: Live2DLike | null): void {
   currentModel = model
   initialPose = capturePose(model)
-  if (model && eyesClosed) model.internalModel?.on?.('beforeModelUpdate', forceEyesClosed)
+  eyeDriving = false
+  if (model && eyesClosed) attachEyes(model.internalModel)
 }
 
-// 睡眠态：每帧渲染前把眼睑参数压到 0，blink/动作里的眨眼都会被盖掉
+// 睡眠态：每帧渲染前把眼睑参数压到 0；唤醒态：按 smoothstep 从 0 插值到 1，写满后自卸载交还眨眼
 // 参数 id 因模型而异（Cubism4: ParamEyeLOpen；旧模: PARAM_EYE_L_OPEN），优先用模型自带的 EyeBlink 组
 let eyesClosed = false
+let eyeDriving = false
+let wakeStartMs = 0
 
 function eyeParamIds(model: Live2DLike): string[] {
   const im = model.internalModel as { eyeBlinkIds?: string[] } | undefined
@@ -72,13 +76,30 @@ function eyeParamIds(model: Live2DLike): string[] {
   return ['ParamEyeLOpen', 'ParamEyeROpen', 'PARAM_EYE_L_OPEN', 'PARAM_EYE_R_OPEN']
 }
 
-const forceEyesClosed = (): void => {
+function attachEyes(internal: Live2DLike['internalModel']): void {
+  if (eyeDriving) return
+  internal?.on?.('beforeModelUpdate', driveEyes)
+  eyeDriving = true
+}
+
+function detachEyes(internal: Live2DLike['internalModel']): void {
+  if (!eyeDriving) return
+  internal?.off?.('beforeModelUpdate', driveEyes)
+  eyeDriving = false
+}
+
+const driveEyes = (): void => {
   const model = currentModel
   const core = model?.internalModel?.coreModel
   if (!model || !core?.setParameterValueById) return
+  let v = 0
+  if (!eyesClosed) {
+    v = wakeEyeOpen(wakeStartMs, performance.now())
+    if (v >= 1) detachEyes(model.internalModel)
+  }
   for (const id of eyeParamIds(model)) {
     try {
-      core.setParameterValueById(id, 0)
+      core.setParameterValueById(id, v)
     } catch {
       // 模型缺该参数时忽略
     }
@@ -90,10 +111,11 @@ export function setEyesClosed(closed: boolean): void {
   eyesClosed = closed
   const internal = currentModel?.internalModel
   if (closed) {
-    internal?.on?.('beforeModelUpdate', forceEyesClosed)
-    forceEyesClosed()
+    attachEyes(internal)
+    driveEyes()
   } else {
-    internal?.off?.('beforeModelUpdate', forceEyesClosed)
+    wakeStartMs = performance.now()
+    attachEyes(internal)
   }
 }
 

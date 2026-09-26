@@ -99,7 +99,8 @@ export const IpcChannels = {
   },
   boot: {
     start: 'boot:start',
-    step: 'boot:step'
+    step: 'boot:step',
+    recheckTts: 'boot:recheckTts'
   },
   logs: {
     list: 'logs:list',

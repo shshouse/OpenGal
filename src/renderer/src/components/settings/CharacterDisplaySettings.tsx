@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 
 const DEFAULTS = {
@@ -159,16 +160,17 @@ export function CharacterDisplaySettings({
           <div className="text-sm font-semibold">启动唤醒</div>
           <p className="text-xs text-muted-foreground">启动自检完成后，自动开口打招呼</p>
         </div>
-        <input
-          type="checkbox"
-          checked={greetingEnabled}
-          disabled={saving}
-          onChange={(e) => {
-            setGreetingEnabled(e.target.checked)
-            void onSave({ startup: { greetingEnabled: e.target.checked } })
-          }}
-          className="size-4"
-        />
+        <span className="relative inline-flex">
+          <Checkbox
+            checked={greetingEnabled}
+            disabled={saving}
+            onChange={(e) => {
+              setGreetingEnabled(e.target.checked)
+              void onSave({ startup: { greetingEnabled: e.target.checked } })
+            }}
+          />
+          <CheckboxIndicator />
+        </span>
       </div>
     </div>
   )

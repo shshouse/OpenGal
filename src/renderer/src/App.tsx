@@ -14,7 +14,6 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { useStartupStore } from '@/features/startup/startupStore'
-import { BootOverlay } from '@/components/startup/BootOverlay'
 
 type View = 'chat' | 'market' | 'settings' | 'logs'
 const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
@@ -170,7 +169,6 @@ export default function App() {
             <>
               <div className="absolute inset-0">{live2dLayer}</div>
               <GalgameChatPanel />
-              <BootOverlay />
             </>
           )}
 
@@ -196,21 +194,8 @@ export default function App() {
           )}
 
           {view === 'logs' && (
-            <div className="flex h-full w-full flex-col bg-background">
-              <div className="flex h-12 shrink-0 items-center border-b px-4">
-                <span className="text-sm font-semibold">日志</span>
-                <button
-                  type="button"
-                  title="关闭"
-                  className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={() => setView('chat')}
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-              <div className="min-h-0 flex-1">
-                <LogsPanel forceOpen />
-              </div>
+            <div className="h-full bg-background">
+              <LogsPanel forceOpen />
             </div>
           )}
         </main>

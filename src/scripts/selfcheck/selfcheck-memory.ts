@@ -145,6 +145,42 @@ const block = buildMemoryBlock(await loadFacts('c1'), await loadStories('c1'))
 assert.ok(block?.includes('生日'))
 assert.ok(block?.includes('还没兑现'))
 assert.ok(block?.includes('可能过时'))
+const relNoOverlap = relevanceScore('用户喜欢吃拉面', '完全无关的内容')
+assert.strictEqual(relNoOverlap, 0)
+assert.ok(relevanceScore('用户养了一只蜥蜴当宠物', '蜥蜴') > 0)
+const relTwoHits = relevanceScore('用户明天有会议而且后天也有会议', '会议 安排')
+const relOneHit = relevanceScore('用户养了一只蜥蜴当宠物', '会议 安排')
+assert.ok(relTwoHits > relOneHit, `多词命中应更高: ${relTwoHits} vs ${relOneHit}`)
+const soon = new Date(Date.now() + 5 * 86400000).toISOString()
+const v2Block = buildMemoryBlock(
+  [
+    { id: 'fv', text: '完全无关的琐碎事实', entity: 'user', importance: 2, confidence: 0.3, source: 'llm_inferred', created_at: '', last_confirmed_at: '', status: 'active', evidence: { reinforce: 0, negate: 0 } },
+  ],
+  [
+    { id: 'sv', kind: 'promise', text: '寒假一起看樱花', occurred_at: '', due_at: soon, fulfilled: false, importance: 9, status: 'active', created_at: '' },
+  ],
+  900,
+  '今天吃什么',
+)
+assert.ok(v2Block?.includes('樱花'), `快到期的 promise 应被日程邻近召回: ${v2Block}`)
+const soonTs = new Date(Date.now() + 3 * 86400000).toISOString()
+const badDueBlock = buildMemoryBlock(
+  [
+    { id: 'fa', text: '日期损坏的普通事实', entity: 'user', importance: 2, confidence: 0.3, source: 'llm_inferred', created_at: '', last_confirmed_at: '', status: 'active', evidence: { reinforce: 0, negate: 0 }, valid_until: 'not-a-date' },
+    { id: 'fb', text: '临近到期的普通事实', entity: 'user', importance: 2, confidence: 0.3, source: 'llm_inferred', created_at: '', last_confirmed_at: '', status: 'active', evidence: { reinforce: 0, negate: 0 }, valid_until: soonTs },
+  ],
+  [
+    { id: 'sb', kind: 'promise', text: '日期损坏的约定', occurred_at: '', due_at: 'garbage', fulfilled: false, importance: 9, status: 'active', created_at: '' },
+  ],
+  900,
+  '今天吃什么',
+)
+assert.ok(badDueBlock?.includes('日期损坏'), `非法到期日期不应破坏装配: ${badDueBlock}`)
+assert.ok(
+  badDueBlock !== null &&
+    badDueBlock.indexOf('临近到期') < badDueBlock.indexOf('日期损坏的普通事实'),
+  `合法到期应排在非法日期前: ${badDueBlock}`,
+)
 const synced = listUnarchivedMessages('c1')
 assert.strictEqual(synced.length, 2)
 assert.strictEqual(synced[0].role, 'user')

@@ -399,22 +399,62 @@ export async function manualAddFact(
   return entry
 }
 
+const BM25_K1 = 1.5
+const BM25_B = 0.75
+function bm25Score(factNorm: string, ctxNorm: string): number {
+  const ctxTerms = bigramsOf(ctxNorm)
+  if (!factNorm || ctxTerms.length === 0) return 0
+  const factTerms = bigramsOf(factNorm)
+  if (factTerms.length === 0) return 0
+  const tf = new Map<string, number>()
+  for (const t of factTerms) tf.set(t, (tf.get(t) ?? 0) + 1)
+  // ponytail: avgdl 用文档自身长度代替语料平均长度，长度归一化恒为 1，退化为纯 tf 加权；单机启发式够用，升级需收集全库平均长度
+  const avgdl = Math.max(1, factTerms.length)
+  let score = 0
+  for (const term of new Set(ctxTerms)) {
+    const freq = tf.get(term)
+    if (!freq) continue
+    score += (freq * (BM25_K1 + 1)) / (freq + BM25_K1 * (1 - BM25_B + (BM25_B * factTerms.length) / avgdl))
+  }
+  return score / ctxTerms.length
+}
+
+function bigramsOf(norm: string): string[] {
+  const out: string[] = []
+  for (let i = 0; i < norm.length - 1; i++) out.push(norm.slice(i, i + 2))
+  return out
+}
+
 export function relevanceScore(factText: string, context: string): number {
   const normFact = normalizeText(factText)
   const normCtx = normalizeText(context)
   if (!normFact || !normCtx) return 0
   if (normCtx.includes(normFact) || normFact.includes(normCtx)) return 1
-  const bigrams = (s: string): Set<string> => {
-    const set = new Set<string>()
-    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2))
-    return set
-  }
-  const bf = bigrams(normFact)
-  const bc = bigrams(normCtx)
-  if (bf.size === 0 || bc.size === 0) return 0
-  let inter = 0
-  for (const g of bf) if (bc.has(g)) inter++
-  return (2 * inter) / (bf.size + bc.size)
+  return bm25Score(normFact, normCtx)
+}
+
+const RECALL_WEIGHTS = { wSim: 0.4, wValue: 0.3, wDue: 0.3 }
+const DUE_WINDOW_DAYS = 14
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x))
+}
+function valueNormFact(f: MemoryFact): number {
+  const substantive = f.source === 'user_statement' || f.confidence >= 0.9
+  return substantive ? (f.importance - 1) / 9 : 0
+}
+
+function valueNormStory(s: MemoryStory): number {
+  return s.kind === 'promise' || s.kind === 'milestone' ? (s.importance - 1) / 9 : 0
+}
+
+
+function dueProximity(dueAt: string | null, now: number): number {
+  if (!dueAt) return 0
+  const t = new Date(dueAt).getTime()
+  if (Number.isNaN(t)) return 0
+  const days = (t - now) / 86400000
+  if (days < -1 || days > DUE_WINDOW_DAYS) return 0
+  return clamp01(1 - Math.max(0, days) / DUE_WINDOW_DAYS)
 }
 
 // 记忆块装配核心：分组→打分→预算截断，相关度来源由调用方注入（关键词 / 向量）
@@ -423,11 +463,13 @@ function assembleMemoryBlock(
   activeStoriesList: MemoryStory[],
   charCap: number,
   relOfFact: (f: MemoryFact) => number,
-  relOfStory: (text: string) => number,
+  relOfStory: (s: MemoryStory) => number,
   factScoreScale: number,
 ): string | null {
   if (actives.length === 0 && activeStoriesList.length === 0) return null
 
+  const now = Date.now()
+  const { wSim, wValue, wDue } = RECALL_WEIGHTS
   type Item = { text: string; score: number }
   const groups: Record<'user' | 'character' | 'relationship', Item[]> = {
     user: [],
@@ -435,7 +477,8 @@ function assembleMemoryBlock(
     relationship: [],
   }
   for (const f of actives) {
-    const score = factScore(f) * (factScoreScale + relOfFact(f))
+    const rel = wSim * relOfFact(f) + wValue * valueNormFact(f) + wDue * dueProximity(f.valid_until ?? null, now)
+    const score = factScore(f) * (factScoreScale + rel)
     groups[f.entity].push({ text: f.text.slice(0, 60), score })
   }
 
@@ -451,12 +494,14 @@ function assembleMemoryBlock(
   const relationshipItems: Item[] = []
   for (const p of promises) {
     const due = p.due_at ? `（约 ${p.due_at.slice(0, 10)}）` : ''
-    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) + 5 })
+    const rel = 0.5 + wValue * valueNormStory(p) + wDue * dueProximity(p.due_at, now)
+    relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) * (factScoreScale + rel) })
   }
   for (const s of others) {
+    const rel = wSim * relOfStory(s) + wValue * valueNormStory(s) + wDue * dueProximity(s.due_at, now)
     relationshipItems.push({
       text: s.text.slice(0, 60),
-      score: storyScore(s) * (factScoreScale + relOfStory(s.text)),
+      score: storyScore(s) * (factScoreScale + rel),
     })
   }
 
@@ -494,7 +539,7 @@ export function buildMemoryBlock(
     activeStories(stories),
     charCap,
     (f) => (context ? relevanceScore(f.text, context) : 0.5),
-    (t) => (context ? relevanceScore(t, context) : 0.5),
+    (s) => (context ? relevanceScore(s.text, context) : 0.5),
     0.5,
   )
 }
@@ -522,8 +567,6 @@ export async function buildMemoryBlockVector(
   charCap: number,
 ): Promise<string | null> {
   const actives = activeFacts(facts)
-
-  // 模型未就绪时降级到关键词检索，并记录日志
   let vectorHits: Array<{ fact: MemoryFact; similarity: number }> = []
   try {
     const needEmbedding = actives.filter((f) => !f.embedding)
@@ -545,7 +588,7 @@ export async function buildMemoryBlockVector(
     activeStories(stories),
     charCap,
     (f) => hitMap.get(f.id) ?? relevanceScore(f.text, context),
-    (t) => relevanceScore(t, context),
+    (s) => relevanceScore(s.text, context),
     0.3,
   )
 }

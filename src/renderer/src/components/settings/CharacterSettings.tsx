@@ -69,7 +69,7 @@ export function CharacterSettings() {
               </span>
               <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
                 <span className="rounded-full border px-1.5 py-px">
-                  TTS: {card.voice?.provider ?? '—'}
+                  TTS: {card.voice?.engine ?? '—'}
                 </span>
                 {card.llm?.provider && (
                   <span className="rounded-full border px-1.5 py-px">

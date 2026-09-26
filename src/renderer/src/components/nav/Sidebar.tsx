@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Settings, Terminal, Cat, Eye, EyeOff, Store, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ModuleLights } from '@/components/nav/ModuleLights'
 
 interface Props {
   onOpenChat: () => void
@@ -90,6 +91,8 @@ export function Sidebar({
       >
         {showLive2D ? <Eye className="size-5" /> : <EyeOff className="size-5" />}
       </RailButton>
+
+      <ModuleLights />
     </nav>
   )
 }

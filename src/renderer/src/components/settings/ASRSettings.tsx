@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Mic, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -219,24 +220,23 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
       )}
 
       <label className="flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          checked={form.autoSend}
-          onChange={(e) => patch({ autoSend: e.target.checked })}
-          className="rounded"
-        />
+        <span className="relative inline-flex">
+          <Checkbox checked={form.autoSend} onChange={(e) => patch({ autoSend: e.target.checked })} />
+          <CheckboxIndicator />
+        </span>
         识别完成后自动发送
       </label>
 
       <div className="space-y-2 rounded-lg border p-2">
         <label className="flex items-center gap-2 text-xs font-medium">
-          <input
-            type="checkbox"
-            checked={form.directorEnabled}
-            onChange={(e) => patch({ directorEnabled: e.target.checked })}
-            className="rounded"
-          />
-          导演模式（由导演 AI 决定是否回应语音）
+          <span className="relative inline-flex">
+            <Checkbox
+              checked={form.directorEnabled}
+              onChange={(e) => patch({ directorEnabled: e.target.checked })}
+            />
+            <CheckboxIndicator />
+          </span>
+          导演模式
         </label>
         <p className="pl-6 text-[11px] text-muted-foreground">
           开启后语音不再直接发送，而是由导演综合语音内容、对话历史、屏幕画面判断该不该开口
@@ -244,12 +244,13 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         {form.directorEnabled && (
           <>
             <label className="flex items-center gap-2 pl-6 text-xs">
-              <input
-                type="checkbox"
-                checked={form.directorScreenContext}
-                onChange={(e) => patch({ directorScreenContext: e.target.checked })}
-                className="rounded"
-              />
+              <span className="relative inline-flex">
+                <Checkbox
+                  checked={form.directorScreenContext}
+                  onChange={(e) => patch({ directorScreenContext: e.target.checked })}
+                />
+                <CheckboxIndicator />
+              </span>
               导演可查看屏幕画面（截图会发送给 LLM）
             </label>
             <div className="pl-6">

@@ -14,6 +14,7 @@ export interface TTSSpeakRequest {
 export interface TTSSpeakResponse {
   audioBase64: string
   mimeType: string
+  skipped?: boolean
 }
 
 function resolveActiveCard(explicitId: string | undefined) {
@@ -26,9 +27,9 @@ function resolveActiveCard(explicitId: string | undefined) {
 export async function pingTTS(): Promise<{ ok: boolean; message?: string }> {
   const config = readConfig().tts
   const card = resolveActiveCard(undefined)
-  const provider = card?.voice?.provider || config.provider
+  const provider = config.provider
   const adapter = chooseTTSAdapter(provider)
-  const res = await adapter.ping({ globalConfig: config })
+  const res = await adapter.ping({ globalConfig: config, card })
   if (res.ok) {
     logBus.info('tts', `ping 成功 provider=${provider}`)
   } else {
@@ -49,7 +50,7 @@ export async function warmupTTS(): Promise<boolean> {
   const config = readConfig().tts
   if (!config.enabled) return false
   const card = resolveActiveCard(undefined)
-  const provider = card?.voice?.provider || config.provider
+  const provider = config.provider
   if (provider !== 'genie') return false
   const adapter = chooseTTSAdapter(provider)
   const lang = config.referenceLanguage ?? 'zh'
@@ -69,10 +70,28 @@ export async function warmupTTS(): Promise<boolean> {
 
 let autoStartBusy = false
 
+// 引擎由全局设置决定；角色卡只声明模型格式，声明与引擎不匹配或模型缺失时不可用
+export function checkTTSCompat(roleCardId?: string): { ok: boolean; reason?: string } {
+  const config = readConfig().tts
+  if (!config.enabled) return { ok: false, reason: 'TTS 未启用' }
+  const card = resolveActiveCard(roleCardId)
+  const provider = config.provider
+  const engine = card?.voice?.engine
+  if (engine && engine !== provider) {
+    return { ok: false, reason: `当前角色模型为 ${engine} 格式，与所选引擎 ${provider} 不匹配` }
+  }
+  return chooseTTSAdapter(provider).checkAvailability({ globalConfig: config, card })
+}
+
 export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse> {
   const config = readConfig().tts
   const card = resolveActiveCard(request.roleCardId)
-  const provider = card?.voice?.provider || config.provider
+  const provider = config.provider
+  const compat = checkTTSCompat(request.roleCardId)
+  if (!compat.ok) {
+    logBus.warn('tts', `TTS 不可用，已跳过语音: ${compat.reason}`)
+    return { audioBase64: '', mimeType: '', skipped: true }
+  }
   const adapter = chooseTTSAdapter(provider)
   const preview = request.text.slice(0, 80) + (request.text.length > 80 ? '...' : '')
   logBus.info('tts', `合成开始 provider=${provider} 文本=${preview}`)

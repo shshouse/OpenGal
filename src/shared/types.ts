@@ -305,8 +305,9 @@ export interface RoleSpriteConfig {
 }
 
 export interface RoleVoiceConfig {
-  provider: string
-  configRef: string
+  // 声明模型格式（gpt-sovits / genie），不等于引擎开关；引擎由全局 TTS 设置决定，不匹配时该角色无语音
+  engine?: string
+  configRef?: string
 }
 
 export interface RoleASRConfig {

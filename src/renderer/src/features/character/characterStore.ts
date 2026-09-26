@@ -60,6 +60,7 @@ export const useCharacterStore = create<CharacterState>((set, get) => ({
     void useChatStore.getState().ensureHydrated(id)
     await window.opengal.config.set({ activeCharacterId: id })
     void window.opengal.tts.reset()
+    void window.opengal.boot.recheckTts()
   },
 
   getActive: () => {

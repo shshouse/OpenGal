@@ -209,14 +209,26 @@ async function launchServer(spec: ServerSpec): Promise<TTSServerStatus> {
   throw new Error(`${spec.label} server did not become ready within ${spec.readyTimeoutMs / 1000} seconds`)
 }
 
+async function waitPortFree(port: number, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await isPortFree(port)) return
+    await new Promise((r) => setTimeout(r, 300))
+  }
+}
+
 export async function startTTSServer(): Promise<TTSServerStatus> {
-  if (childProcess && childProcess.exitCode === null) {
-    return getTTSServerStatus()
-  }
-  if (reusedPort !== null) {
-    return getTTSServerStatus()
-  }
   const provider = readConfig().tts.provider ?? 'gpt-sovits'
+  if (childProcess && childProcess.exitCode === null) {
+    // 引擎切换后旧进程作废：杀掉等端口释放，按新引擎重拉
+    if (activeProvider === provider) return getTTSServerStatus()
+    await stopTTSServer()
+    await waitPortFree(parseTtsPort(readConfig().tts.baseURL))
+  } else if (reusedPort !== null && activeProvider === provider) {
+    // 复用的服务必须和当前引擎一致：引擎切换后旧复用作废，重新探测拉起
+    return getTTSServerStatus()
+  }
+  reusedPort = null
   return launchServer(provider === 'genie' ? genieSpec() : sovitsSpec())
 }
 

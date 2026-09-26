@@ -100,7 +100,9 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
   try {
     const result = await window.opengal.tts.speak({ text: speech })
     if (result.success && result.data) {
-      audioUrl = `data:${result.data.mimeType};base64,${result.data.audioBase64}`
+      if (!result.data.skipped) {
+        audioUrl = `data:${result.data.mimeType};base64,${result.data.audioBase64}`
+      }
       hasWarnedThisSession = false
     } else if (result.error && !/disabled/i.test(result.error)) {
       reportTTSError(result.error)

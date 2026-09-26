@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Gamepad2, Plus, Trash2, Globe, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -63,12 +64,13 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
         </div>
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-muted-foreground">启用</label>
-          <input
-            type="checkbox"
-            checked={gameEnabled}
-            onChange={(e) => setGameEnabled(e.target.checked)}
-            className="size-4"
-          />
+          <span className="relative inline-flex">
+            <Checkbox
+              checked={gameEnabled}
+              onChange={(e) => setGameEnabled(e.target.checked)}
+            />
+            <CheckboxIndicator />
+          </span>
         </div>
         <p className="text-xs text-muted-foreground">
           匹配规则：进程名或窗口标题包含关键词即判定为游戏。游戏运行时角色知道你在玩什么、回复更简短、语音响应冷却加倍。

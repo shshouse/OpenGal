@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -90,6 +91,8 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
   const activeCharacter = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
   const activeVoiceRef = activeCharacter?.voice?.configRef
+  const cardEngine = activeCharacter?.voice?.engine
+  const engineMismatch = Boolean(cardEngine && cardEngine !== form.provider)
   const [cardVoice, setCardVoice] = React.useState<Record<string, unknown> | null>(null)
 
   React.useEffect(() => {
@@ -214,6 +217,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
     try {
       await onSave({ tts: form })
       await window.opengal.tts.reset()
+      void window.opengal.boot.recheckTts()
       setStatus('已保存')
     } catch (error) {
       setStatus(`保存失败: ${(error as Error).message}`)
@@ -239,6 +243,10 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
       const result = await window.opengal.tts.speak({ text: 'Hello! This is a test.' })
       if (!result.success || !result.data) {
         throw new Error(result.error || 'TTS failed')
+      }
+      if (result.data.skipped) {
+        setStatus('已跳过：当前角色模型与所选引擎不匹配')
+        return
       }
       const { audioBase64, mimeType } = result.data
       const audio = new Audio(`data:${mimeType};base64,${audioBase64}`)
@@ -271,20 +279,21 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
       <div className="flex items-center gap-2">
         <label className="text-xs font-medium text-muted-foreground">启用</label>
-        <input
-          type="checkbox"
-          checked={form.enabled}
-          onChange={(e) => update('enabled', e.target.checked)}
-          className="size-4"
-        />
+        <span className="relative inline-flex">
+          <Checkbox
+            checked={form.enabled}
+            onChange={(e) => update('enabled', e.target.checked)}
+          />
+          <CheckboxIndicator />
+        </span>
       </div>
 
       <div>
         <label className="text-xs font-medium text-muted-foreground">
           引擎
-          {activeCharacter?.voice?.provider && (
+          {cardEngine && (
             <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">
-              角色卡: {activeCharacter.voice.provider}
+              角色模型: {cardEngine}
             </span>
           )}
         </label>
@@ -301,6 +310,12 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
           </SelectContent>
         </Select>
       </div>
+
+      {engineMismatch && (
+        <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2">
+          当前角色模型为 {cardEngine} 格式，与所选引擎不匹配，该角色的回复将没有语音。
+        </div>
+      )}
 
       {form.provider === 'genie' && (
         <div className="text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2">

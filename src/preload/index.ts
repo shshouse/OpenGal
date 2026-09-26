@@ -155,7 +155,7 @@ const api = {
   },
   tts: {
     speak: (request: { text: string; overrides?: Record<string, unknown> }) =>
-      invoke<{ audioBase64: string; mimeType: string }>(IpcChannels.tts.speak, request),
+      invoke<{ audioBase64: string; mimeType: string; skipped?: boolean }>(IpcChannels.tts.speak, request),
     ping: () => invoke<{ ok: boolean; message?: string }>(IpcChannels.tts.ping),
     reset: () => invoke(IpcChannels.tts.reset),
     serverStart: () =>
@@ -202,6 +202,7 @@ const api = {
   },
   boot: {
     start: () => invoke<import('@shared/types').BootResult>(IpcChannels.boot.start),
+    recheckTts: () => invoke(IpcChannels.boot.recheckTts),
     onStep: (listener: (step: import('@shared/types').BootStep) => void) => {
       const handler = (_: unknown, step: import('@shared/types').BootStep) => listener(step)
       ipcRenderer.on(IpcChannels.boot.step, handler)

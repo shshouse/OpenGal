@@ -2,6 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import PetView from './components/pet/PetView'
+import '@fontsource-variable/geist'
+import '@fontsource-variable/geist-mono'
 import './styles/globals.css'
 
 class RootErrorBoundary extends React.Component<

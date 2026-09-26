@@ -21,7 +21,7 @@ import type { TTSServerStatus } from '../services/ttsServer'
 import { getEngine } from '../services/asr/factory'
 import { getDataRoot } from '../services/paths'
 import { startEnvMonitor, getEnvSnapshot } from '../services/envContext'
-import { runBootSequence } from '../services/bootService'
+import { runBootSequence, recheckTts } from '../services/bootService'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
@@ -316,6 +316,14 @@ export function registerIpc(windows: WindowManager): void {
         if (!sender.isDestroyed()) sender.send(IpcChannels.boot.step, step)
       })
     )
+  })
+
+  ipcMain.handle(IpcChannels.boot.recheckTts, (event) => {
+    const sender = event.sender
+    recheckTts((step) => {
+      if (!sender.isDestroyed()) sender.send(IpcChannels.boot.step, step)
+    })
+    return wrap(() => true)
   })
 
   ipcMain.handle(IpcChannels.logs.list, (event) => {
