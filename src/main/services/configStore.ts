@@ -169,6 +169,7 @@ export function readConfig(): AppConfig {
   }
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
+  merged.llmPresets = merged.llmPresets?.map((p) => ({ ...p, apiKey: decryptApiKey(p.apiKey) }))
   if (merged.model && !merged.model.modelUrl && merged.model.modelPath) {
     merged.model.modelUrl = toModUrl(merged.model.modelPath)
   }
@@ -205,7 +206,8 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
   }
   const persisted: AppConfig = {
     ...next,
-    llm: { ...next.llm, apiKey: encryptApiKey(next.llm.apiKey) }
+    llm: { ...next.llm, apiKey: encryptApiKey(next.llm.apiKey) },
+    llmPresets: next.llmPresets?.map((p) => ({ ...p, apiKey: encryptApiKey(p.apiKey) }))
   }
   getStore().set(persisted as unknown as Record<string, unknown>)
   logBus.info('config', `配置更新: ${summarizePatch(patch)}`)

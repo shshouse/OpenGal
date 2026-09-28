@@ -80,7 +80,7 @@ export function registerIpc(windows: WindowManager): void {
     wrap<AppConfig>(() => {
       const next = writeConfig(patch)
       if (patch.activeCharacterId !== undefined) void warmupTTS()
-      return next
+      return redactSecrets(next)
     })
   )
 

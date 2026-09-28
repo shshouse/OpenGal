@@ -8,7 +8,6 @@ export interface VectorSearchResult {
   similarity: number
 }
 
-const MODEL_ID = 'Xenova/bge-small-zh-v1.5'
 const VECTOR_DIM = 512
 
 function localModelPath(): string | null {
@@ -48,11 +47,10 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
       model_file_name: 'model_quantized',
     } as Parameters<typeof pipeline>[2])
   } else {
-    env.allowLocalModels = false
-    env.allowRemoteModels = true
-    extractorPromise = pipeline('feature-extraction', MODEL_ID, {
-      progress_callback: () => {},
-    })
+    // 本地优先：不静默联网下载模型；缺模型时抛错，调用方自动降级关键词检索
+    extractorPromise = Promise.reject(
+      new Error('未找到本地 embedding 模型（resources/models/bge-small-zh-v1.5），向量检索停用'),
+    )
   }
 
   try {
@@ -61,7 +59,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
   } catch (err) {
     modelError = (err as Error).message
     extractorPromise = null
-    throw new Error(`ONNX 模型加载失败: ${modelError}。请确认模型文件存在或网络可用。`)
+    throw new Error(`ONNX 模型加载失败: ${modelError}`)
   }
 }
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { RoleCard, RoleCardEntry } from '@shared/types'
+import { sanitizeCardLlm } from '@shared/cardLlm'
 import { getModRoot } from './paths'
 
 const ROLE_CARD_DIR_REL = 'Role'
@@ -28,7 +29,7 @@ function normalizeEntry(folderName: string, rootPath: string, raw: unknown): Rol
     performance: card.performance,
     voice: card.voice,
     asr: card.asr,
-    llm: card.llm,
+    llm: sanitizeCardLlm(card.llm),
     persona: {
       description: card.persona.description ?? '',
       personality: card.persona.personality ?? '',
