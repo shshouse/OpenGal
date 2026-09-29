@@ -1,5 +1,6 @@
 import type { ChatMessage, MessageContentPart } from '@shared/types'
 import type { UserInputMessage } from '@shared/messages'
+import { resolveSlotConfig } from '@shared/llmSlot'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useLogsStore } from '@/features/logs/logsStore'
@@ -248,8 +249,17 @@ async function askDirector(
   ].join('\n')
 
   const userParts: MessageContentPart[] = [{ type: 'text', text: report }]
+  // 副手为独立 preset 且非多模态时不附截屏，避免纯文本模型必败再降级
+  let allowScreen = screenContext
+  if (allowScreen) {
+    const cfgAll = (await window.opengal.config.get()).data
+    if (cfgAll) {
+      const sub = resolveSlotConfig(cfgAll.llm, cfgAll.llmPresets, cfgAll.llmSubPresetId, 'sub')
+      if (!sub.isFallback && sub.config.multimodal !== true) allowScreen = false
+    }
+  }
   let screenIncluded = false
-  if (screenContext) {
+  if (allowScreen) {
     const dataUrl = await captureScreen()
     if (dataUrl) {
       userParts.push({ type: 'image_url', image_url: { url: dataUrl } })
@@ -261,7 +271,7 @@ async function askDirector(
     { role: 'system', content: buildDirectorPrompt(roleName) },
     { role: 'user', content: userParts }
   ]
-  const res = await window.opengal.llm.chat({ messages, overrides: card?.llm })
+  const res = await window.opengal.llm.chat({ messages, slot: 'sub' })
   if (!res.success || !res.data?.content) throw new Error(res.error || 'empty director response')
   return { decision: parseDecision(res.data.content), screenIncluded }
 }

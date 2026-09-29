@@ -665,6 +665,32 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           {status && <div className="text-xs text-muted-foreground">{status}</div>}
         </div>
       )}
+
+      {/* 副手模型 */}
+      {!editorOpen && (
+        <div className="space-y-1.5 rounded-lg border bg-card px-4 py-3">
+          <label className="text-xs font-medium text-muted-foreground">副手模型</label>
+          <Select
+            value={config?.llmSubPresetId || 'main'}
+            onValueChange={(v) => void onSave({ llmSubPresetId: v === 'main' ? '' : v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="main">与主模型相同</SelectItem>
+              {presets.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            导演和记忆等判断类任务使用此模型，可选更便宜的模型。
+          </p>
+        </div>
+      )}
     </div>
   )
 }

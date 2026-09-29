@@ -131,6 +131,7 @@ async function runExtract(force = false): Promise<void> {
     for (const [characterId, entries] of groups) {
       if (!entries.some((e) => e.role === 'user')) continue
       const res = await window.opengal.llm.chat({
+        slot: 'sub',
         messages: [
           { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
           { role: 'user', content: buildTranscript(entries) }

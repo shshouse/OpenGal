@@ -55,6 +55,7 @@ export function registerIpc(windows: WindowManager): void {
 
   async function judgeFact(existing: MemoryFact, cand: MemoryCandidateFact): Promise<'reinforces' | 'negates'> {
     const res = await callLLM({
+      slot: 'sub',
       messages: [
         {
           role: 'system',

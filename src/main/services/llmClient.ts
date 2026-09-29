@@ -1,4 +1,5 @@
 import type { LLMConfig, LLMRequest, LLMResponse } from '@shared/types'
+import { resolveSlotConfig } from '@shared/llmSlot'
 import type { BrowserWindow } from 'electron'
 import { readConfig } from './configStore'
 import { chooseAdapter } from './llm/factory'
@@ -6,17 +7,25 @@ import { logBus } from './logBus'
 
 function resolveSettings(request: LLMRequest): LLMConfig {
   const config = readConfig()
+  const base = resolveSlotConfig(config.llm, config.llmPresets, config.llmSubPresetId, request.slot ?? 'main').config
   const overrides = { ...(request.overrides ?? {}) }
   delete overrides.baseURL
   delete overrides.apiKey
   delete overrides.provider
-  const settings: LLMConfig = { ...config.llm, ...overrides }
+  const settings: LLMConfig = { ...base, ...overrides }
   if (!settings.apiKey) throw new Error('API key is not configured')
   if (!settings.baseURL) {
     throw new Error('Base URL is not configured')
   }
   if (!settings.modelName) throw new Error('Model name is not configured')
   return settings
+}
+
+// 副手槽位是否解析到了独立于主模型的 preset（回退主模型时无需二次重试）
+function subLaneDistinct(request: LLMRequest): boolean {
+  if (request.slot !== 'sub') return false
+  const config = readConfig()
+  return !resolveSlotConfig(config.llm, config.llmPresets, config.llmSubPresetId, 'sub').isFallback
 }
 
 function messageTextOf(m: LLMRequest['messages'][number]): string {
@@ -66,13 +75,25 @@ export async function listProviderModels(
     .sort()
 }
 export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
+  try {
+    return await callLLMOnce(request)
+  } catch (err) {
+    if (subLaneDistinct(request)) {
+      logBus.warn('llm', `副手模型调用失败，降级主模型重试: ${(err as Error).message}`)
+      return callLLMOnce({ ...request, slot: 'main' })
+    }
+    throw err
+  }
+}
+
+async function callLLMOnce(request: LLMRequest): Promise<LLMResponse> {
   const settings = resolveSettings(request)
   const adapter = chooseAdapter(settings)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 120_000)
   logBus.info(
     'llm',
-    `请求开始 (non-stream) provider=${settings.provider} model=${settings.modelName}`,
+    `请求开始 (non-stream) slot=${request.slot ?? 'main'} provider=${settings.provider} model=${settings.modelName}`,
     describeRequest(request),
   )
   try {

@@ -18,9 +18,10 @@
     "selfcheck:stream": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts",
     "selfcheck:memory": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts",
     "selfcheck:tools": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-tools.ts",
-    "selfcheck": "npm run selfcheck:tts && npm run selfcheck:mcp && npm run selfcheck:stream && npm run selfcheck:memory && npm run selfcheck:tools && npm run selfcheck:wake && npm run selfcheck:security",
+    "selfcheck": "npm run selfcheck:tts && npm run selfcheck:mcp && npm run selfcheck:stream && npm run selfcheck:memory && npm run selfcheck:tools && npm run selfcheck:wake && npm run selfcheck:security && npm run selfcheck:llmslot",
     "selfcheck:wake": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-wake.ts",
-    "selfcheck:security": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-security.ts"
+    "selfcheck:security": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-security.ts",
+    "selfcheck:llmslot": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-llmslot.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",

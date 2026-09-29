@@ -122,6 +122,8 @@ export interface AppConfig {
   theme: 'light' | 'dark' | 'system'
   llm: LLMConfig
   llmPresets?: LLMPreset[]
+  // 副手模型（判断层）引用的 preset id；空/失效时回退 llm
+  llmSubPresetId?: string
   tts: TTSConfig
   asr: ASRConfig
   model: Live2DModelConfig | null
@@ -257,6 +259,8 @@ export interface ChatMessage {
 export interface LLMRequest {
   messages: ChatMessage[]
   overrides?: Partial<LLMConfig>
+  // main=表达层（台词）；sub=判断层（导演/记忆等），未配置副手时回退主模型
+  slot?: 'main' | 'sub'
   tools?: ToolDefinition[]
   toolChoice?: unknown
 }
