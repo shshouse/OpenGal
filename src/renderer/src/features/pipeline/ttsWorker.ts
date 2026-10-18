@@ -10,6 +10,15 @@ let processing = false
 let drainGen = 0
 let hasWarnedThisSession = false
 let lastWarnedMessage = ''
+let tracedTurn = 0
+let firstTtsStartLogged = false
+let firstTtsEndLogged = false
+
+function logLatency(stage: string, start: number): void {
+  useLogsStore
+    .getState()
+    .appendLocal('info', 'latency', `${stage} +${Math.round(performance.now() - start)}ms`)
+}
 
 function reportTTSError(message: string): void {
   if (hasWarnedThisSession && message === lastWarnedMessage) return
@@ -61,7 +70,20 @@ async function drainQueue(): Promise<void> {
   try {
     while (queue.length > 0) {
       const msg = queue.shift()!
+      if (msg.turnStartedAt && msg.turnStartedAt !== tracedTurn) {
+        tracedTurn = msg.turnStartedAt
+        firstTtsStartLogged = false
+        firstTtsEndLogged = false
+      }
+      if (!firstTtsStartLogged && msg.turnStartedAt) {
+        firstTtsStartLogged = true
+        logLatency('ttsStart', msg.turnStartedAt)
+      }
       const out = await synthesize(msg)
+      if (!firstTtsEndLogged && msg.turnStartedAt) {
+        firstTtsEndLogged = true
+        logLatency('ttsEnd', msg.turnStartedAt)
+      }
       if (gen !== drainGen) return // 已被 abort/新输入作废：在途结果丢弃
       pipelineBus.emit('tts:output', out)
       if (!out.audioUrl && out.text) {
@@ -93,6 +115,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
       effect: msg.effect,
       isSystem: false,
       isFinalSegment: true,
+      turnStartedAt: msg.turnStartedAt,
     }
   }
 
@@ -121,5 +144,6 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
     effect: msg.effect,
     isSystem: false,
     isFinalSegment: true,
+    turnStartedAt: msg.turnStartedAt,
   }
 }

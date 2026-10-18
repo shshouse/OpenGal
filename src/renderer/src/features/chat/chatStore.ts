@@ -31,7 +31,7 @@ interface ChatState {
   replaceError: (error: string | null) => void
   setSending: (sending: boolean) => void
   appendStreamingSegment: (segment: StreamingSegment) => void
-  finalizeStream: (rawContent?: string, toolCalls?: ToolCallRecord[]) => void
+  finalizeStream: (content?: string, toolCalls?: ToolCallRecord[]) => void
   archiveFront: (count: number) => Promise<void>
   clear: () => void
   switchSession: (characterId: string | null) => void
@@ -80,9 +80,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setSending: (isSending) => set({ isSending }),
   appendStreamingSegment: (segment) =>
     set((state) => ({ streamingSegments: [...state.streamingSegments, segment] })),
-  finalizeStream: (rawContent, toolCalls) => {
+  finalizeStream: (content, toolCalls) => {
     const { streamingSegments } = get()
-    const trimmed = (rawContent ?? '').trim()
+    const trimmed = (content ?? '').trim()
     const persistContent =
       trimmed || streamingSegments.map((s) => s.item.text).join('')
     if (persistContent) {

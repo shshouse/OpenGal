@@ -25,19 +25,20 @@ export function useChatPipeline() {
       }
       const segCount = useChatStore.getState().streamingSegments.length
       const raw = getLastRawResponse()
-      if (segCount === 0) {
+      const displayText = msg.displayText ?? ''
+      if (segCount === 0 && !displayText.trim()) {
         const t = raw.trim()
         if (!t) {
           replaceError('LLM 返回为空。可能原因：模型名错误、API Key 无效、provider 不支持。请检查 LLM 设置。')
         } else {
           const preview = t.length > 400 ? t.slice(0, 400) + ' ...(截断)' : t
           replaceError(
-            `LLM 未按 JSON 协议输出。实际返回：\n${preview}\n\n请检查模型是否支持 JSON 指令跟随。`,
+            `LLM 未输出可播放的台词。实际返回：\n${preview}\n\n请检查模型是否遵守台词格式。`,
           )
         }
       }
       finalizeStream(
-        raw,
+        displayText || undefined,
         toolCallsSnapshot.length > 0 ? toolCallsSnapshot : undefined,
       )
       setSending(false)

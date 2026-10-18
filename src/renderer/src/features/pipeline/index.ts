@@ -28,20 +28,31 @@ function startChatStreamBridge(): () => void {
   return off
 }
 
-// segments 清空时不推空串，气泡由宠物端计时自动隐藏
+// 气泡跟音频段走：文字和语音同时出现；聊天记录仍按 LLM 流即时追加
 function startPetBubbleBridge(): () => void {
+  let text = ''
   let last = ''
-  return useChatStore.subscribe((state) => {
-    const segs = state.streamingSegments
-    if (segs.length === 0) {
-      last = ''
-      return
-    }
-    const text = segs.map((s) => s.item.text).join('').trim()
-    if (!text || text === last) return
-    last = text
-    window.opengal.pet.setBubble(text)
+  const push = (): void => {
+    const t = text.trim()
+    if (!t || t === last) return
+    last = t
+    window.opengal.pet.setBubble(t)
+  }
+  const offSegment = pipelineBus.on('tts:segmentStart', (msg) => {
+    text += msg.text
+    push()
   })
+  const reset = (): void => {
+    text = ''
+    last = ''
+  }
+  const offUser = pipelineBus.on('user:input', reset)
+  const offAbort = pipelineBus.on('pipeline:abort', reset)
+  return () => {
+    offSegment()
+    offUser()
+    offAbort()
+  }
 }
 
 export function startPipeline(): PipelineHandle {

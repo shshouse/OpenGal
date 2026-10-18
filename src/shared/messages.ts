@@ -13,6 +13,7 @@ export interface LLMDialogMessage {
   motion?: string
   effect?: string
   translate?: string
+  turnStartedAt?: number
 }
 
 export interface TTSOutputMessage {
@@ -26,6 +27,7 @@ export interface TTSOutputMessage {
   isSystem?: boolean
   isFinalSegment?: boolean
   minDisplaySeconds?: number
+  turnStartedAt?: number
 }
 
 export interface ReasoningMessage {
@@ -36,4 +38,5 @@ export interface ReasoningMessage {
 export interface LLMTurnDoneMessage {
   ok: boolean
   error?: string
+  displayText?: string
 }

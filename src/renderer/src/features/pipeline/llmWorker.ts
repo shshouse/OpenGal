@@ -1,4 +1,4 @@
-import { DialogueStreamParser, buildSystemPrompt } from '@shared/roleCard'
+import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, RoleCard, ToolCall, ToolDefinition } from '@shared/types'
 import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
 import { useChatStore } from '@/features/chat/chatStore'
@@ -15,6 +15,10 @@ let unsubscribers: Array<() => void> = []
 let activeRoleCard: RoleCard | null = null
 let accumulatedReasoning = ''
 let accumulatedRaw = ''
+let displayTextThisTurn = ''
+let latencyTurnStart = 0
+let firstTokenLogged = false
+let firstDialogLogged = false
 
 export function setActiveRoleCard(card: RoleCard): void {
   activeRoleCard = card
@@ -269,20 +273,31 @@ async function compressHistory(
   return [{ role: 'system', content: `[既往对话摘要]\n${summariesText ? summariesText + '\n' : ''}${newText}` }, ...recent]
 }
 
+function logLatency(stage: string): void {
+  if (latencyTurnStart <= 0) return
+  useLogsStore
+    .getState()
+    .appendLocal('info', 'latency', `${stage} +${Math.round(performance.now() - latencyTurnStart)}ms`)
+}
+
 export function startLLMWorker(): () => void {
   if (bound) {
     return stopLLMWorker
   }
   bound = true
-
-  const parser = new DialogueStreamParser()
+  const parser = new SpeechStreamParser()
 
   let dialogCountThisTurn = 0
   let turnSeq = 0
 
   const emitDialog = (item: LLMDialogueItem): void => {
     dialogCountThisTurn++
-    pipelineBus.emit('llm:dialog', toDialogMessage(item))
+    displayTextThisTurn += item.text
+    if (!firstDialogLogged && latencyTurnStart > 0) {
+      firstDialogLogged = true
+      logLatency('firstDialog')
+    }
+    pipelineBus.emit('llm:dialog', toDialogMessage(item, latencyTurnStart))
   }
 
   const offUserInput = pipelineBus.on('user:input', (input: UserInputMessage) => {
@@ -346,6 +361,8 @@ export function startLLMWorker(): () => void {
       finalizeAndEmit(accumulatedRaw, parser, () => parser.flush().forEach(emitDialog))
       return
     }
+    // 工具调用前已生成的短句先吐出来，避免被后续非流式续传覆盖
+    parser.flush().forEach(emitDialog)
     messagesForLLM = messagesForLLM.concat([
       {
         role: 'assistant',
@@ -471,7 +488,7 @@ export function startLLMWorker(): () => void {
       const assistantContent = data.content || ''
       const toolCalls = data.toolCalls
 
-      const tmpParser = new DialogueStreamParser()
+      const tmpParser = new SpeechStreamParser()
       for (const it of tmpParser.feed(assistantContent)) emitDialog(it)
       for (const it of tmpParser.flush()) emitDialog(it)
 
@@ -516,14 +533,18 @@ export function startLLMWorker(): () => void {
     parser.reset()
     accumulatedReasoning = ''
     accumulatedRaw = ''
+    displayTextThisTurn = ''
     dialogCountThisTurn = 0
+    latencyTurnStart = performance.now()
+    firstTokenLogged = false
+    firstDialogLogged = false
     useToolCallsStore.getState().clear()
     currentStreamId = `stream_${++counter}_${Date.now()}`
   }
 
   function finalizeAndEmit(
     rawContent: string,
-    p: DialogueStreamParser,
+    p: SpeechStreamParser,
     flush: () => void,
   ): void {
     flush()
@@ -531,15 +552,22 @@ export function startLLMWorker(): () => void {
       const raw = (rawContent || accumulatedRaw).trim()
       const reasoning = accumulatedReasoning.trim()
       if (raw) {
-        useLogsStore
-          .getState()
-          .appendLocal(
-            'warn',
-            'llm-worker',
-            'LLM 未按 JSON 协议输出，已用 fallback 包装为单条 text',
-            raw.slice(0, 2000),
-          )
-        emitDialog({ text: raw })
+        const text = extractAssistantDisplayText(raw)
+        if (text) {
+          useLogsStore
+            .getState()
+            .appendLocal(
+              'warn',
+              'llm-worker',
+              'LLM 未按台词格式输出，已用 fallback 包装为单条 text',
+              raw.slice(0, 2000),
+            )
+          emitDialog({ text })
+        } else {
+          useLogsStore
+            .getState()
+            .appendLocal('warn', 'llm-worker', 'LLM 输出没有可播放的台词', raw.slice(0, 2000))
+        }
       } else if (reasoning) {
         useLogsStore
           .getState()
@@ -560,12 +588,17 @@ export function startLLMWorker(): () => void {
         .getState()
         .appendLocal('info', 'llm-worker', `本轮解析出 ${dialogCountThisTurn} 条 dialog`)
     }
+    logLatency('llmDone')
     currentStreamId = null
-    pipelineBus.emit('llm:done', { ok: true })
+    pipelineBus.emit('llm:done', { ok: true, displayText: displayTextThisTurn })
   }
 
   const offChunk = window.opengal.llm.onStreamChunk((id, chunk) => {
     if (id !== currentStreamId) return
+    if (!firstTokenLogged) {
+      firstTokenLogged = true
+      logLatency('firstToken')
+    }
     accumulatedRaw += chunk
     const items = parser.feed(chunk)
     for (const item of items) emitDialog(item)
@@ -696,12 +729,13 @@ function sanitizeHistoryForLLM(messages: ChatMessage[]): ChatMessage[] {
   })
 }
 
-function toDialogMessage(item: LLMDialogueItem): LLMDialogMessage {
+function toDialogMessage(item: LLMDialogueItem, turnStartedAt: number): LLMDialogMessage {
   const card = activeRoleCard
   const msg: LLMDialogMessage = {
     name: card?.displayName ?? card?.name ?? 'assistant',
     text: item.text,
   }
+  if (turnStartedAt > 0) msg.turnStartedAt = turnStartedAt
   if (typeof item.emotion === 'string' && item.emotion) msg.emotion = item.emotion
   if (typeof item.action === 'string' && item.action) {
     msg.motion = item.action

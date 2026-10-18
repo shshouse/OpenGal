@@ -12,6 +12,7 @@ export interface PipelineEventMap {
   'llm:reasoning': ReasoningMessage
   'llm:done': LLMTurnDoneMessage
   'tts:output': TTSOutputMessage
+  'tts:segmentStart': TTSOutputMessage
   'pipeline:abort': void
 }
 

@@ -1,6 +1,7 @@
 import type { TTSOutputMessage } from '@shared/messages'
 import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useASRStore } from '@/features/asr/asrStore'
+import { useLogsStore } from '@/features/logs/logsStore'
 import type { MessageHandler } from './handlerChain'
 import { pipelineBus } from './pipelineBus'
 
@@ -20,6 +21,9 @@ export function stopFallbackAudio(): void {
 
 export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> {
   private interrupted = false
+  private turnStartedAt = 0
+  private lastEmotion = ''
+  private firstAudioLogged = false
 
   canHandle(msg: TTSOutputMessage): boolean {
     return !msg.isSystem
@@ -27,13 +31,34 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
 
   async handle(msg: TTSOutputMessage): Promise<void> {
     this.interrupted = false
-    if (msg.emotion) applyEmotion(msg.emotion)
-    if (msg.motion) playMotionGroup(msg.motion)
+    if (msg.turnStartedAt && msg.turnStartedAt !== this.turnStartedAt) {
+      this.turnStartedAt = msg.turnStartedAt
+      this.lastEmotion = ''
+      this.firstAudioLogged = false
+    }
+    if (msg.emotion && msg.emotion !== this.lastEmotion) {
+      this.lastEmotion = msg.emotion
+      applyEmotion(msg.emotion)
+    }
+    if (msg.motion) {
+      playMotionGroup(msg.motion)
+    }
 
-    if (!msg.audioUrl) return
+    if (!msg.audioUrl) {
+      pipelineBus.emit('tts:segmentStart', msg)
+      return
+    }
 
     const wasASRRunning = useASRStore.getState().running
     if (wasASRRunning) await useASRStore.getState().stop()
+
+    if (!this.firstAudioLogged && msg.turnStartedAt) {
+      this.firstAudioLogged = true
+      useLogsStore
+        .getState()
+        .appendLocal('info', 'latency', `audioStart +${Math.round(performance.now() - msg.turnStartedAt)}ms`)
+    }
+    pipelineBus.emit('tts:segmentStart', msg)
 
     const model = getLive2DModel()
     if (model) {

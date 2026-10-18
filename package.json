@@ -16,9 +16,10 @@
     "selfcheck:tts": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-ttsport.ts",
     "selfcheck:mcp": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-mcp.ts",
     "selfcheck:stream": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-stream.ts",
+    "selfcheck:speech": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-speech-parser.ts",
     "selfcheck:memory": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-memory.ts",
     "selfcheck:tools": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-tools.ts",
-    "selfcheck": "npm run selfcheck:tts && npm run selfcheck:mcp && npm run selfcheck:stream && npm run selfcheck:memory && npm run selfcheck:tools && npm run selfcheck:wake && npm run selfcheck:security && npm run selfcheck:llmslot",
+    "selfcheck": "npm run selfcheck:tts && npm run selfcheck:mcp && npm run selfcheck:stream && npm run selfcheck:speech && npm run selfcheck:memory && npm run selfcheck:tools && npm run selfcheck:wake && npm run selfcheck:security && npm run selfcheck:llmslot",
     "selfcheck:wake": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-wake.ts",
     "selfcheck:security": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-security.ts",
     "selfcheck:llmslot": "node --experimental-strip-types src/scripts/selfcheck/selfcheck-llmslot.ts"
