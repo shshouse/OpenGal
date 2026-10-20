@@ -15,7 +15,11 @@ export function consumeVoiceInterruption(): boolean {
 
 export function startBargeInBridge(): () => void {
   const offSpeech = pipelineBus.on('user:speechStart', () => {
-    if (!useChatStore.getState().isSending && !isTTSBusy() && !isUIBusy()) return
+    // 空闲时开口不是插话：清掉旧的插话标记，本句仍然交给导演判断
+    if (!useChatStore.getState().isSending && !isTTSBusy() && !isUIBusy()) {
+      interruptedAt = 0
+      return
+    }
     pipelineBus.emit('pipeline:abort', undefined)
     cancelDirectorPending()
     interruptedAt = Date.now()

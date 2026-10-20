@@ -13,7 +13,8 @@ const defaultConfig: AppConfig = {
     apiKey: '',
     modelName: 'deepseek-chat',
     temperature: 0.86,
-    maxTokens: 4096
+    maxTokens: 4096,
+    contextWindow: 1048576
   },
   memory: {
     factBudgetChars: 4000,

@@ -54,17 +54,26 @@ export async function warmupTTS(): Promise<boolean> {
   if (provider !== 'genie') return false
   const adapter = chooseTTSAdapter(provider)
   const lang = card?.language?.split('-')[0] ?? config.referenceLanguage ?? 'zh'
+  const controller = new AbortController()
+  speechRequests.add(controller)
   try {
     await adapter.generateSpeech({
       text: WARMUP_TEXT[lang] ?? WARMUP_TEXT.zh,
       globalConfig: config,
       card,
+      signal: controller.signal,
     })
     logBus.info('tts', `Genie 预热完成，首句延迟已消除 provider=${provider}`)
     return true
   } catch (err) {
+    if (controller.signal.aborted) {
+      logBus.info('tts', 'Genie 预热已取消')
+      return false
+    }
     logBus.warn('tts', `Genie 预热失败（不影响后续使用）: ${(err as Error).message}`)
     return false
+  } finally {
+    speechRequests.delete(controller)
   }
 }
 

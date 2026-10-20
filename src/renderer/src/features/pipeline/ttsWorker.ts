@@ -29,6 +29,7 @@ function reportTTSError(message: string): void {
 
 function clearQueue(): void {
   queue = []
+  cancelSilentSleep()
   useLogsStore.getState().appendLocal('info', 'tts-worker', 'TTS 队列已清空')
 }
 
@@ -61,11 +62,12 @@ export function startTTSWorker(): () => void {
 
 export function stopTTSWorker(): void {
   drainGen++
+  queue = []
+  cancelSilentSleep()
   void window.opengal.tts.cancel().catch(() => {})
   for (const off of unsubscribers) off()
   unsubscribers = []
   bound = false
-  queue = []
 }
 
 async function drainQueue(): Promise<void> {
@@ -74,6 +76,7 @@ async function drainQueue(): Promise<void> {
   const gen = drainGen
   try {
     while (queue.length > 0) {
+      if (gen !== drainGen) return
       const msg = queue.shift()!
       if (msg.turnStartedAt && msg.turnStartedAt !== tracedTurn) {
         tracedTurn = msg.turnStartedAt
@@ -102,9 +105,27 @@ async function drainQueue(): Promise<void> {
   }
 }
 
+let silentTimer: ReturnType<typeof setTimeout> | null = null
+let silentResolve: (() => void) | null = null
+
 function sleepSilentSegment(text: string): Promise<void> {
   const estimated = Math.min(12000, Math.max(1800, text.length * 250))
-  return new Promise((resolve) => setTimeout(resolve, estimated))
+  return new Promise((resolve) => {
+    silentResolve = resolve
+    silentTimer = setTimeout(() => {
+      silentTimer = null
+      silentResolve = null
+      resolve()
+    }, estimated)
+  })
+}
+
+function cancelSilentSleep(): void {
+  if (silentTimer) clearTimeout(silentTimer)
+  silentTimer = null
+  const resolve = silentResolve
+  silentResolve = null
+  resolve?.()
 }
 
 async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {

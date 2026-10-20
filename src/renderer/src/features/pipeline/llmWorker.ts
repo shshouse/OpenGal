@@ -114,27 +114,25 @@ export function getContextUsage(): ContextUsage | null {
   const motionGroups = getAvailableMotionGroups()
   const memoryBlock = getMemorySnapshot(activeRoleCard.id) ?? undefined
   const systemContent = buildSystemPrompt(activeRoleCard, motionGroups, memoryBlock)
-  return computeContextUsage(systemContent, memoryBlock, history, resolveContextWindow())
+  return computeContextUsage(systemContent, memoryBlock, history, resolveTurnBudget())
 }
 
-let globalMaxTokens = 4096
 let globalContextWindow: number | null = null
-
-export function setGlobalMaxTokens(n: number): void {
-  globalMaxTokens = n
-}
 
 export function setGlobalContextWindow(n: number): void {
   globalContextWindow = n
 }
 
-function resolveMaxTokens(): number {
-  return activeRoleCard?.llm?.maxTokens ?? globalMaxTokens
+// 上下文窗口：模型物理窗口，用于显示上限
+function resolveContextWindow(): number {
+  return activeRoleCard?.llm?.contextWindow ?? globalContextWindow ?? 1048576
 }
 
-// 上下文窗口：压缩阈值与用量显示的口径；输出上限（max_tokens）与此无关
-function resolveContextWindow(): number {
-  return activeRoleCard?.llm?.contextWindow ?? globalContextWindow ?? resolveMaxTokens()
+// 每轮实际发送预算：与模型窗口解耦，1M 窗口不等于每轮塞 1M
+const TURN_CONTEXT_BUDGET = 131_072
+
+function resolveTurnBudget(): number {
+  return Math.min(resolveContextWindow(), TURN_CONTEXT_BUDGET)
 }
 
 const MAX_TOOL_ROUNDS = 5
@@ -272,7 +270,7 @@ async function compressHistory(
   useLogsStore.getState().appendLocal(
     'info',
     'llm-worker',
-    `存档压缩: ${toCompress.length} 条归档，新摘要段 ${estimateTokens(newText)} tokens`,
+    `存档压缩: ${toCompress.length} 条归档，新摘要段 ${estimateTokens(newText)} tokens，预算 ${contextWindow}`,
   )
 
   return [{ role: 'system', content: `[既往对话摘要]\n${summariesText ? summariesText + '\n' : ''}${newText}` }, ...recent]
@@ -337,9 +335,10 @@ export function startLLMWorker(): () => void {
     const turnStartedAt = Date.now()
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
-    const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, userText)
-    if (stale()) return
-    const toolsResp = await window.opengal.tools.list()
+    const [memoryBlock, toolsResp] = await Promise.all([
+      fetchRelevantMemory(activeRoleCard!.id, userText),
+      window.opengal.tools.list(),
+    ])
     if (stale()) return
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
     const systemContent = buildSystemPrompt(
@@ -351,7 +350,7 @@ export function startLLMWorker(): () => void {
     const compressedHistory = await compressHistory(
       activeRoleCard!.id,
       history,
-      resolveContextWindow(),
+      resolveTurnBudget(),
       estimateTokens(systemContent),
       stale,
     )

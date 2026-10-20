@@ -11,6 +11,23 @@ const MAX_BUFFER_WAIT_MS = 8000
 const SHOT_TTL_MS = 10000
 const BACKLOG_TTL_MS = 120000
 const MAX_WAIT_ROUNDS = 2
+const DIRECTOR_TIMEOUT_MS = 15_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`导演判定超时 ${ms}ms`)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      },
+    )
+  })
+}
 
 interface Utterance {
   text: string
@@ -48,7 +65,7 @@ export function cancelDirectorPending(): void {
   silenceTimer = null
   buffer = []
   backlog = []
-  clearWaitState()
+  resetWaitState()
 }
 const EVALUATE_LATCH_TTL_MS = 180_000
 let dispatch: ((input: UserInputMessage) => void) | null = null
@@ -84,13 +101,17 @@ function decisionLog(entry: DirectorDecisionLog): void {
   } catch { /* 日志失败不影响主流程 */ }
 }
 
-function clearWaitState(): void {
+function clearWaitTimer(): void {
   if (waitTimer) {
     clearTimeout(waitTimer)
     waitTimer = null
   }
-  waitRound = 0
   waitUtterances = []
+}
+
+function resetWaitState(): void {
+  clearWaitTimer()
+  waitRound = 0
 }
 
 function pruneBacklog(): void {
@@ -122,12 +143,18 @@ async function evaluate(): Promise<void> {
   if (buffer.length === 0) return
   evaluatingSince = Date.now()
   const generation = decisionGeneration
+  let utterances: Utterance[] = []
+  let dispatched = false
   try {
-    const utterances = buffer
+    // 等待中的语音并入本批，避免新的静音窗口把它们冲掉
+    utterances = [...waitUtterances, ...buffer]
     buffer = []
-    clearWaitState()
+    clearWaitTimer()
     const cfg = (await window.opengal.config.get()).data?.asr
-    if (!cfg) return
+    if (!cfg) {
+      resetWaitState()
+      return
+    }
     if (generation !== decisionGeneration) return
 
     const joined = utterances.map((u) => u.text).join(' ')
@@ -145,22 +172,29 @@ async function evaluate(): Promise<void> {
     if (cooldownSec > 0 && Date.now() - lastReplyAt < cooldownSec * 1000) {
       log('info', `冷却中，忽略语音: ${joined.slice(0, 40)}`)
       decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'cooldown', engine: cfg.engine })
+      resetWaitState()
       return
     }
     if (compact.length < MIN_CHARS) {
       decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'short', engine: cfg.engine })
+      resetWaitState()
       return
     }
     if (useChatStore.getState().isSending) {
       log('info', '角色正在回复，不打断')
       decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'busy', engine: cfg.engine })
+      resetWaitState()
       return
     }
 
     pruneBacklog()
     const startedAt = Date.now()
     if (generation !== decisionGeneration) return
-    const { decision, screenIncluded } = await askDirector(utterances, backlog, cfg.directorScreenContext, () => generation === decisionGeneration)
+    // IPC 不支持下取消；超时只释放判定闩锁，迟到的结果由 generation 校验丢弃
+    const { decision, screenIncluded } = await withTimeout(
+      askDirector(utterances, backlog, cfg.directorScreenContext, () => generation === decisionGeneration),
+      DIRECTOR_TIMEOUT_MS,
+    )
     const llmLatencyMs = Date.now() - startedAt
     if (generation !== decisionGeneration) return
     if (decision.action === 'respond') {
@@ -168,6 +202,8 @@ async function evaluate(): Promise<void> {
       const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
       backlog = []
       dispatch?.({ text: fullText, source: 'voice' })
+      dispatched = true
+      resetWaitState()
       log('info', `导演放行: ${decision.reason}`)
       decisionLog({
         utterances, joined: fullText, decision: 'respond', reason: decision.reason,
@@ -179,8 +215,9 @@ async function evaluate(): Promise<void> {
         waitRound++
         waitUtterances = utterances
         waitTimer = setTimeout(() => {
+          waitTimer = null
           buffer = [...waitUtterances, ...buffer]
-          clearWaitState()
+          waitUtterances = []
           void evaluate()
         }, waitSec * 1000)
         log('info', `导演等待 ${waitSec}s (第${waitRound}轮): ${decision.reason}`)
@@ -190,6 +227,7 @@ async function evaluate(): Promise<void> {
         })
       } else {
         backlog = [...backlog, ...utterances]
+        resetWaitState()
         log('info', `等待轮次耗尽，转入回溯池: ${decision.reason}`)
         decisionLog({
           utterances, joined, decision: 'silence', reason: `等待耗尽: ${decision.reason}`,
@@ -198,6 +236,7 @@ async function evaluate(): Promise<void> {
       }
     } else {
       backlog = [...backlog, ...utterances]
+      resetWaitState()
       log('info', `导演沉默: ${decision.reason}`)
       decisionLog({
         utterances, joined, decision: 'silence', reason: decision.reason,
@@ -205,6 +244,10 @@ async function evaluate(): Promise<void> {
       })
     }
   } catch (err) {
+    if (!dispatched && utterances.length > 0 && generation === decisionGeneration) {
+      backlog = [...backlog, ...utterances]
+      resetWaitState()
+    }
     log('warn', `导演判定失败，保持沉默: ${(err as Error).message}`)
   } finally {
     if (generation === decisionGeneration) evaluatingSince = 0
@@ -266,13 +309,13 @@ async function askDirector(
   ].join('\n')
 
   const userParts: MessageContentPart[] = [{ type: 'text', text: report }]
-  // 副手为独立 preset 且非多模态时不附截屏，避免纯文本模型必败再降级
+  // 按实际生效的槽位判断多模态（副手未配置时会回退到主模型）
   let allowScreen = screenContext
   if (allowScreen) {
     const cfgAll = (await window.opengal.config.get()).data
     if (cfgAll) {
       const sub = resolveSlotConfig(cfgAll.llm, cfgAll.llmPresets, cfgAll.llmSubPresetId, 'sub')
-      if (!sub.isFallback && sub.config.multimodal !== true) allowScreen = false
+      if (sub.config.multimodal !== true) allowScreen = false
     }
   }
   let screenIncluded = false
@@ -291,8 +334,21 @@ async function askDirector(
   ]
   if (!current()) throw new Error('导演设置已变化，放弃旧判定')
   const res = await window.opengal.llm.chat({ messages, slot: 'sub' })
-  if (!res.success || !res.data?.content) throw new Error(res.error || 'empty director response')
-  return { decision: parseDecision(res.data.content), screenIncluded }
+  const content = res.success ? (res.data?.content ?? '').trim() : ''
+  if (content) {
+    try {
+      return { decision: parseDecision(content), screenIncluded }
+    } catch {
+      log('warn', '导演输出无法解析，改用主模型重试一次')
+    }
+  } else if (!res.success) {
+    // llmClient 已在请求失败时回退过主模型，不再重复
+    throw new Error(res.error || 'empty director response')
+  }
+  if (!current()) throw new Error('导演设置已变化，放弃旧判定')
+  const retry = await window.opengal.llm.chat({ messages, slot: 'main' })
+  if (!retry.success || !retry.data?.content) throw new Error(retry.error || 'empty director response')
+  return { decision: parseDecision(retry.data.content), screenIncluded }
 }
 
 function parseDecision(raw: string): DirectorDecision {

@@ -4,6 +4,7 @@ import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
 import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
+import { logBus } from '../logBus'
 import type { TTSAdapter, TTSGenerateRequest, TTSGenerateResponse } from './types'
 
 interface ResolvedGenieSettings {
@@ -86,7 +87,7 @@ export class GenieAdapter implements TTSAdapter {
     if (!text) throw new Error('Empty TTS input')
 
     const settings = this.resolveSettings(req)
-    await this.ensureCharacterLoaded(settings)
+    await this.ensureCharacterLoaded(settings, req.signal)
     req.signal?.throwIfAborted()
 
     const body = {
@@ -97,12 +98,20 @@ export class GenieAdapter implements TTSAdapter {
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 120_000)
+    let stopRequested = false
     const stopServer = (): void => {
+      if (stopRequested) return
+      stopRequested = true
       this.stopping = fetch(`${settings.baseURL}/stop`, {
         method: 'POST', signal: AbortSignal.timeout(2000),
-      }).catch(() => {})
+      }).then((res) => {
+        if (!res.ok) logBus.warn('tts', `Genie /stop 返回 HTTP ${res.status} baseURL=${settings.baseURL}`)
+      }).catch((err: Error) => {
+        logBus.warn('tts', `Genie /stop 失败: ${err.message} baseURL=${settings.baseURL}`)
+      })
     }
     req.signal?.addEventListener('abort', stopServer, { once: true })
+    controller.signal.addEventListener('abort', stopServer, { once: true })
     try {
       const res = await fetchReadable(
         `${settings.baseURL}/tts`,
@@ -125,6 +134,7 @@ export class GenieAdapter implements TTSAdapter {
       }
     } finally {
       req.signal?.removeEventListener('abort', stopServer)
+      controller.signal.removeEventListener('abort', stopServer)
       clearTimeout(timer)
     }
   }
@@ -199,13 +209,17 @@ export class GenieAdapter implements TTSAdapter {
     return { baseURL, characterName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage }
   }
 
-  private async ensureCharacterLoaded(settings: ResolvedGenieSettings): Promise<void> {
+  private async ensureCharacterLoaded(settings: ResolvedGenieSettings, signal?: AbortSignal): Promise<void> {
     let loaded = this.loadedCharacters.get(settings.baseURL)
     if (!loaded) {
       loaded = new Set()
       this.loadedCharacters.set(settings.baseURL, loaded)
     }
     if (loaded.has(settings.characterName)) return
+
+    const setupSignal = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+      : AbortSignal.timeout(30_000)
 
     const loadBody = {
       character_name: settings.characterName,
@@ -214,7 +228,7 @@ export class GenieAdapter implements TTSAdapter {
     }
     const loadRes = await fetchReadable(
       `${settings.baseURL}/load_character`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loadBody) },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loadBody), signal: setupSignal },
       settings.baseURL,
     )
     if (!loadRes.ok) {
@@ -229,7 +243,7 @@ export class GenieAdapter implements TTSAdapter {
     }
     const refRes = await fetchReadable(
       `${settings.baseURL}/set_reference_audio`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(refBody) },
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(refBody), signal: setupSignal },
       settings.baseURL,
     )
     if (!refRes.ok) {

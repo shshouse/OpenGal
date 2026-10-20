@@ -98,10 +98,35 @@ assert.equal(FakeAudio.instances.at(-1).paused, true)
 assert.equal(isUIBusy(), false)
 assert.equal(consumeVoiceInterruption(), false)
 assert.ok(directorCancels > 0)
+
+// 插话标记必须在空闲开口时被清掉
+sending = true
+pipelineBus.emit('user:speechStart', undefined)
+assert.equal(consumeVoiceInterruption(), true, 'speech during sending is a barge-in')
+pipelineBus.emit('user:speechStart', undefined)
 sending = false
 const cancelCount = cancels
 pipelineBus.emit('user:speechStart', undefined)
 assert.equal(cancels, cancelCount, 'idle speech does not cancel a nonexistent reply')
+assert.equal(consumeVoiceInterruption(), false, 'idle speech clears the stale interruption flag')
+
+// abort 发生在静音段等待期间时，不得吞掉新一代队列
+const playedBefore = FakeAudio.instances.length
+pipelineBus.emit('llm:dialog', { name: 'role', text: '无声段' })
+await flush()
+pending[pending.length - 1].resolve({ success: true, data: { skipped: true, audioBase64: '', mimeType: '' } })
+await flush()
+await flush()
+const abortAt = Date.now()
+pipelineBus.emit('pipeline:abort', undefined)
+pipelineBus.emit('llm:dialog', { name: 'role', text: '插话后的新段' })
+await flush()
+pending[pending.length - 1].resolve({ success: true, data: { audioBase64: 'after-abort', mimeType: 'audio/wav' } })
+await flush()
+await flush()
+assert.equal(FakeAudio.instances.length, playedBefore + 1, 'segment queued during silent sleep is not swallowed')
+assert.ok(Date.now() - abortAt < 1000, 'abort releases the silent sleep immediately')
+
 stopBridge()
 stopTTSWorker()
 stopUIWorker()
@@ -115,7 +140,7 @@ globalThis.__voiceTest.adapter = {
   },
 }
 const backend = await build({
-  stdin: { contents: `export { speak, cancelSpeech } from './main/services/ttsClient';`, resolveDir: root, loader: 'ts' },
+  stdin: { contents: `export { speak, cancelSpeech, warmupTTS } from './main/services/ttsClient';`, resolveDir: root, loader: 'ts' },
   bundle: true, write: false, platform: 'node', format: 'cjs',
   plugins: [{ name: 'tts-boundaries', setup(builder) {
     builder.onResolve({ filter: /\/(configStore|roleCardLoader|ttsServer|logBus|tts\/factory)$/ }, (args) => ({ path: args.path, namespace: 'backend-mock' }))
@@ -136,4 +161,13 @@ assert.equal(backendSignal.aborted, true, 'main-process cancellation reaches the
 assert.equal((await request).skipped, true, 'cancelled inference is a skipped segment, not a playback error')
 globalThis.__voiceTest.adapter.generateSpeech = async () => ({ audioBase64: 'new', mimeType: 'audio/wav' })
 assert.equal((await backendModule.exports.speak({ text: 'new speech' })).audioBase64, 'new', 'next inference still succeeds')
+
+globalThis.__voiceTest.adapter.generateSpeech = ({ signal }) => {
+  backendSignal = signal
+  return new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }))
+}
+const warmup = backendModule.exports.warmupTTS()
+backendModule.exports.cancelSpeech()
+assert.equal(backendSignal.aborted, true, 'cancellation reaches warmup')
+assert.equal(await warmup, false, 'aborted warmup resolves false')
 console.log('barge-in selfcheck passed')
