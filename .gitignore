@@ -12,4 +12,3 @@ resources
 __pycache__/
 *.pyc
 *.spec
-.dev-userdata
