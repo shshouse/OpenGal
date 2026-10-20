@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { roleSpeechLanguage } from '@shared/subtitles'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
@@ -177,6 +178,12 @@ export class GenieAdapter implements TTSAdapter {
 
     const langRaw = String(merged.referenceLanguage || 'zh')
     const referenceLanguage = GENIE_LANG_MAP[langRaw] ?? 'zh'
+    if (card?.language) {
+      const spoken = roleSpeechLanguage(card.language)
+      if ((spoken === 'yue' ? 'zh' : spoken) !== referenceLanguage) {
+        throw new Error(`角色说话语言 ${card.language} 与 Genie 参考音频语言 ${langRaw} 不一致，请为角色配置匹配的语音模型和参考音频`)
+      }
+    }
 
     return { baseURL, characterName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage }
   }

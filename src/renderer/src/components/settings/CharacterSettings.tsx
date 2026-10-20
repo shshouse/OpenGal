@@ -71,6 +71,7 @@ export function CharacterSettings() {
                 <span className="rounded-full border px-1.5 py-px">
                   TTS: {card.voice?.engine ?? '—'}
                 </span>
+                <span className="rounded-full border px-1.5 py-px">说话语言: {card.language || '未指定'}</span>
                 {card.llm?.provider && (
                   <span className="rounded-full border px-1.5 py-px">
                     LLM: {card.llm.provider}

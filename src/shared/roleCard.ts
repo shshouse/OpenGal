@@ -46,6 +46,7 @@ export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], m
   lines.push(`你正在扮演角色：${card.displayName ?? card.name}。`)
   lines.push(`角色设定：${persona.description}`)
   lines.push(`性格：${persona.personality}`)
+  if (card.language) lines.push(`角色的台词必须使用 ${card.language} 语言，不随用户输入语言改变；只输出角色原文，不附翻译。下面的示例仅演示标签格式，示例语言不能覆盖此规则。`)
   if (persona.scenario) lines.push(`场景：${persona.scenario}`)
   if (persona.rules) lines.push(`规则：${persona.rules}`)
   lines.push(`用户身份：${userIdentity}；用户对你的称呼：${userTerm}。`)

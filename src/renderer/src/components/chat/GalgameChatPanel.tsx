@@ -12,6 +12,7 @@ import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directo
 import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useStartupStore } from '@/features/startup/startupStore'
+import { displaySubtitle, useSubtitleStore } from '@/features/pipeline/subtitles'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
@@ -37,6 +38,9 @@ export function GalgameChatPanel() {
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
   const bootAwake = useStartupStore((s) => s.phase === 'awake')
+  useSubtitleStore((s) => s.records)
+  useSubtitleStore((s) => s.preferences)
+  const subtitle = (text: string): string => displaySubtitle(character?.id ?? '', text)
 
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
 
@@ -135,7 +139,7 @@ export function GalgameChatPanel() {
                       </div>
                     )}
                   {message.role === 'assistant'
-                    ? extractAssistantDisplayText(message.content as string)
+                    ? subtitle(extractAssistantDisplayText(message.content as string))
                     : (message as PersistedUserMessage).userText}
                 </div>
               </div>
@@ -144,7 +148,7 @@ export function GalgameChatPanel() {
               <div className="flex flex-col items-start gap-0.5">
                 <span className="text-[10px] text-muted-foreground">{displayName}</span>
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-secondary px-3 py-1.5 text-sm text-secondary-foreground">
-                  {streamingDisplay}
+                  {subtitle(streamingDisplay)}
                 </div>
               </div>
             )}
@@ -179,7 +183,7 @@ export function GalgameChatPanel() {
             'block min-h-[2.5rem] whitespace-pre-wrap text-sm leading-relaxed',
             !displayText && !isSending && 'text-muted-foreground'
           )}>
-            {displayText || (isSending ? '……' : '')}
+            {subtitle(displayText) || (isSending ? '……' : '')}
           </span>
         </button>
 

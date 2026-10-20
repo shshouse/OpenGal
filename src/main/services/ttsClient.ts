@@ -53,7 +53,7 @@ export async function warmupTTS(): Promise<boolean> {
   const provider = config.provider
   if (provider !== 'genie') return false
   const adapter = chooseTTSAdapter(provider)
-  const lang = config.referenceLanguage ?? 'zh'
+  const lang = card?.language?.split('-')[0] ?? config.referenceLanguage ?? 'zh'
   try {
     await adapter.generateSpeech({
       text: WARMUP_TEXT[lang] ?? WARMUP_TEXT.zh,

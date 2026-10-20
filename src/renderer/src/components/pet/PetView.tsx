@@ -85,7 +85,7 @@ export default function PetView() {
     >
       {bubble && (
         <div className="pointer-events-none absolute inset-x-3 top-3 z-10">
-          <div className="line-clamp-4 break-words rounded-2xl bg-black/55 px-3 py-2 text-xs leading-relaxed text-white backdrop-blur-sm">
+          <div className="line-clamp-6 whitespace-pre-wrap break-words rounded-2xl bg-black/55 px-3 py-2 text-xs leading-relaxed text-white backdrop-blur-sm">
             {bubble}
           </div>
         </div>

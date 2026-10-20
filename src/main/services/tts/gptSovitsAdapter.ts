@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { roleSpeechLanguage } from '@shared/subtitles'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
@@ -187,7 +188,7 @@ export class GptSovitsAdapter implements TTSAdapter {
       refAudioAbs: refAbs,
       referenceText,
       referenceLanguage: String(merged.referenceLanguage || 'zh'),
-      outputLanguage: String(merged.outputLanguage || 'auto'),
+      outputLanguage: card?.language ? roleSpeechLanguage(card.language) : String(merged.outputLanguage || 'auto'),
       speedFactor: typeof merged.speedFactor === 'number' ? (merged.speedFactor as number) : 1,
       textSplitMethod: String(merged.textSplitMethod || 'cut5'),
     }

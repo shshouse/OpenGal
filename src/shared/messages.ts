@@ -6,6 +6,9 @@ export interface UserInputMessage {
 }
 
 export interface LLMDialogMessage {
+  segmentId?: string
+  characterId?: string
+  language?: string
   name: string
   text: string
   assetId?: string | number
@@ -17,6 +20,8 @@ export interface LLMDialogMessage {
 }
 
 export interface TTSOutputMessage {
+  segmentId?: string
+  characterId?: string
   audioUrl: string
   name: string
   text: string

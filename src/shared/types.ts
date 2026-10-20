@@ -118,6 +118,8 @@ export interface MarketListResult {
 }
 
 export interface AppConfig {
+  subtitles?: { mode: 'off' | 'translated' | 'bilingual'; targetLanguage: string }
+  systemLocale?: string
   uiLanguage: 'zh' | 'en' | 'ja'
   theme: 'light' | 'dark' | 'system'
   llm: LLMConfig

@@ -1,5 +1,5 @@
 import Store from 'electron-store'
-import { safeStorage } from 'electron'
+import { app, safeStorage } from 'electron'
 import type { AppConfig } from '@shared/types'
 import { toModUrl, getDataRoot } from './paths'
 import { logBus } from './logBus'
@@ -168,6 +168,7 @@ export function readConfig(): AppConfig {
     startup: { ...defaultConfig.startup, ...(raw.startup ?? {}) }
   }
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
+  merged.systemLocale = app.getPreferredSystemLanguages()[0] || app.getLocale()
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
   merged.llmPresets = merged.llmPresets?.map((p) => ({ ...p, apiKey: decryptApiKey(p.apiKey) }))
   if (merged.model && !merged.model.modelUrl && merged.model.modelPath) {

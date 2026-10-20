@@ -24,7 +24,7 @@ function normalizeEntry(folderName: string, rootPath: string, raw: unknown): Rol
     name: card.name,
     displayName: card.displayName,
     color: card.color,
-    language: card.language,
+    language: typeof card.language === 'string' ? card.language.trim().slice(0, 64) : undefined,
     windowMode: card.windowMode ?? 'pet',
     performance: card.performance,
     voice: card.voice,

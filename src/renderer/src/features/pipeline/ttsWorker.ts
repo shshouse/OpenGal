@@ -103,9 +103,11 @@ function sleepSilentSegment(text: string): Promise<void> {
 }
 
 async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
-  const speech = (msg.translate || msg.text || '').trim()
+  const speech = (msg.text || '').trim()
   if (!speech) {
     return {
+      segmentId: msg.segmentId,
+      characterId: msg.characterId,
       audioUrl: '',
       name: msg.name,
       text: msg.text || '',
@@ -121,7 +123,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
 
   let audioUrl = ''
   try {
-    const result = await window.opengal.tts.speak({ text: speech })
+    const result = await window.opengal.tts.speak({ text: speech, roleCardId: msg.characterId })
     if (result.success && result.data) {
       if (!result.data.skipped) {
         audioUrl = `data:${result.data.mimeType};base64,${result.data.audioBase64}`
@@ -135,6 +137,8 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
   }
 
   return {
+    segmentId: msg.segmentId,
+    characterId: msg.characterId,
     audioUrl,
     name: msg.name,
     text: msg.text,

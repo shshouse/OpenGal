@@ -10,6 +10,7 @@ import { LogsView } from './LogsView'
 import { PluginSettings } from './PluginSettings'
 import { MemorySettings } from './MemorySettings'
 import { EnvironmentSettings } from './EnvironmentSettings'
+import { SubtitleSettings } from './SubtitleSettings'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 
 interface SettingsCenterProps {
@@ -62,6 +63,7 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
           </TabsContent>
           <TabsContent value="display" className="mt-0">
             <CharacterDisplaySettings config={config} model={model} onSave={onSave} />
+            <SubtitleSettings config={config} onSave={onSave} />
           </TabsContent>
           <TabsContent value="llm" className="mt-0">
             <SettingsDialog config={config} onSave={onSave} />

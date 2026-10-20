@@ -21,6 +21,7 @@ let firstTokenLogged = false
 let firstDialogLogged = false
 
 export function setActiveRoleCard(card: RoleCard): void {
+  if (activeRoleCard && activeRoleCard.id !== card.id) pipelineBus.emit('pipeline:abort', undefined)
   activeRoleCard = card
 }
 
@@ -297,7 +298,12 @@ export function startLLMWorker(): () => void {
       firstDialogLogged = true
       logLatency('firstDialog')
     }
-    pipelineBus.emit('llm:dialog', toDialogMessage(item, latencyTurnStart))
+    pipelineBus.emit('llm:dialog', {
+      ...toDialogMessage(item, latencyTurnStart),
+      segmentId: crypto.randomUUID(),
+      characterId: activeRoleCard?.id,
+      language: activeRoleCard?.language,
+    })
   }
 
   const offUserInput = pipelineBus.on('user:input', (input: UserInputMessage) => {

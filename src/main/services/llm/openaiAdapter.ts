@@ -30,7 +30,7 @@ function buildChatBody(
     messages,
     temperature: config.temperature ?? 0.86,
     max_tokens: Math.min(config.maxTokens ?? 8192, 32768),
-    response_format: tools?.length ? undefined : { type: 'json_object' },
+    response_format: stream || tools?.length ? undefined : { type: 'json_object' },
   }
   if (stream) body.stream = true
   if (config.thinking === false) {
