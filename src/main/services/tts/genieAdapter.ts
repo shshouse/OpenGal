@@ -45,6 +45,7 @@ export class GenieAdapter implements TTSAdapter {
   readonly provider = 'genie'
 
   private loadedCharacters = new Map<string, Set<string>>()
+  private stopping: Promise<unknown> = Promise.resolve()
 
   reset(): void {
     this.loadedCharacters.clear()
@@ -79,11 +80,14 @@ export class GenieAdapter implements TTSAdapter {
   }
 
   async generateSpeech(req: TTSGenerateRequest): Promise<TTSGenerateResponse> {
+    await this.stopping
+    req.signal?.throwIfAborted()
     const text = req.text.trim()
     if (!text) throw new Error('Empty TTS input')
 
     const settings = this.resolveSettings(req)
     await this.ensureCharacterLoaded(settings)
+    req.signal?.throwIfAborted()
 
     const body = {
       character_name: settings.characterName,
@@ -93,6 +97,12 @@ export class GenieAdapter implements TTSAdapter {
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 120_000)
+    const stopServer = (): void => {
+      this.stopping = fetch(`${settings.baseURL}/stop`, {
+        method: 'POST', signal: AbortSignal.timeout(2000),
+      }).catch(() => {})
+    }
+    req.signal?.addEventListener('abort', stopServer, { once: true })
     try {
       const res = await fetchReadable(
         `${settings.baseURL}/tts`,
@@ -100,7 +110,7 @@ export class GenieAdapter implements TTSAdapter {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-          signal: controller.signal,
+          signal: req.signal ? AbortSignal.any([controller.signal, req.signal]) : controller.signal,
         },
         settings.baseURL,
       )
@@ -114,6 +124,7 @@ export class GenieAdapter implements TTSAdapter {
         mimeType: 'audio/wav',
       }
     } finally {
+      req.signal?.removeEventListener('abort', stopServer)
       clearTimeout(timer)
     }
   }

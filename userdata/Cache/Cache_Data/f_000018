@@ -1,0 +1,590 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/settings/ASRSettings.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=547055eb"; const Fragment = __vite__cjsImport0_react_jsxDevRuntime["Fragment"]; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/react.js?v=547055eb"; const React = ((m) => m?.__esModule ? m : { ...typeof m === "object" && !Array.isArray(m) || typeof m === "function" ? m : {}, default: m })(__vite__cjsImport3_react);
+import { Mic, RefreshCw } from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/lucide-react.js?v=547055eb";
+import { Button } from "/src/components/ui/button.tsx";
+import { Input } from "/src/components/ui/input.tsx";
+import { Checkbox, CheckboxIndicator } from "/src/components/ui/checkbox.tsx";
+import { Textarea } from "/src/components/ui/textarea.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "/src/components/ui/select.tsx";
+import { listAudioInputs } from "/src/features/asr/micCapture.ts";
+import { detectSherpaKind, normalizeAsrEngine } from "/@fs/D:/Project2025/MikuMod/OpenGal/src/shared/asrKinds.ts";
+const LANG_OPTIONS = [
+  { value: "auto", label: "自动检测" },
+  { value: "zh", label: "中文" },
+  { value: "en", label: "English" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+  { value: "yue", label: "粤语" }
+];
+const ENGINE_OPTIONS = [
+  { value: "sherpa", label: "sherpa-onnx（本地离线）" }
+];
+export function ASRSettings({ config, onSave }) {
+  _s();
+  const [form, setForm] = React.useState({
+    enabled: false,
+    engine: "sherpa",
+    modelPath: "",
+    language: "zh",
+    sampleRate: 16e3,
+    autoSend: true,
+    deviceId: "",
+    hotwords: [],
+    vadSilenceMs: 600,
+    directorEnabled: false,
+    directorScreenContext: false,
+    directorCooldownSec: 20
+  });
+  const [saving, setSaving] = React.useState(false);
+  const [status, setStatus] = React.useState(null);
+  const [devices, setDevices] = React.useState([]);
+  const engineDirty = form.engine !== normalizeAsrEngine(config?.asr?.engine);
+  React.useEffect(() => {
+    if (config?.asr) {
+      const a = config.asr;
+      setForm({
+        ...a,
+        engine: normalizeAsrEngine(a.engine),
+        deviceId: a.deviceId ?? "",
+        hotwords: a.hotwords ?? [],
+        vadSilenceMs: a.vadSilenceMs ?? 600,
+        directorEnabled: a.directorEnabled ?? false,
+        directorScreenContext: a.directorScreenContext ?? false,
+        directorCooldownSec: a.directorCooldownSec ?? 20
+      });
+    }
+  }, [config]);
+  const refreshDevices = React.useCallback(async () => {
+    try {
+      setDevices(await listAudioInputs());
+    } catch {
+      setDevices([]);
+    }
+  }, []);
+  React.useEffect(() => {
+    void refreshDevices();
+  }, [refreshDevices]);
+  function patch(partial) {
+    setForm((prev) => ({ ...prev, ...partial }));
+  }
+  async function handleSave() {
+    setSaving(true);
+    setStatus(null);
+    try {
+      await onSave({ asr: form });
+      setStatus("已保存");
+    } catch (err) {
+      setStatus(`保存失败: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-3", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 text-sm font-semibold", children: [
+      /* @__PURE__ */ jsxDEV(Mic, { className: "size-4" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 123,
+        columnNumber: 9
+      }, this),
+      " 语音识别"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 122,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("p", { className: "text-xs text-muted-foreground", children: form.engine === "sherpa" ? "sherpa-onnx 离线识别，支持 Qwen3-ASR、SenseVoice、FunASR-Nano 等模型（自带 ASRWorker2 或系统 Python + sherpa-onnx）" : "自带 ASRWorker 离线识别引擎，无需安装 Python" }, void 0, false, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 125,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "麦克风" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 133,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            size: "sm",
+            variant: "ghost",
+            className: "h-5 px-2 text-[11px]",
+            onClick: () => void refreshDevices(),
+            children: [
+              /* @__PURE__ */ jsxDEV(RefreshCw, { className: "mr-1 size-3" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+                lineNumber: 140,
+                columnNumber: 13
+              }, this),
+              " 刷新"
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 134,
+            columnNumber: 11
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 132,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(Select, { value: form.deviceId || "default", onValueChange: (v) => patch({ deviceId: v === "default" ? "" : v }), children: [
+        /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, { placeholder: "选择麦克风" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 145,
+          columnNumber: 13
+        }, this) }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 144,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(SelectContent, { children: [
+          /* @__PURE__ */ jsxDEV(SelectItem, { value: "default", children: "系统默认" }, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 148,
+            columnNumber: 13
+          }, this),
+          devices.map(
+            (d) => /* @__PURE__ */ jsxDEV(SelectItem, { value: d.deviceId, children: d.label || `麦克风 (${d.deviceId.slice(0, 8)})` }, d.deviceId, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+              lineNumber: 150,
+              columnNumber: 13
+            }, this)
+          )
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 147,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 143,
+        columnNumber: 9
+      }, this),
+      devices.length === 0 && /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-muted-foreground", children: "未检测到输入设备" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 157,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 131,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "识别引擎" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 162,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(Select, { value: form.engine, onValueChange: (v) => patch({ engine: v }), children: [
+        /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, {}, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 165,
+          columnNumber: 13
+        }, this) }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 164,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(SelectContent, { children: ENGINE_OPTIONS.map(
+          (o) => /* @__PURE__ */ jsxDEV(SelectItem, { value: o.value, children: o.label }, o.value, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 169,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 167,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 163,
+        columnNumber: 9
+      }, this),
+      engineDirty && /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-amber-600 dark:text-amber-400", children: "切换引擎后需重启语音识别生效" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 174,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 161,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "模型目录路径" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 179,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        Input,
+        {
+          value: form.modelPath,
+          onChange: (e) => patch({ modelPath: e.target.value }),
+          placeholder: "STT/models/（sherpa-onnx 发布的模型目录名）"
+        },
+        void 0,
+        false,
+        {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 180,
+          columnNumber: 9
+        },
+        this
+      ),
+      /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-muted-foreground", children: "从 ModelScope/HuggingFace 下载对应引擎的模型并解压" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 185,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 178,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "识别语言" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 191,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(Select, { value: form.language, onValueChange: (v) => patch({ language: v }), children: [
+        /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, {}, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 194,
+          columnNumber: 13
+        }, this) }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 193,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(SelectContent, { children: LANG_OPTIONS.map(
+          (o) => /* @__PURE__ */ jsxDEV(SelectItem, { value: o.value, children: o.label }, o.value, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 198,
+            columnNumber: 13
+          }, this)
+        ) }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 196,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 192,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 190,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "采样率" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 205,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        Input,
+        {
+          type: "number",
+          value: form.sampleRate,
+          onChange: (e) => patch({ sampleRate: Number(e.target.value) || 16e3 })
+        },
+        void 0,
+        false,
+        {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 206,
+          columnNumber: 9
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 204,
+      columnNumber: 7
+    }, this),
+    form.engine === "sherpa" && /* @__PURE__ */ jsxDEV(Fragment, { children: [
+      (detectSherpaKind(form.modelPath)?.supportsHotwords ?? true) && /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "热词" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 217,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Textarea,
+          {
+            rows: 3,
+            value: form.hotwords.join("\n"),
+            onChange: (e) => patch({ hotwords: e.target.value.split("\n").map((w) => w.trim()).filter(Boolean) }),
+            placeholder: "角色名、游戏术语等，每行一个"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 218,
+            columnNumber: 15
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-muted-foreground", children: "热词不宜超过 20 个，仅 Qwen3-ASR 系模型支持" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 226,
+          columnNumber: 15
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 216,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "space-y-1", children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "VAD 判停时长（毫秒）" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 230,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Input,
+          {
+            type: "number",
+            value: form.vadSilenceMs,
+            onChange: (e) => patch({ vadSilenceMs: Number(e.target.value) || 600 })
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 231,
+            columnNumber: 13
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-muted-foreground", children: "静音持续该时长后判定一句话结束，越小出字越快但易截断" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 236,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 229,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 214,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("label", { className: "flex items-center gap-2 text-xs", children: [
+      /* @__PURE__ */ jsxDEV("span", { className: "relative inline-flex", children: [
+        /* @__PURE__ */ jsxDEV(Checkbox, { checked: form.autoSend, onChange: (e) => patch({ autoSend: e.target.checked }) }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 243,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV(CheckboxIndicator, {}, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 244,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 242,
+        columnNumber: 9
+      }, this),
+      "识别完成后自动发送"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 241,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "space-y-2 rounded-lg border p-2", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "flex items-center gap-2 text-xs font-medium", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "relative inline-flex", children: [
+          /* @__PURE__ */ jsxDEV(
+            Checkbox,
+            {
+              checked: form.directorEnabled,
+              onChange: (e) => patch({ directorEnabled: e.target.checked })
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+              lineNumber: 252,
+              columnNumber: 13
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV(CheckboxIndicator, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 256,
+            columnNumber: 13
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 251,
+          columnNumber: 11
+        }, this),
+        "导演模式"
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 250,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("p", { className: "pl-6 text-[11px] text-muted-foreground", children: "开启后语音不再直接发送，而是由导演综合语音内容、对话历史、屏幕画面判断该不该开口" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 260,
+        columnNumber: 9
+      }, this),
+      form.directorEnabled && /* @__PURE__ */ jsxDEV(Fragment, { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "flex items-center gap-2 pl-6 text-xs", children: [
+          /* @__PURE__ */ jsxDEV("span", { className: "relative inline-flex", children: [
+            /* @__PURE__ */ jsxDEV(
+              Checkbox,
+              {
+                checked: form.directorScreenContext,
+                onChange: (e) => patch({ directorScreenContext: e.target.checked })
+              },
+              void 0,
+              false,
+              {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+                lineNumber: 267,
+                columnNumber: 17
+              },
+              this
+            ),
+            /* @__PURE__ */ jsxDEV(CheckboxIndicator, {}, void 0, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+              lineNumber: 271,
+              columnNumber: 17
+            }, this)
+          ] }, void 0, true, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 266,
+            columnNumber: 15
+          }, this),
+          "导演可查看屏幕画面（截图会发送给 LLM）"
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 265,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV("div", { className: "pl-6", children: [
+          /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "回应冷却（秒）" }, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 276,
+            columnNumber: 15
+          }, this),
+          /* @__PURE__ */ jsxDEV(
+            Input,
+            {
+              type: "number",
+              value: form.directorCooldownSec,
+              onChange: (e) => patch({ directorCooldownSec: Number(e.target.value) || 0 })
+            },
+            void 0,
+            false,
+            {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+              lineNumber: 277,
+              columnNumber: 15
+            },
+            this
+          ),
+          /* @__PURE__ */ jsxDEV("p", { className: "text-[11px] text-muted-foreground", children: "两次语音回应之间的最小间隔" }, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+            lineNumber: 282,
+            columnNumber: 15
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+          lineNumber: 275,
+          columnNumber: 13
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 264,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 249,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 pt-2", children: [
+      /* @__PURE__ */ jsxDEV(Button, { onClick: handleSave, disabled: saving, size: "sm", children: saving ? "保存中..." : "保存" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 289,
+        columnNumber: 9
+      }, this),
+      status && /* @__PURE__ */ jsxDEV("span", { className: "text-xs text-muted-foreground", children: status }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+        lineNumber: 292,
+        columnNumber: 20
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+      lineNumber: 288,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx",
+    lineNumber: 121,
+    columnNumber: 5
+  }, this);
+}
+_s(ASRSettings, "u9dAC4c/puSggFmhItltYNSK1Bc=");
+_c = ASRSettings;
+var _c;
+$RefreshReg$(_c, "ASRSettings");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/ASRSettings.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6IkFBdUdRLFNBMkZBLFVBM0ZBOzs7Ozs7Ozs7Ozs7Ozs7OztBQXZHUixZQUFZQSxXQUFXO0FBQ3ZCLFNBQVNDLEtBQUtDLGlCQUFpQjtBQUMvQixTQUFTQyxjQUFjO0FBQ3ZCLFNBQVNDLGFBQWE7QUFDdEIsU0FBU0MsVUFBVUMseUJBQXlCO0FBQzVDLFNBQVNDLGdCQUFnQjtBQUN6QjtBQUFBLEVBQ0VDO0FBQUFBLEVBQ0FDO0FBQUFBLEVBQ0FDO0FBQUFBLEVBQ0FDO0FBQUFBLEVBQ0FDO0FBQUFBLE9BQ0s7QUFDUCxTQUFTQyx1QkFBdUI7QUFDaEMsU0FBU0Msa0JBQWtCQywwQkFBMEI7QUFHckQsTUFBTUMsZUFBdUU7QUFBQSxFQUMzRSxFQUFFQyxPQUFPLFFBQVFDLE9BQU8sT0FBTztBQUFBLEVBQy9CLEVBQUVELE9BQU8sTUFBTUMsT0FBTyxLQUFLO0FBQUEsRUFDM0IsRUFBRUQsT0FBTyxNQUFNQyxPQUFPLFVBQVU7QUFBQSxFQUNoQyxFQUFFRCxPQUFPLE1BQU1DLE9BQU8sTUFBTTtBQUFBLEVBQzVCLEVBQUVELE9BQU8sTUFBTUMsT0FBTyxNQUFNO0FBQUEsRUFDNUIsRUFBRUQsT0FBTyxPQUFPQyxPQUFPLEtBQUs7QUFBQztBQUcvQixNQUFNQyxpQkFBdUU7QUFBQSxFQUMzRSxFQUFFRixPQUFPLFVBQVVDLE9BQU8sb0JBQW9CO0FBQUM7QUFRMUMsZ0JBQVNFLFlBQVksRUFBRUMsUUFBUUMsT0FBeUIsR0FBRztBQUFBQyxLQUFBO0FBQ2hFLFFBQU0sQ0FBQ0MsTUFBTUMsT0FBTyxJQUFJekIsTUFBTTBCLFNBQW9CO0FBQUEsSUFDaERDLFNBQVM7QUFBQSxJQUNUQyxRQUFRO0FBQUEsSUFDUkMsV0FBVztBQUFBLElBQ1hDLFVBQVU7QUFBQSxJQUNWQyxZQUFZO0FBQUEsSUFDWkMsVUFBVTtBQUFBLElBQ1ZDLFVBQVU7QUFBQSxJQUNWQyxVQUFVO0FBQUEsSUFDVkMsY0FBYztBQUFBLElBQ2RDLGlCQUFpQjtBQUFBLElBQ2pCQyx1QkFBdUI7QUFBQSxJQUN2QkMscUJBQXFCO0FBQUEsRUFDdkIsQ0FBQztBQUNELFFBQU0sQ0FBQ0MsUUFBUUMsU0FBUyxJQUFJeEMsTUFBTTBCLFNBQVMsS0FBSztBQUNoRCxRQUFNLENBQUNlLFFBQVFDLFNBQVMsSUFBSTFDLE1BQU0wQixTQUF3QixJQUFJO0FBQzlELFFBQU0sQ0FBQ2lCLFNBQVNDLFVBQVUsSUFBSTVDLE1BQU0wQixTQUE0QixFQUFFO0FBQ2xFLFFBQU1tQixjQUFjckIsS0FBS0ksV0FBV2IsbUJBQW1CTSxRQUFReUIsS0FBS2xCLE1BQU07QUFFMUU1QixRQUFNK0MsVUFBVSxNQUFNO0FBQ3BCLFFBQUkxQixRQUFReUIsS0FBSztBQUNmLFlBQU1FLElBQUkzQixPQUFPeUI7QUFDakJyQixjQUFRO0FBQUEsUUFDTixHQUFHdUI7QUFBQUEsUUFDSHBCLFFBQVFiLG1CQUFtQmlDLEVBQUVwQixNQUFNO0FBQUEsUUFDbkNLLFVBQVVlLEVBQUVmLFlBQVk7QUFBQSxRQUN4QkMsVUFBVWMsRUFBRWQsWUFBWTtBQUFBLFFBQ3hCQyxjQUFjYSxFQUFFYixnQkFBZ0I7QUFBQSxRQUNoQ0MsaUJBQWlCWSxFQUFFWixtQkFBbUI7QUFBQSxRQUN0Q0MsdUJBQXVCVyxFQUFFWCx5QkFBeUI7QUFBQSxRQUNsREMscUJBQXFCVSxFQUFFVix1QkFBdUI7QUFBQSxNQUNoRCxDQUFDO0FBQUEsSUFDSDtBQUFBLEVBQ0YsR0FBRyxDQUFDakIsTUFBTSxDQUFDO0FBRVgsUUFBTTRCLGlCQUFpQmpELE1BQU1rRCxZQUFZLFlBQTJCO0FBQ2xFLFFBQUk7QUFDRk4saUJBQVcsTUFBTS9CLGdCQUFnQixDQUFDO0FBQUEsSUFDcEMsUUFBUTtBQUNOK0IsaUJBQVcsRUFBRTtBQUFBLElBQ2Y7QUFBQSxFQUNGLEdBQUcsRUFBRTtBQUVMNUMsUUFBTStDLFVBQVUsTUFBTTtBQUNwQixTQUFLRSxlQUFlO0FBQUEsRUFDdEIsR0FBRyxDQUFDQSxjQUFjLENBQUM7QUFFbkIsV0FBU0UsTUFBTUMsU0FBbUM7QUFDaEQzQixZQUFRLENBQUM0QixVQUFVLEVBQUUsR0FBR0EsTUFBTSxHQUFHRCxRQUFRLEVBQUU7QUFBQSxFQUM3QztBQUVBLGlCQUFlRSxhQUE0QjtBQUN6Q2QsY0FBVSxJQUFJO0FBQ2RFLGNBQVUsSUFBSTtBQUNkLFFBQUk7QUFDRixZQUFNcEIsT0FBTyxFQUFFd0IsS0FBS3RCLEtBQUssQ0FBQztBQUMxQmtCLGdCQUFVLEtBQUs7QUFBQSxJQUNqQixTQUFTYSxLQUFLO0FBQ1piLGdCQUFVLFNBQVVhLElBQWNDLE9BQU8sRUFBRTtBQUFBLElBQzdDLFVBQUM7QUFDQ2hCLGdCQUFVLEtBQUs7QUFBQSxJQUNqQjtBQUFBLEVBQ0Y7QUFFQSxTQUNFLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsMkJBQUMsU0FBSSxXQUFVLGlEQUNiO0FBQUEsNkJBQUMsT0FBSSxXQUFVLFlBQWY7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUF1QjtBQUFBLE1BQUc7QUFBQSxTQUQ1QjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBRUE7QUFBQSxJQUNBLHVCQUFDLE9BQUUsV0FBVSxpQ0FDVmhCLGVBQUtJLFdBQVcsV0FDYixxR0FDQSxxQ0FITjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBSUE7QUFBQSxJQUVBLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsNkJBQUMsU0FBSSxXQUFVLHFDQUNiO0FBQUEsK0JBQUMsV0FBTSxXQUFVLDZDQUE0QyxtQkFBN0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQUFnRTtBQUFBLFFBQ2hFO0FBQUEsVUFBQztBQUFBO0FBQUEsWUFDQyxNQUFLO0FBQUEsWUFDTCxTQUFRO0FBQUEsWUFDUixXQUFVO0FBQUEsWUFDVixTQUFTLE1BQU0sS0FBS3FCLGVBQWU7QUFBQSxZQUVuQztBQUFBLHFDQUFDLGFBQVUsV0FBVSxpQkFBckI7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFBa0M7QUFBQSxjQUFHO0FBQUE7QUFBQTtBQUFBLFVBTnZDO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxRQU9BO0FBQUEsV0FURjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBVUE7QUFBQSxNQUNBLHVCQUFDLFVBQU8sT0FBT3pCLEtBQUtTLFlBQVksV0FBVyxlQUFlLENBQUN3QixNQUFNTixNQUFNLEVBQUVsQixVQUFVd0IsTUFBTSxZQUFZLEtBQUtBLEVBQUUsQ0FBQyxHQUMzRztBQUFBLCtCQUFDLGlCQUNDLGlDQUFDLGVBQVksYUFBWSxXQUF6QjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBQWdDLEtBRGxDO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFFQTtBQUFBLFFBQ0EsdUJBQUMsaUJBQ0M7QUFBQSxpQ0FBQyxjQUFXLE9BQU0sV0FBVSxvQkFBNUI7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBZ0M7QUFBQSxVQUMvQmQsUUFBUWU7QUFBQUEsWUFBSSxDQUFDQyxNQUNaLHVCQUFDLGNBQTRCLE9BQU9BLEVBQUUxQixVQUNuQzBCLFlBQUV6QyxTQUFTLFFBQVF5QyxFQUFFMUIsU0FBUzJCLE1BQU0sR0FBRyxDQUFDLENBQUMsT0FEM0JELEVBQUUxQixVQUFuQjtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUVBO0FBQUEsVUFDRDtBQUFBLGFBTkg7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQU9BO0FBQUEsV0FYRjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBWUE7QUFBQSxNQUNDVSxRQUFRa0IsV0FBVyxLQUNsQix1QkFBQyxPQUFFLFdBQVUscUNBQW9DLHdCQUFqRDtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBQXlEO0FBQUEsU0ExQjdEO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0E0QkE7QUFBQSxJQUVBLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsNkJBQUMsV0FBTSxXQUFVLDZDQUE0QyxvQkFBN0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUFpRTtBQUFBLE1BQ2pFLHVCQUFDLFVBQU8sT0FBT3JDLEtBQUtJLFFBQVEsZUFBZSxDQUFDNkIsTUFBTU4sTUFBTSxFQUFFdkIsUUFBUTZCLEVBQXlCLENBQUMsR0FDMUY7QUFBQSwrQkFBQyxpQkFDQyxpQ0FBQyxpQkFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBQVksS0FEZDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBRUE7QUFBQSxRQUNBLHVCQUFDLGlCQUNFdEMseUJBQWV1QztBQUFBQSxVQUFJLENBQUNJLE1BQ25CLHVCQUFDLGNBQXlCLE9BQU9BLEVBQUU3QyxPQUFRNkMsWUFBRTVDLFNBQTVCNEMsRUFBRTdDLE9BQW5CO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBQW1EO0FBQUEsUUFDcEQsS0FISDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBSUE7QUFBQSxXQVJGO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFTQTtBQUFBLE1BQ0M0QixlQUNDLHVCQUFDLE9BQUUsV0FBVSxrREFBaUQsOEJBQTlEO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFBNEU7QUFBQSxTQWJoRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBZUE7QUFBQSxJQUVBLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsNkJBQUMsV0FBTSxXQUFVLDZDQUE0QyxzQkFBN0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUFtRTtBQUFBLE1BQ25FO0FBQUEsUUFBQztBQUFBO0FBQUEsVUFDQyxPQUFPckIsS0FBS0s7QUFBQUEsVUFDWixVQUFVLENBQUNrQyxNQUFNWixNQUFNLEVBQUV0QixXQUFXa0MsRUFBRUMsT0FBTy9DLE1BQU0sQ0FBQztBQUFBLFVBQ3BELGFBQVk7QUFBQTtBQUFBLFFBSGQ7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLE1BR2lEO0FBQUEsTUFFakQsdUJBQUMsT0FBRSxXQUFVLHFDQUFtQyxxREFBaEQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUVBO0FBQUEsU0FURjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBVUE7QUFBQSxJQUVBLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsNkJBQUMsV0FBTSxXQUFVLDZDQUE0QyxvQkFBN0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUFpRTtBQUFBLE1BQ2pFLHVCQUFDLFVBQU8sT0FBT08sS0FBS00sVUFBVSxlQUFlLENBQUMyQixNQUFNTixNQUFNLEVBQUVyQixVQUFVMkIsRUFBMkIsQ0FBQyxHQUNoRztBQUFBLCtCQUFDLGlCQUNDLGlDQUFDLGlCQUFEO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFBWSxLQURkO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFFQTtBQUFBLFFBQ0EsdUJBQUMsaUJBQ0V6Qyx1QkFBYTBDO0FBQUFBLFVBQUksQ0FBQ0ksTUFDakIsdUJBQUMsY0FBeUIsT0FBT0EsRUFBRTdDLE9BQVE2QyxZQUFFNUMsU0FBNUI0QyxFQUFFN0MsT0FBbkI7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBbUQ7QUFBQSxRQUNwRCxLQUhIO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFJQTtBQUFBLFdBUkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQVNBO0FBQUEsU0FYRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBWUE7QUFBQSxJQUVBLHVCQUFDLFNBQUksV0FBVSxhQUNiO0FBQUEsNkJBQUMsV0FBTSxXQUFVLDZDQUE0QyxtQkFBN0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUFnRTtBQUFBLE1BQ2hFO0FBQUEsUUFBQztBQUFBO0FBQUEsVUFDQyxNQUFLO0FBQUEsVUFDTCxPQUFPTyxLQUFLTztBQUFBQSxVQUNaLFVBQVUsQ0FBQ2dDLE1BQU1aLE1BQU0sRUFBRXBCLFlBQVlrQyxPQUFPRixFQUFFQyxPQUFPL0MsS0FBSyxLQUFLLEtBQU0sQ0FBQztBQUFBO0FBQUEsUUFIeEU7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLE1BRzBFO0FBQUEsU0FMNUU7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQU9BO0FBQUEsSUFFQ08sS0FBS0ksV0FBVyxZQUNmLG1DQUNJZDtBQUFBQSx3QkFBaUJVLEtBQUtLLFNBQVMsR0FBR3FDLG9CQUFvQixTQUN0RCx1QkFBQyxTQUFJLFdBQVUsYUFDYjtBQUFBLCtCQUFDLFdBQU0sV0FBVSw2Q0FBNEMsa0JBQTdEO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFBK0Q7QUFBQSxRQUMvRDtBQUFBLFVBQUM7QUFBQTtBQUFBLFlBQ0MsTUFBTTtBQUFBLFlBQ04sT0FBTzFDLEtBQUtVLFNBQVNpQyxLQUFLLElBQUk7QUFBQSxZQUM5QixVQUFVLENBQUNKLE1BQ1RaLE1BQU0sRUFBRWpCLFVBQVU2QixFQUFFQyxPQUFPL0MsTUFBTW1ELE1BQU0sSUFBSSxFQUFFVixJQUFJLENBQUNXLE1BQU1BLEVBQUVDLEtBQUssQ0FBQyxFQUFFQyxPQUFPQyxPQUFPLEVBQUUsQ0FBQztBQUFBLFlBRXJGLGFBQWE7QUFBQTtBQUFBLFVBTmY7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLFFBTWdDO0FBQUEsUUFFaEMsdUJBQUMsT0FBRSxXQUFVLHFDQUFvQyw2Q0FBakQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQUE4RTtBQUFBLFdBVmhGO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFXQTtBQUFBLE1BRUYsdUJBQUMsU0FBSSxXQUFVLGFBQ2I7QUFBQSwrQkFBQyxXQUFNLFdBQVUsNkNBQTRDLDRCQUE3RDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBQXlFO0FBQUEsUUFDekU7QUFBQSxVQUFDO0FBQUE7QUFBQSxZQUNDLE1BQUs7QUFBQSxZQUNMLE9BQU9oRCxLQUFLVztBQUFBQSxZQUNaLFVBQVUsQ0FBQzRCLE1BQU1aLE1BQU0sRUFBRWhCLGNBQWM4QixPQUFPRixFQUFFQyxPQUFPL0MsS0FBSyxLQUFLLElBQUksQ0FBQztBQUFBO0FBQUEsVUFIeEU7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLFFBRzBFO0FBQUEsUUFFMUUsdUJBQUMsT0FBRSxXQUFVLHFDQUFvQywwQ0FBakQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQUEyRTtBQUFBLFdBUDdFO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFRQTtBQUFBLFNBdkJGO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0F3QkE7QUFBQSxJQUdGLHVCQUFDLFdBQU0sV0FBVSxtQ0FDZjtBQUFBLDZCQUFDLFVBQUssV0FBVSx3QkFDZDtBQUFBLCtCQUFDLFlBQVMsU0FBU08sS0FBS1EsVUFBVSxVQUFVLENBQUMrQixNQUFNWixNQUFNLEVBQUVuQixVQUFVK0IsRUFBRUMsT0FBT1MsUUFBUSxDQUFDLEtBQXZGO0FBQUE7QUFBQTtBQUFBO0FBQUEsZUFBeUY7QUFBQSxRQUN6Rix1QkFBQyx1QkFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBQWtCO0FBQUEsV0FGcEI7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUdBO0FBQUEsTUFBTTtBQUFBLFNBSlI7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQU1BO0FBQUEsSUFFQSx1QkFBQyxTQUFJLFdBQVUsbUNBQ2I7QUFBQSw2QkFBQyxXQUFNLFdBQVUsK0NBQ2Y7QUFBQSwrQkFBQyxVQUFLLFdBQVUsd0JBQ2Q7QUFBQTtBQUFBLFlBQUM7QUFBQTtBQUFBLGNBQ0MsU0FBU2pELEtBQUtZO0FBQUFBLGNBQ2QsVUFBVSxDQUFDMkIsTUFBTVosTUFBTSxFQUFFZixpQkFBaUIyQixFQUFFQyxPQUFPUyxRQUFRLENBQUM7QUFBQTtBQUFBLFlBRjlEO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxVQUVnRTtBQUFBLFVBRWhFLHVCQUFDLHVCQUFEO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBQWtCO0FBQUEsYUFMcEI7QUFBQTtBQUFBO0FBQUE7QUFBQSxlQU1BO0FBQUEsUUFBTTtBQUFBLFdBUFI7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQVNBO0FBQUEsTUFDQSx1QkFBQyxPQUFFLFdBQVUsMENBQXdDLHdEQUFyRDtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBRUE7QUFBQSxNQUNDakQsS0FBS1ksbUJBQ0osbUNBQ0U7QUFBQSwrQkFBQyxXQUFNLFdBQVUsd0NBQ2Y7QUFBQSxpQ0FBQyxVQUFLLFdBQVUsd0JBQ2Q7QUFBQTtBQUFBLGNBQUM7QUFBQTtBQUFBLGdCQUNDLFNBQVNaLEtBQUthO0FBQUFBLGdCQUNkLFVBQVUsQ0FBQzBCLE1BQU1aLE1BQU0sRUFBRWQsdUJBQXVCMEIsRUFBRUMsT0FBT1MsUUFBUSxDQUFDO0FBQUE7QUFBQSxjQUZwRTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUEsWUFFc0U7QUFBQSxZQUV0RSx1QkFBQyx1QkFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLG1CQUFrQjtBQUFBLGVBTHBCO0FBQUE7QUFBQTtBQUFBO0FBQUEsaUJBTUE7QUFBQSxVQUFNO0FBQUEsYUFQUjtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBU0E7QUFBQSxRQUNBLHVCQUFDLFNBQUksV0FBVSxRQUNiO0FBQUEsaUNBQUMsV0FBTSxXQUFVLDZDQUE0Qyx1QkFBN0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBb0U7QUFBQSxVQUNwRTtBQUFBLFlBQUM7QUFBQTtBQUFBLGNBQ0MsTUFBSztBQUFBLGNBQ0wsT0FBT2pELEtBQUtjO0FBQUFBLGNBQ1osVUFBVSxDQUFDeUIsTUFBTVosTUFBTSxFQUFFYixxQkFBcUIyQixPQUFPRixFQUFFQyxPQUFPL0MsS0FBSyxLQUFLLEVBQUUsQ0FBQztBQUFBO0FBQUEsWUFIN0U7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLFVBRytFO0FBQUEsVUFFL0UsdUJBQUMsT0FBRSxXQUFVLHFDQUFvQyw2QkFBakQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxpQkFBOEQ7QUFBQSxhQVBoRTtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBUUE7QUFBQSxXQW5CRjtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBb0JBO0FBQUEsU0FuQ0o7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQXFDQTtBQUFBLElBRUEsdUJBQUMsU0FBSSxXQUFVLGdDQUNiO0FBQUEsNkJBQUMsVUFBTyxTQUFTcUMsWUFBWSxVQUFVZixRQUFRLE1BQUssTUFDakRBLG1CQUFTLFdBQVcsUUFEdkI7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUVBO0FBQUEsTUFDQ0UsVUFBVSx1QkFBQyxVQUFLLFdBQVUsaUNBQWlDQSxvQkFBakQ7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUF3RDtBQUFBLFNBSnJFO0FBQUE7QUFBQTtBQUFBO0FBQUEsV0FLQTtBQUFBLE9BNUtGO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0E2S0E7QUFFSjtBQUFDbEIsR0FqUGVILGFBQVc7QUFBQSxLQUFYQTtBQUFXLElBQUFzRDtBQUFBLGFBQUFBLElBQUEiLCJuYW1lcyI6WyJSZWFjdCIsIk1pYyIsIlJlZnJlc2hDdyIsIkJ1dHRvbiIsIklucHV0IiwiQ2hlY2tib3giLCJDaGVja2JveEluZGljYXRvciIsIlRleHRhcmVhIiwiU2VsZWN0IiwiU2VsZWN0Q29udGVudCIsIlNlbGVjdEl0ZW0iLCJTZWxlY3RUcmlnZ2VyIiwiU2VsZWN0VmFsdWUiLCJsaXN0QXVkaW9JbnB1dHMiLCJkZXRlY3RTaGVycGFLaW5kIiwibm9ybWFsaXplQXNyRW5naW5lIiwiTEFOR19PUFRJT05TIiwidmFsdWUiLCJsYWJlbCIsIkVOR0lORV9PUFRJT05TIiwiQVNSU2V0dGluZ3MiLCJjb25maWciLCJvblNhdmUiLCJfcyIsImZvcm0iLCJzZXRGb3JtIiwidXNlU3RhdGUiLCJlbmFibGVkIiwiZW5naW5lIiwibW9kZWxQYXRoIiwibGFuZ3VhZ2UiLCJzYW1wbGVSYXRlIiwiYXV0b1NlbmQiLCJkZXZpY2VJZCIsImhvdHdvcmRzIiwidmFkU2lsZW5jZU1zIiwiZGlyZWN0b3JFbmFibGVkIiwiZGlyZWN0b3JTY3JlZW5Db250ZXh0IiwiZGlyZWN0b3JDb29sZG93blNlYyIsInNhdmluZyIsInNldFNhdmluZyIsInN0YXR1cyIsInNldFN0YXR1cyIsImRldmljZXMiLCJzZXREZXZpY2VzIiwiZW5naW5lRGlydHkiLCJhc3IiLCJ1c2VFZmZlY3QiLCJhIiwicmVmcmVzaERldmljZXMiLCJ1c2VDYWxsYmFjayIsInBhdGNoIiwicGFydGlhbCIsInByZXYiLCJoYW5kbGVTYXZlIiwiZXJyIiwibWVzc2FnZSIsInYiLCJtYXAiLCJkIiwic2xpY2UiLCJsZW5ndGgiLCJvIiwiZSIsInRhcmdldCIsIk51bWJlciIsInN1cHBvcnRzSG90d29yZHMiLCJqb2luIiwic3BsaXQiLCJ3IiwidHJpbSIsImZpbHRlciIsIkJvb2xlYW4iLCJjaGVja2VkIiwiX2MiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiQVNSU2V0dGluZ3MudHN4Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCAqIGFzIFJlYWN0IGZyb20gJ3JlYWN0J1xuaW1wb3J0IHsgTWljLCBSZWZyZXNoQ3cgfSBmcm9tICdsdWNpZGUtcmVhY3QnXG5pbXBvcnQgeyBCdXR0b24gfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvYnV0dG9uJ1xuaW1wb3J0IHsgSW5wdXQgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvaW5wdXQnXG5pbXBvcnQgeyBDaGVja2JveCwgQ2hlY2tib3hJbmRpY2F0b3IgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvY2hlY2tib3gnXG5pbXBvcnQgeyBUZXh0YXJlYSB9IGZyb20gJ0AvY29tcG9uZW50cy91aS90ZXh0YXJlYSdcbmltcG9ydCB7XG4gIFNlbGVjdCxcbiAgU2VsZWN0Q29udGVudCxcbiAgU2VsZWN0SXRlbSxcbiAgU2VsZWN0VHJpZ2dlcixcbiAgU2VsZWN0VmFsdWVcbn0gZnJvbSAnQC9jb21wb25lbnRzL3VpL3NlbGVjdCdcbmltcG9ydCB7IGxpc3RBdWRpb0lucHV0cyB9IGZyb20gJ0AvZmVhdHVyZXMvYXNyL21pY0NhcHR1cmUnXG5pbXBvcnQgeyBkZXRlY3RTaGVycGFLaW5kLCBub3JtYWxpemVBc3JFbmdpbmUgfSBmcm9tICdAc2hhcmVkL2FzcktpbmRzJ1xuaW1wb3J0IHR5cGUgeyBBcHBDb25maWcsIEFTUkNvbmZpZyB9IGZyb20gJ0BzaGFyZWQvdHlwZXMnXG5cbmNvbnN0IExBTkdfT1BUSU9OUzogQXJyYXk8eyB2YWx1ZTogQVNSQ29uZmlnWydsYW5ndWFnZSddOyBsYWJlbDogc3RyaW5nIH0+ID0gW1xuICB7IHZhbHVlOiAnYXV0bycsIGxhYmVsOiAn6Ieq5Yqo5qOA5rWLJyB9LFxuICB7IHZhbHVlOiAnemgnLCBsYWJlbDogJ+S4reaWhycgfSxcbiAgeyB2YWx1ZTogJ2VuJywgbGFiZWw6ICdFbmdsaXNoJyB9LFxuICB7IHZhbHVlOiAnamEnLCBsYWJlbDogJ+aXpeacrOiqnicgfSxcbiAgeyB2YWx1ZTogJ2tvJywgbGFiZWw6ICftlZzqta3slrQnIH0sXG4gIHsgdmFsdWU6ICd5dWUnLCBsYWJlbDogJ+eypOivrScgfVxuXVxuXG5jb25zdCBFTkdJTkVfT1BUSU9OUzogQXJyYXk8eyB2YWx1ZTogQVNSQ29uZmlnWydlbmdpbmUnXTsgbGFiZWw6IHN0cmluZyB9PiA9IFtcbiAgeyB2YWx1ZTogJ3NoZXJwYScsIGxhYmVsOiAnc2hlcnBhLW9ubnjvvIjmnKzlnLDnprvnur/vvIknIH1cbl1cblxuaW50ZXJmYWNlIEFTUlNldHRpbmdzUHJvcHMge1xuICBjb25maWc6IEFwcENvbmZpZyB8IG51bGxcbiAgb25TYXZlOiAobmV4dDogUGFydGlhbDxBcHBDb25maWc+KSA9PiBQcm9taXNlPHZvaWQ+XG59XG5cbmV4cG9ydCBmdW5jdGlvbiBBU1JTZXR0aW5ncyh7IGNvbmZpZywgb25TYXZlIH06IEFTUlNldHRpbmdzUHJvcHMpIHtcbiAgY29uc3QgW2Zvcm0sIHNldEZvcm1dID0gUmVhY3QudXNlU3RhdGU8QVNSQ29uZmlnPih7XG4gICAgZW5hYmxlZDogZmFsc2UsXG4gICAgZW5naW5lOiAnc2hlcnBhJyxcbiAgICBtb2RlbFBhdGg6ICcnLFxuICAgIGxhbmd1YWdlOiAnemgnLFxuICAgIHNhbXBsZVJhdGU6IDE2MDAwLFxuICAgIGF1dG9TZW5kOiB0cnVlLFxuICAgIGRldmljZUlkOiAnJyxcbiAgICBob3R3b3JkczogW10sXG4gICAgdmFkU2lsZW5jZU1zOiA2MDAsXG4gICAgZGlyZWN0b3JFbmFibGVkOiBmYWxzZSxcbiAgICBkaXJlY3RvclNjcmVlbkNvbnRleHQ6IGZhbHNlLFxuICAgIGRpcmVjdG9yQ29vbGRvd25TZWM6IDIwXG4gIH0pXG4gIGNvbnN0IFtzYXZpbmcsIHNldFNhdmluZ10gPSBSZWFjdC51c2VTdGF0ZShmYWxzZSlcbiAgY29uc3QgW3N0YXR1cywgc2V0U3RhdHVzXSA9IFJlYWN0LnVzZVN0YXRlPHN0cmluZyB8IG51bGw+KG51bGwpXG4gIGNvbnN0IFtkZXZpY2VzLCBzZXREZXZpY2VzXSA9IFJlYWN0LnVzZVN0YXRlPE1lZGlhRGV2aWNlSW5mb1tdPihbXSlcbiAgY29uc3QgZW5naW5lRGlydHkgPSBmb3JtLmVuZ2luZSAhPT0gbm9ybWFsaXplQXNyRW5naW5lKGNvbmZpZz8uYXNyPy5lbmdpbmUpXG5cbiAgUmVhY3QudXNlRWZmZWN0KCgpID0+IHtcbiAgICBpZiAoY29uZmlnPy5hc3IpIHtcbiAgICAgIGNvbnN0IGEgPSBjb25maWcuYXNyXG4gICAgICBzZXRGb3JtKHtcbiAgICAgICAgLi4uYSxcbiAgICAgICAgZW5naW5lOiBub3JtYWxpemVBc3JFbmdpbmUoYS5lbmdpbmUpLFxuICAgICAgICBkZXZpY2VJZDogYS5kZXZpY2VJZCA/PyAnJyxcbiAgICAgICAgaG90d29yZHM6IGEuaG90d29yZHMgPz8gW10sXG4gICAgICAgIHZhZFNpbGVuY2VNczogYS52YWRTaWxlbmNlTXMgPz8gNjAwLFxuICAgICAgICBkaXJlY3RvckVuYWJsZWQ6IGEuZGlyZWN0b3JFbmFibGVkID8/IGZhbHNlLFxuICAgICAgICBkaXJlY3RvclNjcmVlbkNvbnRleHQ6IGEuZGlyZWN0b3JTY3JlZW5Db250ZXh0ID8/IGZhbHNlLFxuICAgICAgICBkaXJlY3RvckNvb2xkb3duU2VjOiBhLmRpcmVjdG9yQ29vbGRvd25TZWMgPz8gMjBcbiAgICAgIH0pXG4gICAgfVxuICB9LCBbY29uZmlnXSlcblxuICBjb25zdCByZWZyZXNoRGV2aWNlcyA9IFJlYWN0LnVzZUNhbGxiYWNrKGFzeW5jICgpOiBQcm9taXNlPHZvaWQ+ID0+IHtcbiAgICB0cnkge1xuICAgICAgc2V0RGV2aWNlcyhhd2FpdCBsaXN0QXVkaW9JbnB1dHMoKSlcbiAgICB9IGNhdGNoIHtcbiAgICAgIHNldERldmljZXMoW10pXG4gICAgfVxuICB9LCBbXSlcblxuICBSZWFjdC51c2VFZmZlY3QoKCkgPT4ge1xuICAgIHZvaWQgcmVmcmVzaERldmljZXMoKVxuICB9LCBbcmVmcmVzaERldmljZXNdKVxuXG4gIGZ1bmN0aW9uIHBhdGNoKHBhcnRpYWw6IFBhcnRpYWw8QVNSQ29uZmlnPik6IHZvaWQge1xuICAgIHNldEZvcm0oKHByZXYpID0+ICh7IC4uLnByZXYsIC4uLnBhcnRpYWwgfSkpXG4gIH1cblxuICBhc3luYyBmdW5jdGlvbiBoYW5kbGVTYXZlKCk6IFByb21pc2U8dm9pZD4ge1xuICAgIHNldFNhdmluZyh0cnVlKVxuICAgIHNldFN0YXR1cyhudWxsKVxuICAgIHRyeSB7XG4gICAgICBhd2FpdCBvblNhdmUoeyBhc3I6IGZvcm0gfSlcbiAgICAgIHNldFN0YXR1cygn5bey5L+d5a2YJylcbiAgICB9IGNhdGNoIChlcnIpIHtcbiAgICAgIHNldFN0YXR1cyhg5L+d5a2Y5aSx6LSlOiAkeyhlcnIgYXMgRXJyb3IpLm1lc3NhZ2V9YClcbiAgICB9IGZpbmFsbHkge1xuICAgICAgc2V0U2F2aW5nKGZhbHNlKVxuICAgIH1cbiAgfVxuXG4gIHJldHVybiAoXG4gICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTNcIj5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIgdGV4dC1zbSBmb250LXNlbWlib2xkXCI+XG4gICAgICAgIDxNaWMgY2xhc3NOYW1lPVwic2l6ZS00XCIgLz4g6K+t6Z+z6K+G5YirXG4gICAgICA8L2Rpdj5cbiAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQteHMgdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgIHtmb3JtLmVuZ2luZSA9PT0gJ3NoZXJwYSdcbiAgICAgICAgICA/ICdzaGVycGEtb25ueCDnprvnur/or4bliKvvvIzmlK/mjIEgUXdlbjMtQVNS44CBU2Vuc2VWb2ljZeOAgUZ1bkFTUi1OYW5vIOetieaooeWei++8iOiHquW4piBBU1JXb3JrZXIyIOaIluezu+e7nyBQeXRob24gKyBzaGVycGEtb25ueO+8iSdcbiAgICAgICAgICA6ICfoh6rluKYgQVNSV29ya2VyIOemu+e6v+ivhuWIq+W8leaTju+8jOaXoOmcgOWuieijhSBQeXRob24nfVxuICAgICAgPC9wPlxuXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMVwiPlxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktYmV0d2VlblwiPlxuICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPum6puWFi+mjjjwvbGFiZWw+XG4gICAgICAgICAgPEJ1dHRvblxuICAgICAgICAgICAgc2l6ZT1cInNtXCJcbiAgICAgICAgICAgIHZhcmlhbnQ9XCJnaG9zdFwiXG4gICAgICAgICAgICBjbGFzc05hbWU9XCJoLTUgcHgtMiB0ZXh0LVsxMXB4XVwiXG4gICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiB2b2lkIHJlZnJlc2hEZXZpY2VzKCl9XG4gICAgICAgICAgPlxuICAgICAgICAgICAgPFJlZnJlc2hDdyBjbGFzc05hbWU9XCJtci0xIHNpemUtM1wiIC8+IOWIt+aWsFxuICAgICAgICAgIDwvQnV0dG9uPlxuICAgICAgICA8L2Rpdj5cbiAgICAgICAgPFNlbGVjdCB2YWx1ZT17Zm9ybS5kZXZpY2VJZCB8fCAnZGVmYXVsdCd9IG9uVmFsdWVDaGFuZ2U9eyh2KSA9PiBwYXRjaCh7IGRldmljZUlkOiB2ID09PSAnZGVmYXVsdCcgPyAnJyA6IHYgfSl9PlxuICAgICAgICAgIDxTZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgICAgPFNlbGVjdFZhbHVlIHBsYWNlaG9sZGVyPVwi6YCJ5oup6bqm5YWL6aOOXCIgLz5cbiAgICAgICAgICA8L1NlbGVjdFRyaWdnZXI+XG4gICAgICAgICAgPFNlbGVjdENvbnRlbnQ+XG4gICAgICAgICAgICA8U2VsZWN0SXRlbSB2YWx1ZT1cImRlZmF1bHRcIj7ns7vnu5/pu5jorqQ8L1NlbGVjdEl0ZW0+XG4gICAgICAgICAgICB7ZGV2aWNlcy5tYXAoKGQpID0+IChcbiAgICAgICAgICAgICAgPFNlbGVjdEl0ZW0ga2V5PXtkLmRldmljZUlkfSB2YWx1ZT17ZC5kZXZpY2VJZH0+XG4gICAgICAgICAgICAgICAge2QubGFiZWwgfHwgYOm6puWFi+mjjiAoJHtkLmRldmljZUlkLnNsaWNlKDAsIDgpfSlgfVxuICAgICAgICAgICAgICA8L1NlbGVjdEl0ZW0+XG4gICAgICAgICAgICApKX1cbiAgICAgICAgICA8L1NlbGVjdENvbnRlbnQ+XG4gICAgICAgIDwvU2VsZWN0PlxuICAgICAgICB7ZGV2aWNlcy5sZW5ndGggPT09IDAgJiYgKFxuICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtWzExcHhdIHRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPuacquajgOa1i+WIsOi+k+WFpeiuvuWkhzwvcD5cbiAgICAgICAgKX1cbiAgICAgIDwvZGl2PlxuXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMVwiPlxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7or4bliKvlvJXmk448L2xhYmVsPlxuICAgICAgICA8U2VsZWN0IHZhbHVlPXtmb3JtLmVuZ2luZX0gb25WYWx1ZUNoYW5nZT17KHYpID0+IHBhdGNoKHsgZW5naW5lOiB2IGFzIEFTUkNvbmZpZ1snZW5naW5lJ10gfSl9PlxuICAgICAgICAgIDxTZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgICAgPFNlbGVjdFZhbHVlIC8+XG4gICAgICAgICAgPC9TZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgIDxTZWxlY3RDb250ZW50PlxuICAgICAgICAgICAge0VOR0lORV9PUFRJT05TLm1hcCgobykgPT4gKFxuICAgICAgICAgICAgICA8U2VsZWN0SXRlbSBrZXk9e28udmFsdWV9IHZhbHVlPXtvLnZhbHVlfT57by5sYWJlbH08L1NlbGVjdEl0ZW0+XG4gICAgICAgICAgICApKX1cbiAgICAgICAgICA8L1NlbGVjdENvbnRlbnQ+XG4gICAgICAgIDwvU2VsZWN0PlxuICAgICAgICB7ZW5naW5lRGlydHkgJiYgKFxuICAgICAgICAgIDxwIGNsYXNzTmFtZT1cInRleHQtWzExcHhdIHRleHQtYW1iZXItNjAwIGRhcms6dGV4dC1hbWJlci00MDBcIj7liIfmjaLlvJXmk47lkI7pnIDph43lkK/or63pn7Por4bliKvnlJ/mlYg8L3A+XG4gICAgICAgICl9XG4gICAgICA8L2Rpdj5cblxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTFcIj5cbiAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+5qih5Z6L55uu5b2V6Lev5b6EPC9sYWJlbD5cbiAgICAgICAgPElucHV0XG4gICAgICAgICAgdmFsdWU9e2Zvcm0ubW9kZWxQYXRofVxuICAgICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4gcGF0Y2goeyBtb2RlbFBhdGg6IGUudGFyZ2V0LnZhbHVlIH0pfVxuICAgICAgICAgIHBsYWNlaG9sZGVyPSdTVFQvbW9kZWxzL++8iHNoZXJwYS1vbm54IOWPkeW4g+eahOaooeWei+ebruW9leWQje+8iSdcbiAgICAgICAgLz5cbiAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTFweF0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgICAg5LuOIE1vZGVsU2NvcGUvSHVnZ2luZ0ZhY2Ug5LiL6L295a+55bqU5byV5pOO55qE5qih5Z6L5bm26Kej5Y6LXG4gICAgICAgIDwvcD5cbiAgICAgIDwvZGl2PlxuXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMVwiPlxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7or4bliKvor63oqIA8L2xhYmVsPlxuICAgICAgICA8U2VsZWN0IHZhbHVlPXtmb3JtLmxhbmd1YWdlfSBvblZhbHVlQ2hhbmdlPXsodikgPT4gcGF0Y2goeyBsYW5ndWFnZTogdiBhcyBBU1JDb25maWdbJ2xhbmd1YWdlJ10gfSl9PlxuICAgICAgICAgIDxTZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgICAgPFNlbGVjdFZhbHVlIC8+XG4gICAgICAgICAgPC9TZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgIDxTZWxlY3RDb250ZW50PlxuICAgICAgICAgICAge0xBTkdfT1BUSU9OUy5tYXAoKG8pID0+IChcbiAgICAgICAgICAgICAgPFNlbGVjdEl0ZW0ga2V5PXtvLnZhbHVlfSB2YWx1ZT17by52YWx1ZX0+e28ubGFiZWx9PC9TZWxlY3RJdGVtPlxuICAgICAgICAgICAgKSl9XG4gICAgICAgICAgPC9TZWxlY3RDb250ZW50PlxuICAgICAgICA8L1NlbGVjdD5cbiAgICAgIDwvZGl2PlxuXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMVwiPlxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7ph4fmoLfnjoc8L2xhYmVsPlxuICAgICAgICA8SW5wdXRcbiAgICAgICAgICB0eXBlPVwibnVtYmVyXCJcbiAgICAgICAgICB2YWx1ZT17Zm9ybS5zYW1wbGVSYXRlfVxuICAgICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4gcGF0Y2goeyBzYW1wbGVSYXRlOiBOdW1iZXIoZS50YXJnZXQudmFsdWUpIHx8IDE2MDAwIH0pfVxuICAgICAgICAvPlxuICAgICAgPC9kaXY+XG5cbiAgICAgIHtmb3JtLmVuZ2luZSA9PT0gJ3NoZXJwYScgJiYgKFxuICAgICAgICA8PlxuICAgICAgICAgIHsoZGV0ZWN0U2hlcnBhS2luZChmb3JtLm1vZGVsUGF0aCk/LnN1cHBvcnRzSG90d29yZHMgPz8gdHJ1ZSkgJiYgKFxuICAgICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTFcIj5cbiAgICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+54Ot6K+NPC9sYWJlbD5cbiAgICAgICAgICAgICAgPFRleHRhcmVhXG4gICAgICAgICAgICAgICAgcm93cz17M31cbiAgICAgICAgICAgICAgICB2YWx1ZT17Zm9ybS5ob3R3b3Jkcy5qb2luKCdcXG4nKX1cbiAgICAgICAgICAgICAgICBvbkNoYW5nZT17KGUpID0+XG4gICAgICAgICAgICAgICAgICBwYXRjaCh7IGhvdHdvcmRzOiBlLnRhcmdldC52YWx1ZS5zcGxpdCgnXFxuJykubWFwKCh3KSA9PiB3LnRyaW0oKSkuZmlsdGVyKEJvb2xlYW4pIH0pXG4gICAgICAgICAgICAgICAgfVxuICAgICAgICAgICAgICAgIHBsYWNlaG9sZGVyPXsn6KeS6Imy5ZCN44CB5ri45oiP5pyv6K+t562J77yM5q+P6KGM5LiA5LiqJ31cbiAgICAgICAgICAgICAgLz5cbiAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTFweF0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+54Ot6K+N5LiN5a6c6LaF6L+HIDIwIOS4qu+8jOS7hSBRd2VuMy1BU1Ig57O75qih5Z6L5pSv5oyBPC9wPlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgKX1cbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMVwiPlxuICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+VkFEIOWIpOWBnOaXtumVv++8iOavq+enku+8iTwvbGFiZWw+XG4gICAgICAgICAgICA8SW5wdXRcbiAgICAgICAgICAgICAgdHlwZT1cIm51bWJlclwiXG4gICAgICAgICAgICAgIHZhbHVlPXtmb3JtLnZhZFNpbGVuY2VNc31cbiAgICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiBwYXRjaCh7IHZhZFNpbGVuY2VNczogTnVtYmVyKGUudGFyZ2V0LnZhbHVlKSB8fCA2MDAgfSl9XG4gICAgICAgICAgICAvPlxuICAgICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC1bMTFweF0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+6Z2Z6Z+z5oyB57ut6K+l5pe26ZW/5ZCO5Yik5a6a5LiA5Y+l6K+d57uT5p2f77yM6LaK5bCP5Ye65a2X6LaK5b+r5L2G5piT5oiq5patPC9wPlxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICA8Lz5cbiAgICAgICl9XG5cbiAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMiB0ZXh0LXhzXCI+XG4gICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInJlbGF0aXZlIGlubGluZS1mbGV4XCI+XG4gICAgICAgICAgPENoZWNrYm94IGNoZWNrZWQ9e2Zvcm0uYXV0b1NlbmR9IG9uQ2hhbmdlPXsoZSkgPT4gcGF0Y2goeyBhdXRvU2VuZDogZS50YXJnZXQuY2hlY2tlZCB9KX0gLz5cbiAgICAgICAgICA8Q2hlY2tib3hJbmRpY2F0b3IgLz5cbiAgICAgICAgPC9zcGFuPlxuICAgICAgICDor4bliKvlrozmiJDlkI7oh6rliqjlj5HpgIFcbiAgICAgIDwvbGFiZWw+XG5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwic3BhY2UteS0yIHJvdW5kZWQtbGcgYm9yZGVyIHAtMlwiPlxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIgdGV4dC14cyBmb250LW1lZGl1bVwiPlxuICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInJlbGF0aXZlIGlubGluZS1mbGV4XCI+XG4gICAgICAgICAgICA8Q2hlY2tib3hcbiAgICAgICAgICAgICAgY2hlY2tlZD17Zm9ybS5kaXJlY3RvckVuYWJsZWR9XG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4gcGF0Y2goeyBkaXJlY3RvckVuYWJsZWQ6IGUudGFyZ2V0LmNoZWNrZWQgfSl9XG4gICAgICAgICAgICAvPlxuICAgICAgICAgICAgPENoZWNrYm94SW5kaWNhdG9yIC8+XG4gICAgICAgICAgPC9zcGFuPlxuICAgICAgICAgIOWvvOa8lOaooeW8j1xuICAgICAgICA8L2xhYmVsPlxuICAgICAgICA8cCBjbGFzc05hbWU9XCJwbC02IHRleHQtWzExcHhdIHRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPlxuICAgICAgICAgIOW8gOWQr+WQjuivremfs+S4jeWGjeebtOaOpeWPkemAge+8jOiAjOaYr+eUseWvvOa8lOe7vOWQiOivremfs+WGheWuueOAgeWvueivneWOhuWPsuOAgeWxj+W5leeUu+mdouWIpOaWreivpeS4jeivpeW8gOWPo1xuICAgICAgICA8L3A+XG4gICAgICAgIHtmb3JtLmRpcmVjdG9yRW5hYmxlZCAmJiAoXG4gICAgICAgICAgPD5cbiAgICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMiBwbC02IHRleHQteHNcIj5cbiAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwicmVsYXRpdmUgaW5saW5lLWZsZXhcIj5cbiAgICAgICAgICAgICAgICA8Q2hlY2tib3hcbiAgICAgICAgICAgICAgICAgIGNoZWNrZWQ9e2Zvcm0uZGlyZWN0b3JTY3JlZW5Db250ZXh0fVxuICAgICAgICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiBwYXRjaCh7IGRpcmVjdG9yU2NyZWVuQ29udGV4dDogZS50YXJnZXQuY2hlY2tlZCB9KX1cbiAgICAgICAgICAgICAgICAvPlxuICAgICAgICAgICAgICAgIDxDaGVja2JveEluZGljYXRvciAvPlxuICAgICAgICAgICAgICA8L3NwYW4+XG4gICAgICAgICAgICAgIOWvvOa8lOWPr+afpeeci+Wxj+W5leeUu+mdou+8iOaIquWbvuS8muWPkemAgee7mSBMTE3vvIlcbiAgICAgICAgICAgIDwvbGFiZWw+XG4gICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInBsLTZcIj5cbiAgICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+5Zue5bqU5Ya35Y2077yI56eS77yJPC9sYWJlbD5cbiAgICAgICAgICAgICAgPElucHV0XG4gICAgICAgICAgICAgICAgdHlwZT1cIm51bWJlclwiXG4gICAgICAgICAgICAgICAgdmFsdWU9e2Zvcm0uZGlyZWN0b3JDb29sZG93blNlY31cbiAgICAgICAgICAgICAgICBvbkNoYW5nZT17KGUpID0+IHBhdGNoKHsgZGlyZWN0b3JDb29sZG93blNlYzogTnVtYmVyKGUudGFyZ2V0LnZhbHVlKSB8fCAwIH0pfVxuICAgICAgICAgICAgICAvPlxuICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9XCJ0ZXh0LVsxMXB4XSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7kuKTmrKHor63pn7Plm57lupTkuYvpl7TnmoTmnIDlsI/pl7TpmpQ8L3A+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICA8Lz5cbiAgICAgICAgKX1cbiAgICAgIDwvZGl2PlxuXG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yIHB0LTJcIj5cbiAgICAgICAgPEJ1dHRvbiBvbkNsaWNrPXtoYW5kbGVTYXZlfSBkaXNhYmxlZD17c2F2aW5nfSBzaXplPVwic21cIj5cbiAgICAgICAgICB7c2F2aW5nID8gJ+S/neWtmOS4rS4uLicgOiAn5L+d5a2YJ31cbiAgICAgICAgPC9CdXR0b24+XG4gICAgICAgIHtzdGF0dXMgJiYgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj57c3RhdHVzfTwvc3Bhbj59XG4gICAgICA8L2Rpdj5cbiAgICA8L2Rpdj5cbiAgKVxufVxuIl0sImZpbGUiOiJEOi9Qcm9qZWN0MjAyNS9NaWt1TW9kL09wZW5HYWwvc3JjL3JlbmRlcmVyL3NyYy9jb21wb25lbnRzL3NldHRpbmdzL0FTUlNldHRpbmdzLnRzeCJ9

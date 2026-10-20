@@ -6,6 +6,7 @@ export interface ASREngine {
   feed(pcm16: Buffer): void
   isRunning(): boolean
   setResultCallback(cb: ASRResultCallback | null): void
+  setSpeechStartCallback(cb: (() => void) | null): void
 }
 
 export type ASREngineKind = 'sherpa'

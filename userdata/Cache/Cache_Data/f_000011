@@ -1,0 +1,309 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/settings/CharacterDisplaySettings.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=547055eb"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/react.js?v=547055eb"; const React = ((m) => m?.__esModule ? m : { ...typeof m === "object" && !Array.isArray(m) || typeof m === "function" ? m : {}, default: m })(__vite__cjsImport3_react);
+import { RotateCcw } from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/lucide-react.js?v=547055eb";
+import { Button } from "/src/components/ui/button.tsx";
+import { Checkbox, CheckboxIndicator } from "/src/components/ui/checkbox.tsx";
+const DEFAULTS = {
+  scale: 1,
+  xRatio: 0.5,
+  yRatio: 0.6
+};
+function NumberSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange
+}) {
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-1.5", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between text-xs", children: [
+      /* @__PURE__ */ jsxDEV("span", { className: "text-muted-foreground", children: label }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 56,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("span", { className: "font-mono text-muted-foreground", children: value.toFixed(2) }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 57,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+      lineNumber: 55,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV(
+      "input",
+      {
+        type: "range",
+        min,
+        max,
+        step,
+        value,
+        onChange: (e) => onChange(parseFloat(e.target.value)),
+        className: "w-full cursor-pointer accent-primary"
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 59,
+        columnNumber: 7
+      },
+      this
+    )
+  ] }, void 0, true, {
+    fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+    lineNumber: 54,
+    columnNumber: 5
+  }, this);
+}
+_c = NumberSlider;
+export function CharacterDisplaySettings({
+  config,
+  model,
+  onSave
+}) {
+  _s();
+  const [scale, setScale] = React.useState(model?.scale ?? DEFAULTS.scale);
+  const [xRatio, setXRatio] = React.useState(model?.xRatio ?? DEFAULTS.xRatio);
+  const [yRatio, setYRatio] = React.useState(model?.canvasYRatio ?? DEFAULTS.yRatio);
+  const [greetingEnabled, setGreetingEnabled] = React.useState(config?.startup.greetingEnabled ?? true);
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => {
+    if (model) {
+      setScale(model.scale);
+      setXRatio(model.xRatio);
+      setYRatio(model.canvasYRatio);
+    }
+  }, [model?.scale, model?.xRatio, model?.canvasYRatio]);
+  React.useEffect(() => {
+    if (config) setGreetingEnabled(config.startup.greetingEnabled);
+  }, [config?.startup.greetingEnabled]);
+  async function persist(nextScale, nextX, nextY) {
+    const base = model ?? config?.model;
+    if (!base) return;
+    const updated = {
+      ...base,
+      scale: nextScale,
+      xRatio: nextX,
+      canvasYRatio: nextY
+    };
+    setSaving(true);
+    try {
+      await onSave({ model: updated });
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function reset() {
+    setScale(DEFAULTS.scale);
+    setXRatio(DEFAULTS.xRatio);
+    setYRatio(DEFAULTS.yRatio);
+    await persist(DEFAULTS.scale, DEFAULTS.xRatio, DEFAULTS.yRatio);
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-4", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "text-sm font-semibold", children: "显示位置与缩放" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 126,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        Button,
+        {
+          variant: "ghost",
+          size: "sm",
+          onClick: () => void reset(),
+          className: "h-6 px-2 text-xs",
+          disabled: saving,
+          children: [
+            /* @__PURE__ */ jsxDEV(RotateCcw, { className: "mr-1 size-3" }, void 0, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+              lineNumber: 134,
+              columnNumber: 11
+            }, this),
+            "重置为默认"
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+          lineNumber: 127,
+          columnNumber: 9
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+      lineNumber: 125,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV(
+      NumberSlider,
+      {
+        label: "缩放",
+        value: scale,
+        min: 0.2,
+        max: 3,
+        step: 0.01,
+        onChange: (v) => {
+          setScale(v);
+          void persist(v, xRatio, yRatio);
+        }
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 139,
+        columnNumber: 7
+      },
+      this
+    ),
+    /* @__PURE__ */ jsxDEV(
+      NumberSlider,
+      {
+        label: "水平位置",
+        value: xRatio,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        onChange: (v) => {
+          setXRatio(v);
+          void persist(scale, v, yRatio);
+        }
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 150,
+        columnNumber: 7
+      },
+      this
+    ),
+    /* @__PURE__ */ jsxDEV(
+      NumberSlider,
+      {
+        label: "垂直位置",
+        value: yRatio,
+        min: 0,
+        max: 1,
+        step: 0.01,
+        onChange: (v) => {
+          setYRatio(v);
+          void persist(scale, xRatio, v);
+        }
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 161,
+        columnNumber: 7
+      },
+      this
+    ),
+    /* @__PURE__ */ jsxDEV("p", { className: "pt-1 text-[11px] text-muted-foreground", children: "提示：也可以在右侧面板直接按住拖拽移动人物，滚轮缩放。" }, void 0, false, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+      lineNumber: 173,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between border-t pt-4", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "space-y-0.5", children: [
+        /* @__PURE__ */ jsxDEV("div", { className: "text-sm font-semibold", children: "启动唤醒" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+          lineNumber: 179,
+          columnNumber: 11
+        }, this),
+        /* @__PURE__ */ jsxDEV("p", { className: "text-xs text-muted-foreground", children: "启动自检完成后，自动开口打招呼" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+          lineNumber: 180,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 178,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("span", { className: "relative inline-flex", children: [
+        /* @__PURE__ */ jsxDEV(
+          Checkbox,
+          {
+            checked: greetingEnabled,
+            disabled: saving,
+            onChange: (e) => {
+              setGreetingEnabled(e.target.checked);
+              void onSave({ startup: { greetingEnabled: e.target.checked } });
+            }
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+            lineNumber: 183,
+            columnNumber: 11
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(CheckboxIndicator, {}, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+          lineNumber: 191,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+        lineNumber: 182,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+      lineNumber: 177,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx",
+    lineNumber: 124,
+    columnNumber: 5
+  }, this);
+}
+_s(CharacterDisplaySettings, "rKcMGkkYJHmd6IxRK2AVFYfMBco=");
+_c2 = CharacterDisplaySettings;
+var _c, _c2;
+$RefreshReg$(_c, "NumberSlider");
+$RefreshReg$(_c2, "CharacterDisplaySettings");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/CharacterDisplaySettings.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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aUNBQW1CZixFQUFFRSxPQUFPMEIsT0FBTztBQUNuQyxtQkFBS3JCLE9BQU8sRUFBRVMsU0FBUyxFQUFFRixpQkFBaUJkLEVBQUVFLE9BQU8wQixRQUFRLEVBQUUsQ0FBQztBQUFBLFlBQ2hFO0FBQUE7QUFBQSxVQU5GO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQSxRQU1JO0FBQUEsUUFFSix1QkFBQyx1QkFBRDtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBQWtCO0FBQUEsV0FUcEI7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQVVBO0FBQUEsU0FmRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBZ0JBO0FBQUEsT0FyRUY7QUFBQTtBQUFBO0FBQUE7QUFBQSxTQXNFQTtBQUVKO0FBQUNwQixHQTVIZUosMEJBQXdCO0FBQUEsTUFBeEJBO0FBQXdCLElBQUFELElBQUEwQjtBQUFBLGFBQUExQixJQUFBO0FBQUEsYUFBQTBCLEtBQUEiLCJuYW1lcyI6WyJSZWFjdCIsIlJvdGF0ZUNjdyIsIkJ1dHRvbiIsIkNoZWNrYm94IiwiQ2hlY2tib3hJbmRpY2F0b3IiLCJERUZBVUxUUyIsInNjYWxlIiwieFJhdGlvIiwieVJhdGlvIiwiTnVtYmVyU2xpZGVyIiwibGFiZWwiLCJ2YWx1ZSIsIm1pbiIsIm1heCIsInN0ZXAiLCJvbkNoYW5nZSIsInRvRml4ZWQiLCJlIiwicGFyc2VGbG9hdCIsInRhcmdldCIsIl9jIiwiQ2hhcmFjdGVyRGlzcGxheVNldHRpbmdzIiwiY29uZmlnIiwibW9kZWwiLCJvblNhdmUiLCJfcyIsInNldFNjYWxlIiwidXNlU3RhdGUiLCJzZXRYUmF0aW8iLCJzZXRZUmF0aW8iLCJjYW52YXNZUmF0aW8iLCJncmVldGluZ0VuYWJsZWQiLCJzZXRHcmVldGluZ0VuYWJsZWQiLCJzdGFydHVwIiwic2F2aW5nIiwic2V0U2F2aW5nIiwidXNlRWZmZWN0IiwicGVyc2lzdCIsIm5leHRTY2FsZSIsIm5leHRYIiwibmV4dFkiLCJiYXNlIiwidXBkYXRlZCIsInJlc2V0IiwidiIsImNoZWNrZWQiLCJfYzIiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZXMiOlsiQ2hhcmFjdGVyRGlzcGxheVNldHRpbmdzLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgKiBhcyBSZWFjdCBmcm9tICdyZWFjdCdcbmltcG9ydCB7IFJvdGF0ZUNjdyB9IGZyb20gJ2x1Y2lkZS1yZWFjdCdcbmltcG9ydCB7IEJ1dHRvbiB9IGZyb20gJ0AvY29tcG9uZW50cy91aS9idXR0b24nXG5pbXBvcnQgeyBDaGVja2JveCwgQ2hlY2tib3hJbmRpY2F0b3IgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvY2hlY2tib3gnXG5pbXBvcnQgdHlwZSB7IEFwcENvbmZpZywgTGl2ZTJETW9kZWxDb25maWcgfSBmcm9tICdAc2hhcmVkL3R5cGVzJ1xuXG5jb25zdCBERUZBVUxUUyA9IHtcbiAgc2NhbGU6IDEsXG4gIHhSYXRpbzogMC41LFxuICB5UmF0aW86IDAuNlxufVxuXG5pbnRlcmZhY2UgQ2hhcmFjdGVyRGlzcGxheVNldHRpbmdzUHJvcHMge1xuICBjb25maWc6IEFwcENvbmZpZyB8IG51bGxcbiAgbW9kZWw6IExpdmUyRE1vZGVsQ29uZmlnIHwgbnVsbFxuICBvblNhdmU6IChuZXh0OiBQYXJ0aWFsPEFwcENvbmZpZz4pID0+IFByb21pc2U8dm9pZD5cbn1cblxuZnVuY3Rpb24gTnVtYmVyU2xpZGVyKHtcbiAgbGFiZWwsXG4gIHZhbHVlLFxuICBtaW4sXG4gIG1heCxcbiAgc3RlcCxcbiAgb25DaGFuZ2Vcbn06IHtcbiAgbGFiZWw6IHN0cmluZ1xuICB2YWx1ZTogbnVtYmVyXG4gIG1pbjogbnVtYmVyXG4gIG1heDogbnVtYmVyXG4gIHN0ZXA6IG51bWJlclxuICBvbkNoYW5nZTogKG5leHQ6IG51bWJlcikgPT4gdm9pZFxufSk6IEpTWC5FbGVtZW50IHtcbiAgcmV0dXJuIChcbiAgICA8ZGl2IGNsYXNzTmFtZT1cInNwYWNlLXktMS41XCI+XG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktYmV0d2VlbiB0ZXh0LXhzXCI+XG4gICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPntsYWJlbH08L3NwYW4+XG4gICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cImZvbnQtbW9ubyB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj57dmFsdWUudG9GaXhlZCgyKX08L3NwYW4+XG4gICAgICA8L2Rpdj5cbiAgICAgIDxpbnB1dFxuICAgICAgICB0eXBlPVwicmFuZ2VcIlxuICAgICAgICBtaW49e21pbn1cbiAgICAgICAgbWF4PXttYXh9XG4gICAgICAgIHN0ZXA9e3N0ZXB9XG4gICAgICAgIHZhbHVlPXt2YWx1ZX1cbiAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiBvbkNoYW5nZShwYXJzZUZsb2F0KGUudGFyZ2V0LnZhbHVlKSl9XG4gICAgICAgIGNsYXNzTmFtZT1cInctZnVsbCBjdXJzb3ItcG9pbnRlciBhY2NlbnQtcHJpbWFyeVwiXG4gICAgICAvPlxuICAgIDwvZGl2PlxuICApXG59XG5cbmV4cG9ydCBmdW5jdGlvbiBDaGFyYWN0ZXJEaXNwbGF5U2V0dGluZ3Moe1xuICBjb25maWcsXG4gIG1vZGVsLFxuICBvblNhdmVcbn06IENoYXJhY3RlckRpc3BsYXlTZXR0aW5nc1Byb3BzKSB7XG4gIGNvbnN0IFtzY2FsZSwgc2V0U2NhbGVdID0gUmVhY3QudXNlU3RhdGUobW9kZWw/LnNjYWxlID8/IERFRkFVTFRTLnNjYWxlKVxuICBjb25zdCBbeFJhdGlvLCBzZXRYUmF0aW9dID0gUmVhY3QudXNlU3RhdGUobW9kZWw/LnhSYXRpbyA/PyBERUZBVUxUUy54UmF0aW8pXG4gIGNvbnN0IFt5UmF0aW8sIHNldFlSYXRpb10gPSBSZWFjdC51c2VTdGF0ZShtb2RlbD8uY2FudmFzWVJhdGlvID8/IERFRkFVTFRTLnlSYXRpbylcbiAgY29uc3QgW2dyZWV0aW5nRW5hYmxlZCwgc2V0R3JlZXRpbmdFbmFibGVkXSA9IFJlYWN0LnVzZVN0YXRlKGNvbmZpZz8uc3RhcnR1cC5ncmVldGluZ0VuYWJsZWQgPz8gdHJ1ZSlcbiAgY29uc3QgW3NhdmluZywgc2V0U2F2aW5nXSA9IFJlYWN0LnVzZVN0YXRlKGZhbHNlKVxuXG4gIFJlYWN0LnVzZUVmZmVjdCgoKSA9PiB7XG4gICAgaWYgKG1vZGVsKSB7XG4gICAgICBzZXRTY2FsZShtb2RlbC5zY2FsZSlcbiAgICAgIHNldFhSYXRpbyhtb2RlbC54UmF0aW8pXG4gICAgICBzZXRZUmF0aW8obW9kZWwuY2FudmFzWVJhdGlvKVxuICAgIH1cbiAgfSwgW21vZGVsPy5zY2FsZSwgbW9kZWw/LnhSYXRpbywgbW9kZWw/LmNhbnZhc1lSYXRpb10pXG5cbiAgUmVhY3QudXNlRWZmZWN0KCgpID0+IHtcbiAgICBpZiAoY29uZmlnKSBzZXRHcmVldGluZ0VuYWJsZWQoY29uZmlnLnN0YXJ0dXAuZ3JlZXRpbmdFbmFibGVkKVxuICB9LCBbY29uZmlnPy5zdGFydHVwLmdyZWV0aW5nRW5hYmxlZF0pXG5cbiAgYXN5bmMgZnVuY3Rpb24gcGVyc2lzdChcbiAgICBuZXh0U2NhbGU6IG51bWJlcixcbiAgICBuZXh0WDogbnVtYmVyLFxuICAgIG5leHRZOiBudW1iZXJcbiAgKTogUHJvbWlzZTx2b2lkPiB7XG4gICAgY29uc3QgYmFzZSA9IG1vZGVsID8/IGNvbmZpZz8ubW9kZWxcbiAgICBpZiAoIWJhc2UpIHJldHVyblxuICAgIGNvbnN0IHVwZGF0ZWQ6IExpdmUyRE1vZGVsQ29uZmlnID0ge1xuICAgICAgLi4uYmFzZSxcbiAgICAgIHNjYWxlOiBuZXh0U2NhbGUsXG4gICAgICB4UmF0aW86IG5leHRYLFxuICAgICAgY2FudmFzWVJhdGlvOiBuZXh0WVxuICAgIH1cbiAgICBzZXRTYXZpbmcodHJ1ZSlcbiAgICB0cnkge1xuICAgICAgYXdhaXQgb25TYXZlKHsgbW9kZWw6IHVwZGF0ZWQgfSlcbiAgICB9IGZpbmFsbHkge1xuICAgICAgc2V0U2F2aW5nKGZhbHNlKVxuICAgIH1cbiAgfVxuXG4gIGFzeW5jIGZ1bmN0aW9uIHJlc2V0KCk6IFByb21pc2U8dm9pZD4ge1xuICAgIHNldFNjYWxlKERFRkFVTFRTLnNjYWxlKVxuICAgIHNldFhSYXRpbyhERUZBVUxUUy54UmF0aW8pXG4gICAgc2V0WVJhdGlvKERFRkFVTFRTLnlSYXRpbylcbiAgICBhd2FpdCBwZXJzaXN0KERFRkFVTFRTLnNjYWxlLCBERUZBVUxUUy54UmF0aW8sIERFRkFVTFRTLnlSYXRpbylcbiAgfVxuXG4gIHJldHVybiAoXG4gICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTRcIj5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1iZXR3ZWVuXCI+XG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC1zbSBmb250LXNlbWlib2xkXCI+5pi+56S65L2N572u5LiO57yp5pS+PC9kaXY+XG4gICAgICAgIDxCdXR0b25cbiAgICAgICAgICB2YXJpYW50PVwiZ2hvc3RcIlxuICAgICAgICAgIHNpemU9XCJzbVwiXG4gICAgICAgICAgb25DbGljaz17KCkgPT4gdm9pZCByZXNldCgpfVxuICAgICAgICAgIGNsYXNzTmFtZT1cImgtNiBweC0yIHRleHQteHNcIlxuICAgICAgICAgIGRpc2FibGVkPXtzYXZpbmd9XG4gICAgICAgID5cbiAgICAgICAgICA8Um90YXRlQ2N3IGNsYXNzTmFtZT1cIm1yLTEgc2l6ZS0zXCIgLz5cbiAgICAgICAgICDph43nva7kuLrpu5jorqRcbiAgICAgICAgPC9CdXR0b24+XG4gICAgICA8L2Rpdj5cblxuICAgICAgPE51bWJlclNsaWRlclxuICAgICAgICBsYWJlbD1cIue8qeaUvlwiXG4gICAgICAgIHZhbHVlPXtzY2FsZX1cbiAgICAgICAgbWluPXswLjJ9XG4gICAgICAgIG1heD17M31cbiAgICAgICAgc3RlcD17MC4wMX1cbiAgICAgICAgb25DaGFuZ2U9eyh2KSA9PiB7XG4gICAgICAgICAgc2V0U2NhbGUodilcbiAgICAgICAgICB2b2lkIHBlcnNpc3QodiwgeFJhdGlvLCB5UmF0aW8pXG4gICAgICAgIH19XG4gICAgICAvPlxuICAgICAgPE51bWJlclNsaWRlclxuICAgICAgICBsYWJlbD1cIuawtOW5s+S9jee9rlwiXG4gICAgICAgIHZhbHVlPXt4UmF0aW99XG4gICAgICAgIG1pbj17MH1cbiAgICAgICAgbWF4PXsxfVxuICAgICAgICBzdGVwPXswLjAxfVxuICAgICAgICBvbkNoYW5nZT17KHYpID0+IHtcbiAgICAgICAgICBzZXRYUmF0aW8odilcbiAgICAgICAgICB2b2lkIHBlcnNpc3Qoc2NhbGUsIHYsIHlSYXRpbylcbiAgICAgICAgfX1cbiAgICAgIC8+XG4gICAgICA8TnVtYmVyU2xpZGVyXG4gICAgICAgIGxhYmVsPVwi5Z6C55u05L2N572uXCJcbiAgICAgICAgdmFsdWU9e3lSYXRpb31cbiAgICAgICAgbWluPXswfVxuICAgICAgICBtYXg9ezF9XG4gICAgICAgIHN0ZXA9ezAuMDF9XG4gICAgICAgIG9uQ2hhbmdlPXsodikgPT4ge1xuICAgICAgICAgIHNldFlSYXRpbyh2KVxuICAgICAgICAgIHZvaWQgcGVyc2lzdChzY2FsZSwgeFJhdGlvLCB2KVxuICAgICAgICB9fVxuICAgICAgLz5cblxuICAgICAgPHAgY2xhc3NOYW1lPVwicHQtMSB0ZXh0LVsxMXB4XSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj5cbiAgICAgICAg5o+Q56S677ya5Lmf5Y+v5Lul5Zyo5Y+z5L6n6Z2i5p2/55u05o6l5oyJ5L2P5ouW5ou956e75Yqo5Lq654mp77yM5rua6L2u57yp5pS+44CCXG4gICAgICA8L3A+XG5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1iZXR3ZWVuIGJvcmRlci10IHB0LTRcIj5cbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJzcGFjZS15LTAuNVwiPlxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC1zbSBmb250LXNlbWlib2xkXCI+5ZCv5Yqo5ZSk6YaSPC9kaXY+XG4gICAgICAgICAgPHAgY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7lkK/liqjoh6rmo4DlrozmiJDlkI7vvIzoh6rliqjlvIDlj6PmiZPmi5vlkbw8L3A+XG4gICAgICAgIDwvZGl2PlxuICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJyZWxhdGl2ZSBpbmxpbmUtZmxleFwiPlxuICAgICAgICAgIDxDaGVja2JveFxuICAgICAgICAgICAgY2hlY2tlZD17Z3JlZXRpbmdFbmFibGVkfVxuICAgICAgICAgICAgZGlzYWJsZWQ9e3NhdmluZ31cbiAgICAgICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4ge1xuICAgICAgICAgICAgICBzZXRHcmVldGluZ0VuYWJsZWQoZS50YXJnZXQuY2hlY2tlZClcbiAgICAgICAgICAgICAgdm9pZCBvblNhdmUoeyBzdGFydHVwOiB7IGdyZWV0aW5nRW5hYmxlZDogZS50YXJnZXQuY2hlY2tlZCB9IH0pXG4gICAgICAgICAgICB9fVxuICAgICAgICAgIC8+XG4gICAgICAgICAgPENoZWNrYm94SW5kaWNhdG9yIC8+XG4gICAgICAgIDwvc3Bhbj5cbiAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuICApXG59XG4iXSwiZmlsZSI6IkQ6L1Byb2plY3QyMDI1L01pa3VNb2QvT3BlbkdhbC9zcmMvcmVuZGVyZXIvc3JjL2NvbXBvbmVudHMvc2V0dGluZ3MvQ2hhcmFjdGVyRGlzcGxheVNldHRpbmdzLnRzeCJ9

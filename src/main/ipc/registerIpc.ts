@@ -4,12 +4,12 @@ import path from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { AppConfig, ChatMessage, IpcResult, LLMRequest, LLMResponse } from '@shared/types'
 import type { LogEntry } from '@shared/log'
-import { readConfig, writeConfig, redactSecrets, resolveMaskedApiKey } from '../services/configStore'
+import { readConfig, writeConfig } from '../services/configStore'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
 import { fetchMarketMods, openMarketMod } from '../services/marketService'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
-import { speak, pingTTS, resetTTSState, warmupTTS } from '../services/ttsClient'
+import { speak, cancelSpeech, pingTTS, resetTTSState, warmupTTS } from '../services/ttsClient'
 import type { TTSSpeakRequest, TTSSpeakResponse } from '../services/ttsClient'
 import {
   startTTSServer,
@@ -73,15 +73,13 @@ export function registerIpc(windows: WindowManager): void {
     return parsed.verdict === 'negates' ? 'negates' : 'reinforces'
   }
 
-  ipcMain.handle(IpcChannels.config.get, () =>
-    wrap<AppConfig>(() => redactSecrets(readConfig())),
-  )
+  ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
 
   ipcMain.handle(IpcChannels.config.set, (_, patch: Partial<AppConfig>) =>
     wrap<AppConfig>(() => {
       const next = writeConfig(patch)
       if (patch.activeCharacterId !== undefined) void warmupTTS()
-      return redactSecrets(next)
+      return next
     })
   )
 
@@ -107,7 +105,7 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(
     IpcChannels.llm.listModels,
     (_, baseURL: string, apiKey: string) =>
-      wrap<string[]>(() => listProviderModels(baseURL, resolveMaskedApiKey(baseURL, apiKey)))
+      wrap<string[]>(() => listProviderModels(baseURL, apiKey))
   )
 
   ipcMain.handle(IpcChannels.model.resolveDefault, () =>
@@ -212,6 +210,7 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.tts.speak, (_, request: TTSSpeakRequest) =>
     wrap<TTSSpeakResponse>(() => speak(request))
   )
+  ipcMain.handle(IpcChannels.tts.cancel, () => wrap(() => cancelSpeech()))
   ipcMain.handle(IpcChannels.tts.ping, () =>
     wrap<{ ok: boolean; message?: string }>(() => pingTTS())
   )
@@ -254,6 +253,9 @@ export function registerIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.asr.start, (event) => {
     const sender = BrowserWindow.fromWebContents(event.sender)?.webContents
     if (!sender) return { success: false, error: 'No window' }
+    getEngine().setSpeechStartCallback(() => {
+      if (!sender.isDestroyed()) sender.send(IpcChannels.asr.speechStart)
+    })
     getEngine().setResultCallback((text, partial) => {
       if (sender.isDestroyed()) return
       sender.send(partial ? IpcChannels.asr.partial : IpcChannels.asr.final, text)
@@ -263,6 +265,7 @@ export function registerIpc(windows: WindowManager): void {
 
   ipcMain.handle(IpcChannels.asr.stop, () => {
     getEngine().setResultCallback(null)
+    getEngine().setSpeechStartCallback(null)
     getEngine().stop()
     return { success: true }
   })

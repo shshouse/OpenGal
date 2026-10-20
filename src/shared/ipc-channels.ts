@@ -63,6 +63,7 @@ export const IpcChannels = {
   },
   tts: {
     speak: 'tts:speak',
+    cancel: 'tts:cancel',
     ping: 'tts:ping',
     reset: 'tts:reset',
     serverStart: 'tts:serverStart',
@@ -82,6 +83,7 @@ export const IpcChannels = {
     feed: 'asr:feed',
     partial: 'asr:partial',
     final: 'asr:final',
+    speechStart: 'asr:speechStart',
     status: 'asr:status'
   },
   director: {

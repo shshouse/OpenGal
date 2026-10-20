@@ -154,6 +154,7 @@ const api = {
     }
   },
   tts: {
+    cancel: () => invoke(IpcChannels.tts.cancel),
     speak: (request: { text: string; roleCardId?: string; overrides?: Record<string, unknown> }) =>
       invoke<{ audioBase64: string; mimeType: string; skipped?: boolean }>(IpcChannels.tts.speak, request),
     ping: () => invoke<{ ok: boolean; message?: string }>(IpcChannels.tts.ping),
@@ -179,6 +180,11 @@ const api = {
     isMaximized: () => ipcRenderer.invoke(IpcChannels.window.isMaximized) as Promise<boolean>
   },
   asr: {
+    onSpeechStart: (listener: () => void) => {
+      const handler = () => listener()
+      ipcRenderer.on(IpcChannels.asr.speechStart, handler)
+      return () => ipcRenderer.off(IpcChannels.asr.speechStart, handler)
+    },
     start: () => invoke(IpcChannels.asr.start),
     stop: () => invoke(IpcChannels.asr.stop),
     feed: (pcm16: ArrayBuffer) => ipcRenderer.send(IpcChannels.asr.feed, pcm16),

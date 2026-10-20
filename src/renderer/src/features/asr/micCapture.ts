@@ -5,7 +5,7 @@ class PCMProcessor extends AudioWorkletProcessor {
     const targetRate = options.processorOptions?.targetRate || 16000;
     this._ratio = sampleRate / targetRate;
     this._buffer = [];
-    this._chunkSamples = 4096;
+    this._chunkSamples = Math.round(targetRate * 0.032);
     this._resamplePos = 0;
   }
   process(inputs) {
@@ -54,7 +54,8 @@ export async function startMicCapture(targetRate: number, deviceId?: string): Pr
         deviceId: deviceId ? { exact: deviceId } : undefined,
         channelCount: 1,
         echoCancellation: true,
-        noiseSuppression: true
+        noiseSuppression: true,
+        autoGainControl: true
       }
     })
     try {

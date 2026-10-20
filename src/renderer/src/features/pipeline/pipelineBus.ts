@@ -7,6 +7,8 @@ import type {
 } from '@shared/messages'
 
 export interface PipelineEventMap {
+  'user:speechStart': void
+  'asr:settingsChanged': void
   'user:input': UserInputMessage
   'llm:dialog': LLMDialogMessage
   'llm:reasoning': ReasoningMessage

@@ -1,0 +1,1039 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/settings/TTSSettings.tsx");import __vite__cjsImport0_react_jsxDevRuntime from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=547055eb"; const Fragment = __vite__cjsImport0_react_jsxDevRuntime["Fragment"]; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+var _s = $RefreshSig$();
+import __vite__cjsImport3_react from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/react.js?v=547055eb"; const React = ((m) => m?.__esModule ? m : { ...typeof m === "object" && !Array.isArray(m) || typeof m === "function" ? m : {}, default: m })(__vite__cjsImport3_react);
+import { Volume2 } from "/@fs/D:/Project2025/MikuMod/OpenGal/node_modules/.vite/deps/lucide-react.js?v=547055eb";
+import { Button } from "/src/components/ui/button.tsx";
+import { Input } from "/src/components/ui/input.tsx";
+import { Checkbox, CheckboxIndicator } from "/src/components/ui/checkbox.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "/src/components/ui/select.tsx";
+import { useCharacterStore } from "/src/features/character/characterStore.ts?t=1792484100566";
+const REF_LANG_OPTIONS = [
+  { value: "zh", label: "中英混合" },
+  { value: "en", label: "English" },
+  { value: "ja", label: "日英混合" },
+  { value: "yue", label: "粤英混合" },
+  { value: "ko", label: "韩英混合" },
+  { value: "all_zh", label: "全部按中文" },
+  { value: "all_ja", label: "全部按日文" },
+  { value: "all_yue", label: "全部按粤语" },
+  { value: "all_ko", label: "全部按韩文" }
+];
+const OUT_LANG_OPTIONS = [
+  { value: "auto", label: "多语种混合" },
+  { value: "auto_yue", label: "多语种混合(粤语)" },
+  ...REF_LANG_OPTIONS
+];
+const CARD_FIELD_MAP = {
+  baseURL: "baseURL",
+  gptModelRelPath: "gptModel",
+  sovitsModelRelPath: "sovitsModel",
+  characterName: "characterName",
+  onnxModelDir: "onnxModelDir",
+  referenceAudioRelPath: "referenceAudio",
+  referenceText: "referenceText",
+  referenceLanguage: "referenceLanguage",
+  outputLanguage: "outputLanguage",
+  speedFactor: "speedFactor",
+  textSplitMethod: "textSplitMethod"
+};
+function CardTag() {
+  return /* @__PURE__ */ jsxDEV("span", { className: "ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary", children: "角色卡" }, void 0, false, {
+    fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+    lineNumber: 69,
+    columnNumber: 5
+  }, this);
+}
+_c = CardTag;
+export function TTSSettings({ config, onSave }) {
+  _s();
+  const [form, setForm] = React.useState({
+    enabled: false,
+    provider: "gpt-sovits",
+    baseURL: "http://127.0.0.1:39880",
+    gptModelRelPath: "",
+    sovitsModelRelPath: "",
+    characterName: "",
+    onnxModelDir: "",
+    referenceAudioRelPath: "",
+    referenceText: "",
+    referenceLanguage: "en",
+    outputLanguage: "auto",
+    speedFactor: 1,
+    textSplitMethod: "cut5"
+  });
+  const [saving, setSaving] = React.useState(false);
+  const [status, setStatus] = React.useState(null);
+  const [serverBusy, setServerBusy] = React.useState(false);
+  const [health, setHealth] = React.useState(
+    "unknown"
+  );
+  const [healthDetail, setHealthDetail] = React.useState(null);
+  const [serverPort, setServerPort] = React.useState(null);
+  const [logVisible, setLogVisible] = React.useState(false);
+  const [logText, setLogText] = React.useState("");
+  React.useEffect(() => {
+    if (config?.tts) {
+      setForm(config.tts);
+    }
+  }, [config]);
+  const activeCharacter = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId));
+  const activeVoiceRef = activeCharacter?.voice?.configRef;
+  const cardEngine = activeCharacter?.voice?.engine;
+  const engineMismatch = Boolean(cardEngine && cardEngine !== form.provider);
+  const [cardVoice, setCardVoice] = React.useState(null);
+  React.useEffect(() => {
+    if (!activeCharacter?.id) {
+      setCardVoice(null);
+      return;
+    }
+    let cancelled = false;
+    void window.opengal.character.voiceConfig(activeCharacter.id).then((res) => {
+      if (!cancelled) setCardVoice(res.success && res.data ? res.data : null);
+    }).catch(() => {
+      if (!cancelled) setCardVoice(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCharacter?.id, activeVoiceRef]);
+  const fromCard = React.useCallback(
+    (key) => {
+      if (!cardVoice) return false;
+      const cardKey = CARD_FIELD_MAP[key];
+      if (!cardKey) return false;
+      const v = cardVoice[cardKey];
+      return v !== void 0 && v !== null && v !== "";
+    },
+    [cardVoice]
+  );
+  const effective = React.useCallback(
+    (key) => {
+      const cardKey = CARD_FIELD_MAP[key];
+      if (cardVoice && cardKey && fromCard(key)) {
+        return cardVoice[cardKey];
+      }
+      return form[key];
+    },
+    [cardVoice, form, fromCard]
+  );
+  const probeHealth = React.useCallback(async () => {
+    const statusResult = await window.opengal.tts.serverStatus();
+    const pidAlive = statusResult.success && statusResult.data?.running === true;
+    setServerPort(statusResult.success ? statusResult.data?.port ?? null : null);
+    if (!pidAlive) {
+      setHealth("stopped");
+      setHealthDetail(null);
+      return;
+    }
+    const pingResult = await window.opengal.tts.ping();
+    const portReachable = pingResult.success && pingResult.data?.ok === true;
+    if (portReachable) {
+      setHealth("ready");
+      setHealthDetail(null);
+    } else {
+      setHealth("starting");
+      setHealthDetail(pingResult.data?.message || pingResult.error || "端口暂不可达");
+    }
+  }, []);
+  React.useEffect(() => {
+    void probeHealth();
+    const id = setInterval(probeHealth, 3e3);
+    return () => clearInterval(id);
+  }, [probeHealth]);
+  const serverRunning = health === "ready" || health === "starting";
+  const formPort = React.useMemo(() => {
+    try {
+      return Number(new URL(form.baseURL).port) || 39880;
+    } catch {
+      return null;
+    }
+  }, [form.baseURL]);
+  const portMismatch = serverRunning && serverPort !== null && formPort !== null && formPort !== serverPort;
+  async function handleStartServer() {
+    setServerBusy(true);
+    setStatus("正在启动 TTS 服务(首次启动需要 30-90 秒)...");
+    try {
+      const r = await window.opengal.tts.serverStart();
+      if (!r.success) throw new Error(r.error || "start failed");
+      setStatus(`服务已就绪 (pid=${r.data?.pid})`);
+      void probeHealth();
+    } catch (err) {
+      setStatus(`启动失败: ${err.message}`);
+      void probeHealth();
+    } finally {
+      setServerBusy(false);
+    }
+  }
+  async function handleStopServer() {
+    setServerBusy(true);
+    try {
+      await window.opengal.tts.serverStop();
+      setStatus("服务已停止");
+      void probeHealth();
+    } finally {
+      setServerBusy(false);
+    }
+  }
+  async function handleViewLog() {
+    const r = await window.opengal.tts.serverLog();
+    setLogText(r.success ? r.data || "(空)" : `读取日志失败: ${r.error || "unknown"}`);
+    setLogVisible(true);
+  }
+  function update(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+  async function handleSave() {
+    setSaving(true);
+    setStatus(null);
+    try {
+      await onSave({ tts: form });
+      await window.opengal.tts.reset();
+      void window.opengal.boot.recheckTts();
+      setStatus("已保存");
+    } catch (error) {
+      setStatus(`保存失败: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function handlePing() {
+    setStatus("正在测试连接...");
+    const result = await window.opengal.tts.ping();
+    if (result.success && result.data?.ok) {
+      setStatus(`连接成功 (${result.data.message || "OK"})`);
+    } else {
+      setStatus(`连接失败: ${result.data?.message || result.error || "unknown"}`);
+    }
+    void probeHealth();
+  }
+  async function handleTest() {
+    setStatus("正在合成...");
+    try {
+      const result = await window.opengal.tts.speak({ text: "Hello! This is a test." });
+      if (!result.success || !result.data) {
+        throw new Error(result.error || "TTS failed");
+      }
+      if (result.data.skipped) {
+        setStatus("已跳过：当前角色模型与所选引擎不匹配");
+        return;
+      }
+      const { audioBase64, mimeType } = result.data;
+      const audio = new Audio(`data:${mimeType};base64,${audioBase64}`);
+      await audio.play();
+      setStatus("测试成功");
+    } catch (error) {
+      setStatus(`测试失败: ${error.message}`);
+    }
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "space-y-3", children: [
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 text-sm font-semibold", children: [
+      /* @__PURE__ */ jsxDEV(Volume2, { className: "size-4" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 282,
+        columnNumber: 9
+      }, this),
+      " TTS 设置"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 281,
+      columnNumber: 7
+    }, this),
+    activeCharacter && cardVoice && /* @__PURE__ */ jsxDEV("div", { className: "text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2", children: [
+      "当前角色「",
+      activeCharacter.displayName ?? activeCharacter.name,
+      "」的语音由角色卡提供 （",
+      activeCharacter.voice?.configRef,
+      "）。带「角色卡」标记的字段以卡为准（灰显不可编辑， 修改需编辑卡内配置）；其余字段为全局默认值。"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 286,
+      columnNumber: 7
+    }, this),
+    activeCharacter?.voice?.configRef && !cardVoice && /* @__PURE__ */ jsxDEV("div", { className: "text-xs text-amber-600 dark:text-amber-400 bg-muted/30 rounded px-3 py-2", children: [
+      "当前角色的语音配置（",
+      activeCharacter.voice.configRef,
+      "）读取失败：合成时将使用下方全局值 或无参考文本模式。"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 293,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: "启用" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 300,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("span", { className: "relative inline-flex", children: [
+        /* @__PURE__ */ jsxDEV(
+          Checkbox,
+          {
+            checked: form.enabled,
+            onChange: (e) => update("enabled", e.target.checked)
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 302,
+            columnNumber: 11
+          },
+          this
+        ),
+        /* @__PURE__ */ jsxDEV(CheckboxIndicator, {}, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 306,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 301,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 299,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+        "引擎",
+        cardEngine && /* @__PURE__ */ jsxDEV("span", { className: "ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary", children: [
+          "角色模型: ",
+          cardEngine
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 314,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 311,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        Select,
+        {
+          value: form.provider,
+          onValueChange: (v) => update("provider", v),
+          children: [
+            /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, {}, void 0, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+              lineNumber: 324,
+              columnNumber: 13
+            }, this) }, void 0, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+              lineNumber: 323,
+              columnNumber: 11
+            }, this),
+            /* @__PURE__ */ jsxDEV(SelectContent, { children: [
+              /* @__PURE__ */ jsxDEV(SelectItem, { value: "gpt-sovits", children: "GPT-SoVITS (PyTorch)" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 327,
+                columnNumber: 13
+              }, this),
+              /* @__PURE__ */ jsxDEV(SelectItem, { value: "genie", children: "Genie-TTS (ONNX)" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 328,
+                columnNumber: 13
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+              lineNumber: 326,
+              columnNumber: 11
+            }, this)
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 319,
+          columnNumber: 9
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 310,
+      columnNumber: 7
+    }, this),
+    engineMismatch && /* @__PURE__ */ jsxDEV("div", { className: "text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2", children: [
+      "当前角色模型为 ",
+      cardEngine,
+      " 格式，与所选引擎不匹配，该角色的回复将没有语音。"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 334,
+      columnNumber: 7
+    }, this),
+    form.provider === "genie" && /* @__PURE__ */ jsxDEV("div", { className: "text-xs text-muted-foreground bg-muted/30 rounded px-3 py-2", children: "Genie 需先转换模型为 ONNX 格式（src/scripts/tts/convert_to_onnx.py），并启动 Genie API 服务（src/scripts/tts/start_genie_tts.py）。" }, void 0, false, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 340,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+      "后端地址",
+      fromCard("baseURL") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 347,
+        columnNumber: 33
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 345,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV(
+      Input,
+      {
+        value: String(effective("baseURL")),
+        onChange: (e) => update("baseURL", e.target.value),
+        disabled: fromCard("baseURL"),
+        placeholder: form.provider === "genie" ? "http://127.0.0.1:8000" : "http://127.0.0.1:39880"
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 349,
+        columnNumber: 7
+      },
+      this
+    ),
+    form.provider === "gpt-sovits" && /* @__PURE__ */ jsxDEV(Fragment, { children: /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "GPT 权重 (相对路径)",
+          fromCard("gptModelRelPath") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 362,
+            columnNumber: 49
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 360,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Input,
+          {
+            value: String(effective("gptModelRelPath")),
+            onChange: (e) => update("gptModelRelPath", e.target.value),
+            disabled: fromCard("gptModelRelPath"),
+            placeholder: "GPT/your-model.ckpt"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 364,
+            columnNumber: 15
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 359,
+        columnNumber: 13
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "SoVITS 权重 (相对路径)",
+          fromCard("sovitsModelRelPath") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 374,
+            columnNumber: 52
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 372,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Input,
+          {
+            value: String(effective("sovitsModelRelPath")),
+            onChange: (e) => update("sovitsModelRelPath", e.target.value),
+            disabled: fromCard("sovitsModelRelPath"),
+            placeholder: "SoVITS/your-model.pth"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 376,
+            columnNumber: 15
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 371,
+        columnNumber: 13
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 358,
+      columnNumber: 11
+    }, this) }, void 0, false, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 357,
+      columnNumber: 7
+    }, this),
+    form.provider === "genie" && /* @__PURE__ */ jsxDEV(Fragment, { children: /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-2 gap-2", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "角色名",
+          fromCard("characterName") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 393,
+            columnNumber: 47
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 391,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Input,
+          {
+            value: String(effective("characterName")),
+            onChange: (e) => update("characterName", e.target.value),
+            disabled: fromCard("characterName"),
+            placeholder: "character-id"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 395,
+            columnNumber: 15
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 390,
+        columnNumber: 13
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "ONNX 模型目录 (相对路径)",
+          fromCard("onnxModelDir") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 405,
+            columnNumber: 46
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 403,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Input,
+          {
+            value: String(effective("onnxModelDir")),
+            onChange: (e) => update("onnxModelDir", e.target.value),
+            disabled: fromCard("onnxModelDir"),
+            placeholder: "genie-onnx/character-id"
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 407,
+            columnNumber: 15
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 402,
+        columnNumber: 13
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 389,
+      columnNumber: 11
+    }, this) }, void 0, false, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 388,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+      "参考音频 (相对路径)",
+      fromCard("referenceAudioRelPath") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 420,
+        columnNumber: 47
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 418,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV(
+      Input,
+      {
+        value: String(effective("referenceAudioRelPath")),
+        onChange: (e) => update("referenceAudioRelPath", e.target.value),
+        disabled: fromCard("referenceAudioRelPath"),
+        placeholder: "reference/ref.wav"
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 422,
+        columnNumber: 7
+      },
+      this
+    ),
+    /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+      "参考文本",
+      fromCard("referenceText") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 431,
+        columnNumber: 39
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 429,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV(
+      Input,
+      {
+        value: String(effective("referenceText")),
+        onChange: (e) => update("referenceText", e.target.value),
+        disabled: fromCard("referenceText"),
+        placeholder: "Hello!"
+      },
+      void 0,
+      false,
+      {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 433,
+        columnNumber: 7
+      },
+      this
+    ),
+    form.provider === "gpt-sovits" && /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-3 gap-2", children: [
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "参考语言",
+          fromCard("referenceLanguage") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 445,
+            columnNumber: 49
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 443,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Select,
+          {
+            value: String(effective("referenceLanguage")),
+            onValueChange: (v) => update("referenceLanguage", v),
+            disabled: fromCard("referenceLanguage"),
+            children: [
+              /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, {}, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 453,
+                columnNumber: 17
+              }, this) }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 452,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV(SelectContent, { children: REF_LANG_OPTIONS.map(
+                (opt) => /* @__PURE__ */ jsxDEV(SelectItem, { value: opt.value, children: opt.label }, opt.value, false, {
+                  fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                  lineNumber: 457,
+                  columnNumber: 15
+                }, this)
+              ) }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 455,
+                columnNumber: 15
+              }, this)
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 447,
+            columnNumber: 13
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 442,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "输出语言",
+          fromCard("outputLanguage") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 467,
+            columnNumber: 46
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 465,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Select,
+          {
+            value: String(effective("outputLanguage")),
+            onValueChange: (v) => update("outputLanguage", v),
+            disabled: fromCard("outputLanguage"),
+            children: [
+              /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, {}, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 475,
+                columnNumber: 17
+              }, this) }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 474,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV(SelectContent, { children: OUT_LANG_OPTIONS.map(
+                (opt) => /* @__PURE__ */ jsxDEV(SelectItem, { value: opt.value, children: opt.label }, opt.value, false, {
+                  fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                  lineNumber: 479,
+                  columnNumber: 15
+                }, this)
+              ) }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 477,
+                columnNumber: 15
+              }, this)
+            ]
+          },
+          void 0,
+          true,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 469,
+            columnNumber: 13
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 464,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { children: [
+        /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+          "语速",
+          fromCard("speedFactor") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 489,
+            columnNumber: 43
+          }, this)
+        ] }, void 0, true, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 487,
+          columnNumber: 13
+        }, this),
+        /* @__PURE__ */ jsxDEV(
+          Input,
+          {
+            type: "number",
+            step: 0.1,
+            min: 0.5,
+            max: 2,
+            value: Number(effective("speedFactor")),
+            onChange: (e) => update("speedFactor", parseFloat(e.target.value) || 1),
+            disabled: fromCard("speedFactor")
+          },
+          void 0,
+          false,
+          {
+            fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+            lineNumber: 491,
+            columnNumber: 13
+          },
+          this
+        )
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 486,
+        columnNumber: 11
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 441,
+      columnNumber: 7
+    }, this),
+    form.provider === "genie" && /* @__PURE__ */ jsxDEV("div", { children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "text-xs font-medium text-muted-foreground", children: [
+        "参考语言",
+        fromCard("referenceLanguage") && /* @__PURE__ */ jsxDEV(CardTag, {}, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 508,
+          columnNumber: 47
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 506,
+        columnNumber: 11
+      }, this),
+      /* @__PURE__ */ jsxDEV(
+        Select,
+        {
+          value: String(effective("referenceLanguage")),
+          onValueChange: (v) => update("referenceLanguage", v),
+          disabled: fromCard("referenceLanguage"),
+          children: [
+            /* @__PURE__ */ jsxDEV(SelectTrigger, { children: /* @__PURE__ */ jsxDEV(SelectValue, {}, void 0, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+              lineNumber: 516,
+              columnNumber: 15
+            }, this) }, void 0, false, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+              lineNumber: 515,
+              columnNumber: 13
+            }, this),
+            /* @__PURE__ */ jsxDEV(SelectContent, { children: [
+              /* @__PURE__ */ jsxDEV(SelectItem, { value: "zh", children: "中文" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 519,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV(SelectItem, { value: "en", children: "English" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 520,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV(SelectItem, { value: "ja", children: "日本語" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 521,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV(SelectItem, { value: "ko", children: "한국어" }, void 0, false, {
+                fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+                lineNumber: 522,
+                columnNumber: 15
+              }, this)
+            ] }, void 0, true, {
+              fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+              lineNumber: 518,
+              columnNumber: 13
+            }, this)
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 510,
+          columnNumber: 11
+        },
+        this
+      )
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 505,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 pt-2 border-t flex-wrap", children: [
+      /* @__PURE__ */ jsxDEV("span", { className: "text-xs font-medium", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "text-muted-foreground", children: "TTS 服务: " }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 530,
+          columnNumber: 11
+        }, this),
+        health === "unknown" && /* @__PURE__ */ jsxDEV("span", { className: "text-muted-foreground", children: "检测中..." }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 531,
+          columnNumber: 36
+        }, this),
+        health === "stopped" && /* @__PURE__ */ jsxDEV("span", { className: "text-muted-foreground", children: "未运行" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 532,
+          columnNumber: 36
+        }, this),
+        health === "starting" && /* @__PURE__ */ jsxDEV("span", { className: "text-amber-600 dark:text-amber-400", children: "进程在但端口不可达" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 534,
+          columnNumber: 11
+        }, this),
+        health === "ready" && /* @__PURE__ */ jsxDEV("span", { className: "text-emerald-600 dark:text-emerald-400", children: "运行中（已就绪）" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 537,
+          columnNumber: 11
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 529,
+        columnNumber: 9
+      }, this),
+      !serverRunning ? /* @__PURE__ */ jsxDEV(Button, { onClick: handleStartServer, disabled: serverBusy, size: "sm", children: serverBusy ? "启动中..." : "启动服务" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 541,
+        columnNumber: 9
+      }, this) : /* @__PURE__ */ jsxDEV(Button, { onClick: handleStopServer, disabled: serverBusy, variant: "outline", size: "sm", children: "停止服务" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 545,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(Button, { onClick: handleViewLog, variant: "ghost", size: "sm", children: "查看日志" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 549,
+        columnNumber: 9
+      }, this),
+      serverPort !== null && /* @__PURE__ */ jsxDEV("span", { className: "text-xs text-muted-foreground", children: [
+        "监听端口: ",
+        serverPort
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 553,
+        columnNumber: 9
+      }, this),
+      health === "starting" && healthDetail && /* @__PURE__ */ jsxDEV("span", { className: "text-xs text-amber-600 dark:text-amber-400 break-all", children: healthDetail }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 556,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 528,
+      columnNumber: 7
+    }, this),
+    portMismatch && /* @__PURE__ */ jsxDEV("div", { className: "text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2", children: [
+      "端口（",
+      formPort,
+      "）与服务监听端口（",
+      serverPort,
+      "）不一致，请重启服务。"
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 563,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "flex items-center gap-2 pt-2", children: [
+      /* @__PURE__ */ jsxDEV(Button, { onClick: handleSave, disabled: saving, size: "sm", children: saving ? "保存中..." : "保存" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 569,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(Button, { onClick: handlePing, variant: "outline", size: "sm", children: "测试连接" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 572,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV(Button, { onClick: handleTest, variant: "outline", size: "sm", disabled: !form.enabled, children: "试听" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 575,
+        columnNumber: 9
+      }, this),
+      status && /* @__PURE__ */ jsxDEV("span", { className: "text-xs text-muted-foreground break-all", children: status }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 578,
+        columnNumber: 20
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 568,
+      columnNumber: 7
+    }, this),
+    logVisible && /* @__PURE__ */ jsxDEV("div", { className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4", children: /* @__PURE__ */ jsxDEV("div", { className: "bg-background rounded-lg shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col border", children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between px-4 py-2 border-b", children: [
+        /* @__PURE__ */ jsxDEV("span", { className: "text-sm font-semibold", children: "TTS 服务日志" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 585,
+          columnNumber: 15
+        }, this),
+        /* @__PURE__ */ jsxDEV(Button, { size: "sm", variant: "ghost", onClick: () => setLogVisible(false), children: "关闭" }, void 0, false, {
+          fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+          lineNumber: 586,
+          columnNumber: 15
+        }, this)
+      ] }, void 0, true, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 584,
+        columnNumber: 13
+      }, this),
+      /* @__PURE__ */ jsxDEV("pre", { className: "flex-1 overflow-auto p-4 text-xs font-mono whitespace-pre-wrap break-all", children: logText || "(暂无日志)" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 590,
+        columnNumber: 13
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "px-4 py-2 border-t flex justify-end gap-2", children: /* @__PURE__ */ jsxDEV(Button, { size: "sm", variant: "outline", onClick: handleViewLog, children: "刷新" }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 594,
+        columnNumber: 15
+      }, this) }, void 0, false, {
+        fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+        lineNumber: 593,
+        columnNumber: 13
+      }, this)
+    ] }, void 0, true, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 583,
+      columnNumber: 11
+    }, this) }, void 0, false, {
+      fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+      lineNumber: 582,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx",
+    lineNumber: 280,
+    columnNumber: 5
+  }, this);
+}
+_s(TTSSettings, "uv5Hme+LLYL4lQH7b54tPZQ2LgU=", false, function() {
+  return [useCharacterStore];
+});
+_c2 = TTSSettings;
+var _c, _c2;
+$RefreshReg$(_c, "CardTag");
+$RefreshReg$(_c2, "TTSSettings");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports) return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("D:/Project2025/MikuMod/OpenGal/src/renderer/src/components/settings/TTSSettings.tsx", currentExports, nextExports);
+      if (invalidateMessage) import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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LFVBQU8sTUFBSyxNQUFLLFNBQVEsU0FBUSxTQUFTLE1BQU1DLGNBQWMsS0FBSyxHQUFFLGtCQUF0RTtBQUFBO0FBQUE7QUFBQTtBQUFBLGVBRUE7QUFBQSxXQUpGO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFLQTtBQUFBLE1BQ0EsdUJBQUMsU0FBSSxXQUFVLDRFQUNaQyxxQkFBVyxZQURkO0FBQUE7QUFBQTtBQUFBO0FBQUEsYUFFQTtBQUFBLE1BQ0EsdUJBQUMsU0FBSSxXQUFVLDZDQUNiLGlDQUFDLFVBQU8sTUFBSyxNQUFLLFNBQVEsV0FBVSxTQUFTaUUsZUFBYyxrQkFBM0Q7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUVBLEtBSEY7QUFBQTtBQUFBO0FBQUE7QUFBQSxhQUlBO0FBQUEsU0FkRjtBQUFBO0FBQUE7QUFBQTtBQUFBLFdBZUEsS0FoQkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQWlCQTtBQUFBLE9BL1RKO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0FpVUE7QUFFSjtBQUFDckYsR0E3Z0JlSCxhQUFXO0FBQUEsVUFpQ0RuQixpQkFBaUI7QUFBQTtBQUFBLE1BakMzQm1CO0FBQVcsSUFBQUQsSUFBQXFIO0FBQUEsYUFBQXJILElBQUE7QUFBQSxhQUFBcUgsS0FBQSIsIm5hbWVzIjpbIlJlYWN0IiwiVm9sdW1lMiIsIkJ1dHRvbiIsIklucHV0IiwiQ2hlY2tib3giLCJDaGVja2JveEluZGljYXRvciIsIlNlbGVjdCIsIlNlbGVjdENvbnRlbnQiLCJTZWxlY3RJdGVtIiwiU2VsZWN0VHJpZ2dlciIsIlNlbGVjdFZhbHVlIiwidXNlQ2hhcmFjdGVyU3RvcmUiLCJSRUZfTEFOR19PUFRJT05TIiwidmFsdWUiLCJsYWJlbCIsIk9VVF9MQU5HX09QVElPTlMiLCJDQVJEX0ZJRUxEX01BUCIsImJhc2VVUkwiLCJncHRNb2RlbFJlbFBhdGgiLCJzb3ZpdHNNb2RlbFJlbFBhdGgiLCJjaGFyYWN0ZXJOYW1lIiwib25ueE1vZGVsRGlyIiwicmVmZXJlbmNlQXVkaW9SZWxQYXRoIiwicmVmZXJlbmNlVGV4dCIsInJlZmVyZW5jZUxhbmd1YWdlIiwib3V0cHV0TGFuZ3VhZ2UiLCJzcGVlZEZhY3RvciIsInRleHRTcGxpdE1ldGhvZCIsIkNhcmRUYWciLCJfYyIsIlRUU1NldHRpbmdzIiwiY29uZmlnIiwib25TYXZlIiwiX3MiLCJmb3JtIiwic2V0Rm9ybSIsInVzZVN0YXRlIiwiZW5hYmxlZCIsInByb3ZpZGVyIiwic2F2aW5nIiwic2V0U2F2aW5nIiwic3RhdHVzIiwic2V0U3RhdHVzIiwic2VydmVyQnVzeSIsInNldFNlcnZlckJ1c3kiLCJoZWFsdGgiLCJzZXRIZWFsdGgiLCJoZWFsdGhEZXRhaWwiLCJzZXRIZWFsdGhEZXRhaWwiLCJzZXJ2ZXJQb3J0Iiwic2V0U2VydmVyUG9ydCIsImxvZ1Zpc2libGUiLCJzZXRMb2dWaXNpYmxlIiwibG9nVGV4dCIsInNldExvZ1RleHQiLCJ1c2VFZmZlY3QiLCJ0dHMiLCJhY3RpdmVDaGFyYWN0ZXIiLCJzIiwibGlzdCIsImZpbmQiLCJjIiwiaWQiLCJhY3RpdmVJZCIsImFjdGl2ZVZvaWNlUmVmIiwidm9pY2UiLCJjb25maWdSZWYiLCJjYXJkRW5naW5lIiwiZW5naW5lIiwiZW5naW5lTWlzbWF0Y2giLCJCb29sZWFuIiwiY2FyZFZvaWNlIiwic2V0Q2FyZFZvaWNlIiwiY2FuY2VsbGVkIiwid2luZG93Iiwib3BlbmdhbCIsImNoYXJhY3RlciIsInZvaWNlQ29uZmlnIiwidGhlbiIsInJlcyIsInN1Y2Nlc3MiLCJkYXRhIiwiY2F0Y2giLCJmcm9tQ2FyZCIsInVzZUNhbGxiYWNrIiwia2V5IiwiY2FyZEtleSIsInYiLCJ1bmRlZmluZWQiLCJlZmZlY3RpdmUiLCJwcm9iZUhlYWx0aCIsInN0YXR1c1Jlc3VsdCIsInNlcnZlclN0YXR1cyIsInBpZEFsaXZlIiwicnVubmluZyIsInBvcnQiLCJwaW5nUmVzdWx0IiwicGluZyIsInBvcnRSZWFjaGFibGUiLCJvayIsIm1lc3NhZ2UiLCJlcnJvciIsInNldEludGVydmFsIiwiY2xlYXJJbnRlcnZhbCIsInNlcnZlclJ1bm5pbmciLCJmb3JtUG9ydCIsInVzZU1lbW8iLCJOdW1iZXIiLCJVUkwiLCJwb3J0TWlzbWF0Y2giLCJoYW5kbGVTdGFydFNlcnZlciIsInIiLCJzZXJ2ZXJTdGFydCIsIkVycm9yIiwicGlkIiwiZXJyIiwiaGFuZGxlU3RvcFNlcnZlciIsInNlcnZlclN0b3AiLCJoYW5kbGVWaWV3TG9nIiwic2VydmVyTG9nIiwidXBkYXRlIiwicHJldiIsImhhbmRsZVNhdmUiLCJyZXNldCIsImJvb3QiLCJyZWNoZWNrVHRzIiwiaGFuZGxlUGluZyIsInJlc3VsdCIsImhhbmRsZVRlc3QiLCJzcGVhayIsInRleHQiLCJza2lwcGVkIiwiYXVkaW9CYXNlNjQiLCJtaW1lVHlwZSIsImF1ZGlvIiwiQXVkaW8iLCJwbGF5IiwiZGlzcGxheU5hbWUiLCJuYW1lIiwiZSIsInRhcmdldCIsImNoZWNrZWQiLCJTdHJpbmciLCJtYXAiLCJvcHQiLCJwYXJzZUZsb2F0IiwiX2MyIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbIlRUU1NldHRpbmdzLnRzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgKiBhcyBSZWFjdCBmcm9tICdyZWFjdCdcbmltcG9ydCB7IFZvbHVtZTIgfSBmcm9tICdsdWNpZGUtcmVhY3QnXG5pbXBvcnQgeyBCdXR0b24gfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvYnV0dG9uJ1xuaW1wb3J0IHsgSW5wdXQgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvaW5wdXQnXG5pbXBvcnQgeyBDaGVja2JveCwgQ2hlY2tib3hJbmRpY2F0b3IgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvY2hlY2tib3gnXG5pbXBvcnQge1xuICBTZWxlY3QsXG4gIFNlbGVjdENvbnRlbnQsXG4gIFNlbGVjdEl0ZW0sXG4gIFNlbGVjdFRyaWdnZXIsXG4gIFNlbGVjdFZhbHVlXG59IGZyb20gJ0AvY29tcG9uZW50cy91aS9zZWxlY3QnXG5pbXBvcnQgdHlwZSB7IEFwcENvbmZpZywgVFRTQ29uZmlnIH0gZnJvbSAnQHNoYXJlZC90eXBlcydcbmltcG9ydCB7IHVzZUNoYXJhY3RlclN0b3JlIH0gZnJvbSAnQC9mZWF0dXJlcy9jaGFyYWN0ZXIvY2hhcmFjdGVyU3RvcmUnXG5cbmNvbnN0IFJFRl9MQU5HX09QVElPTlM6IEFycmF5PHsgdmFsdWU6IHN0cmluZzsgbGFiZWw6IHN0cmluZyB9PiA9IFtcbiAgeyB2YWx1ZTogJ3poJywgbGFiZWw6ICfkuK3oi7Hmt7flkIgnIH0sXG4gIHsgdmFsdWU6ICdlbicsIGxhYmVsOiAnRW5nbGlzaCcgfSxcbiAgeyB2YWx1ZTogJ2phJywgbGFiZWw6ICfml6Xoi7Hmt7flkIgnIH0sXG4gIHsgdmFsdWU6ICd5dWUnLCBsYWJlbDogJ+eypOiLsea3t+WQiCcgfSxcbiAgeyB2YWx1ZTogJ2tvJywgbGFiZWw6ICfpn6noi7Hmt7flkIgnIH0sXG4gIHsgdmFsdWU6ICdhbGxfemgnLCBsYWJlbDogJ+WFqOmDqOaMieS4reaWhycgfSxcbiAgeyB2YWx1ZTogJ2FsbF9qYScsIGxhYmVsOiAn5YWo6YOo5oyJ5pel5paHJyB9LFxuICB7IHZhbHVlOiAnYWxsX3l1ZScsIGxhYmVsOiAn5YWo6YOo5oyJ57Kk6K+tJyB9LFxuICB7IHZhbHVlOiAnYWxsX2tvJywgbGFiZWw6ICflhajpg6jmjInpn6nmlocnIH1cbl1cblxuY29uc3QgT1VUX0xBTkdfT1BUSU9OUzogQXJyYXk8eyB2YWx1ZTogc3RyaW5nOyBsYWJlbDogc3RyaW5nIH0+ID0gW1xuICB7IHZhbHVlOiAnYXV0bycsIGxhYmVsOiAn5aSa6K+t56eN5re35ZCIJyB9LFxuICB7IHZhbHVlOiAnYXV0b195dWUnLCBsYWJlbDogJ+Wkmuivreenjea3t+WQiCjnsqTor60pJyB9LFxuICAuLi5SRUZfTEFOR19PUFRJT05TXG5dXG5cbmNvbnN0IENBUkRfRklFTERfTUFQOiBQYXJ0aWFsPFJlY29yZDxrZXlvZiBUVFNDb25maWcsIHN0cmluZz4+ID0ge1xuICBiYXNlVVJMOiAnYmFzZVVSTCcsXG4gIGdwdE1vZGVsUmVsUGF0aDogJ2dwdE1vZGVsJyxcbiAgc292aXRzTW9kZWxSZWxQYXRoOiAnc292aXRzTW9kZWwnLFxuICBjaGFyYWN0ZXJOYW1lOiAnY2hhcmFjdGVyTmFtZScsXG4gIG9ubnhNb2RlbERpcjogJ29ubnhNb2RlbERpcicsXG4gIHJlZmVyZW5jZUF1ZGlvUmVsUGF0aDogJ3JlZmVyZW5jZUF1ZGlvJyxcbiAgcmVmZXJlbmNlVGV4dDogJ3JlZmVyZW5jZVRleHQnLFxuICByZWZlcmVuY2VMYW5ndWFnZTogJ3JlZmVyZW5jZUxhbmd1YWdlJyxcbiAgb3V0cHV0TGFuZ3VhZ2U6ICdvdXRwdXRMYW5ndWFnZScsXG4gIHNwZWVkRmFjdG9yOiAnc3BlZWRGYWN0b3InLFxuICB0ZXh0U3BsaXRNZXRob2Q6ICd0ZXh0U3BsaXRNZXRob2QnXG59XG5cbmZ1bmN0aW9uIENhcmRUYWcoKSB7XG4gIHJldHVybiAoXG4gICAgPHNwYW4gY2xhc3NOYW1lPVwibWwtMSByb3VuZGVkIGJnLXByaW1hcnkvMTUgcHgtMSBweS0wLjUgdGV4dC1bMTBweF0gdGV4dC1wcmltYXJ5XCI+6KeS6Imy5Y2hPC9zcGFuPlxuICApXG59XG5cbmludGVyZmFjZSBUVFNTZXR0aW5nc1Byb3BzIHtcbiAgY29uZmlnOiBBcHBDb25maWcgfCBudWxsXG4gIG9uU2F2ZTogKG5leHQ6IFBhcnRpYWw8QXBwQ29uZmlnPikgPT4gUHJvbWlzZTx2b2lkPlxufVxuXG5leHBvcnQgZnVuY3Rpb24gVFRTU2V0dGluZ3MoeyBjb25maWcsIG9uU2F2ZSB9OiBUVFNTZXR0aW5nc1Byb3BzKSB7XG4gIGNvbnN0IFtmb3JtLCBzZXRGb3JtXSA9IFJlYWN0LnVzZVN0YXRlPFRUU0NvbmZpZz4oe1xuICAgIGVuYWJsZWQ6IGZhbHNlLFxuICAgIHByb3ZpZGVyOiAnZ3B0LXNvdml0cycsXG4gICAgYmFzZVVSTDogJ2h0dHA6Ly8xMjcuMC4wLjE6Mzk4ODAnLFxuICAgIGdwdE1vZGVsUmVsUGF0aDogJycsXG4gICAgc292aXRzTW9kZWxSZWxQYXRoOiAnJyxcbiAgICBjaGFyYWN0ZXJOYW1lOiAnJyxcbiAgICBvbm54TW9kZWxEaXI6ICcnLFxuICAgIHJlZmVyZW5jZUF1ZGlvUmVsUGF0aDogJycsXG4gICAgcmVmZXJlbmNlVGV4dDogJycsXG4gICAgcmVmZXJlbmNlTGFuZ3VhZ2U6ICdlbicsXG4gICAgb3V0cHV0TGFuZ3VhZ2U6ICdhdXRvJyxcbiAgICBzcGVlZEZhY3RvcjogMSxcbiAgICB0ZXh0U3BsaXRNZXRob2Q6ICdjdXQ1J1xuICB9KVxuICBjb25zdCBbc2F2aW5nLCBzZXRTYXZpbmddID0gUmVhY3QudXNlU3RhdGUoZmFsc2UpXG4gIGNvbnN0IFtzdGF0dXMsIHNldFN0YXR1c10gPSBSZWFjdC51c2VTdGF0ZTxzdHJpbmcgfCBudWxsPihudWxsKVxuICBjb25zdCBbc2VydmVyQnVzeSwgc2V0U2VydmVyQnVzeV0gPSBSZWFjdC51c2VTdGF0ZShmYWxzZSlcbiAgY29uc3QgW2hlYWx0aCwgc2V0SGVhbHRoXSA9IFJlYWN0LnVzZVN0YXRlPCd1bmtub3duJyB8ICdzdG9wcGVkJyB8ICdzdGFydGluZycgfCAncmVhZHknPihcbiAgICAndW5rbm93bicsXG4gIClcbiAgY29uc3QgW2hlYWx0aERldGFpbCwgc2V0SGVhbHRoRGV0YWlsXSA9IFJlYWN0LnVzZVN0YXRlPHN0cmluZyB8IG51bGw+KG51bGwpXG4gIGNvbnN0IFtzZXJ2ZXJQb3J0LCBzZXRTZXJ2ZXJQb3J0XSA9IFJlYWN0LnVzZVN0YXRlPG51bWJlciB8IG51bGw+KG51bGwpXG4gIGNvbnN0IFtsb2dWaXNpYmxlLCBzZXRMb2dWaXNpYmxlXSA9IFJlYWN0LnVzZVN0YXRlKGZhbHNlKVxuICBjb25zdCBbbG9nVGV4dCwgc2V0TG9nVGV4dF0gPSBSZWFjdC51c2VTdGF0ZSgnJylcblxuICBSZWFjdC51c2VFZmZlY3QoKCkgPT4ge1xuICAgIGlmIChjb25maWc/LnR0cykge1xuICAgICAgc2V0Rm9ybShjb25maWcudHRzKVxuICAgIH1cbiAgfSwgW2NvbmZpZ10pXG5cbiAgY29uc3QgYWN0aXZlQ2hhcmFjdGVyID0gdXNlQ2hhcmFjdGVyU3RvcmUoKHMpID0+IHMubGlzdC5maW5kKChjKSA9PiBjLmlkID09PSBzLmFjdGl2ZUlkKSlcbiAgY29uc3QgYWN0aXZlVm9pY2VSZWYgPSBhY3RpdmVDaGFyYWN0ZXI/LnZvaWNlPy5jb25maWdSZWZcbiAgY29uc3QgY2FyZEVuZ2luZSA9IGFjdGl2ZUNoYXJhY3Rlcj8udm9pY2U/LmVuZ2luZVxuICBjb25zdCBlbmdpbmVNaXNtYXRjaCA9IEJvb2xlYW4oY2FyZEVuZ2luZSAmJiBjYXJkRW5naW5lICE9PSBmb3JtLnByb3ZpZGVyKVxuICBjb25zdCBbY2FyZFZvaWNlLCBzZXRDYXJkVm9pY2VdID0gUmVhY3QudXNlU3RhdGU8UmVjb3JkPHN0cmluZywgdW5rbm93bj4gfCBudWxsPihudWxsKVxuXG4gIFJlYWN0LnVzZUVmZmVjdCgoKSA9PiB7XG4gICAgaWYgKCFhY3RpdmVDaGFyYWN0ZXI/LmlkKSB7XG4gICAgICBzZXRDYXJkVm9pY2UobnVsbClcbiAgICAgIHJldHVyblxuICAgIH1cbiAgICBsZXQgY2FuY2VsbGVkID0gZmFsc2VcbiAgICB2b2lkIHdpbmRvdy5vcGVuZ2FsLmNoYXJhY3RlclxuICAgICAgLnZvaWNlQ29uZmlnKGFjdGl2ZUNoYXJhY3Rlci5pZClcbiAgICAgIC50aGVuKChyZXMpID0+IHtcbiAgICAgICAgaWYgKCFjYW5jZWxsZWQpIHNldENhcmRWb2ljZShyZXMuc3VjY2VzcyAmJiByZXMuZGF0YSA/IHJlcy5kYXRhIDogbnVsbClcbiAgICAgIH0pXG4gICAgICAuY2F0Y2goKCkgPT4ge1xuICAgICAgICBpZiAoIWNhbmNlbGxlZCkgc2V0Q2FyZFZvaWNlKG51bGwpXG4gICAgICB9KVxuICAgIHJldHVybiAoKSA9PiB7XG4gICAgICBjYW5jZWxsZWQgPSB0cnVlXG4gICAgfVxuICB9LCBbYWN0aXZlQ2hhcmFjdGVyPy5pZCwgYWN0aXZlVm9pY2VSZWZdKVxuXG4gIGNvbnN0IGZyb21DYXJkID0gUmVhY3QudXNlQ2FsbGJhY2soXG4gICAgKGtleToga2V5b2YgVFRTQ29uZmlnKTogYm9vbGVhbiA9PiB7XG4gICAgICBpZiAoIWNhcmRWb2ljZSkgcmV0dXJuIGZhbHNlXG4gICAgICBjb25zdCBjYXJkS2V5ID0gQ0FSRF9GSUVMRF9NQVBba2V5XVxuICAgICAgaWYgKCFjYXJkS2V5KSByZXR1cm4gZmFsc2VcbiAgICAgIGNvbnN0IHYgPSBjYXJkVm9pY2VbY2FyZEtleV1cbiAgICAgIHJldHVybiB2ICE9PSB1bmRlZmluZWQgJiYgdiAhPT0gbnVsbCAmJiB2ICE9PSAnJ1xuICAgIH0sXG4gICAgW2NhcmRWb2ljZV0sXG4gIClcblxuICBjb25zdCBlZmZlY3RpdmUgPSBSZWFjdC51c2VDYWxsYmFjayhcbiAgICAoa2V5OiBrZXlvZiBUVFNDb25maWcpOiBzdHJpbmcgfCBudW1iZXIgPT4ge1xuICAgICAgY29uc3QgY2FyZEtleSA9IENBUkRfRklFTERfTUFQW2tleV1cbiAgICAgIGlmIChjYXJkVm9pY2UgJiYgY2FyZEtleSAmJiBmcm9tQ2FyZChrZXkpKSB7XG4gICAgICAgIHJldHVybiBjYXJkVm9pY2VbY2FyZEtleV0gYXMgc3RyaW5nIHwgbnVtYmVyXG4gICAgICB9XG4gICAgICByZXR1cm4gZm9ybVtrZXldIGFzIHN0cmluZyB8IG51bWJlclxuICAgIH0sXG4gICAgW2NhcmRWb2ljZSwgZm9ybSwgZnJvbUNhcmRdLFxuICApXG5cbiAgY29uc3QgcHJvYmVIZWFsdGggPSBSZWFjdC51c2VDYWxsYmFjayhhc3luYyAoKSA9PiB7XG4gICAgY29uc3Qgc3RhdHVzUmVzdWx0ID0gYXdhaXQgd2luZG93Lm9wZW5nYWwudHRzLnNlcnZlclN0YXR1cygpXG4gICAgY29uc3QgcGlkQWxpdmUgPSBzdGF0dXNSZXN1bHQuc3VjY2VzcyAmJiBzdGF0dXNSZXN1bHQuZGF0YT8ucnVubmluZyA9PT0gdHJ1ZVxuICAgIHNldFNlcnZlclBvcnQoc3RhdHVzUmVzdWx0LnN1Y2Nlc3MgPyBzdGF0dXNSZXN1bHQuZGF0YT8ucG9ydCA/PyBudWxsIDogbnVsbClcbiAgICBpZiAoIXBpZEFsaXZlKSB7XG4gICAgICBzZXRIZWFsdGgoJ3N0b3BwZWQnKVxuICAgICAgc2V0SGVhbHRoRGV0YWlsKG51bGwpXG4gICAgICByZXR1cm5cbiAgICB9XG4gICAgY29uc3QgcGluZ1Jlc3VsdCA9IGF3YWl0IHdpbmRvdy5vcGVuZ2FsLnR0cy5waW5nKClcbiAgICBjb25zdCBwb3J0UmVhY2hhYmxlID0gcGluZ1Jlc3VsdC5zdWNjZXNzICYmIHBpbmdSZXN1bHQuZGF0YT8ub2sgPT09IHRydWVcbiAgICBpZiAocG9ydFJlYWNoYWJsZSkge1xuICAgICAgc2V0SGVhbHRoKCdyZWFkeScpXG4gICAgICBzZXRIZWFsdGhEZXRhaWwobnVsbClcbiAgICB9IGVsc2Uge1xuICAgICAgc2V0SGVhbHRoKCdzdGFydGluZycpXG4gICAgICBzZXRIZWFsdGhEZXRhaWwocGluZ1Jlc3VsdC5kYXRhPy5tZXNzYWdlIHx8IHBpbmdSZXN1bHQuZXJyb3IgfHwgJ+err+WPo+aaguS4jeWPr+i+vicpXG4gICAgfVxuICB9LCBbXSlcblxuICBSZWFjdC51c2VFZmZlY3QoKCkgPT4ge1xuICAgIHZvaWQgcHJvYmVIZWFsdGgoKVxuICAgIGNvbnN0IGlkID0gc2V0SW50ZXJ2YWwocHJvYmVIZWFsdGgsIDMwMDApXG4gICAgcmV0dXJuICgpID0+IGNsZWFySW50ZXJ2YWwoaWQpXG4gIH0sIFtwcm9iZUhlYWx0aF0pXG5cbiAgY29uc3Qgc2VydmVyUnVubmluZyA9IGhlYWx0aCA9PT0gJ3JlYWR5JyB8fCBoZWFsdGggPT09ICdzdGFydGluZydcblxuICBjb25zdCBmb3JtUG9ydCA9IFJlYWN0LnVzZU1lbW8oKCkgPT4ge1xuICAgIHRyeSB7XG4gICAgICByZXR1cm4gTnVtYmVyKG5ldyBVUkwoZm9ybS5iYXNlVVJMKS5wb3J0KSB8fCAzOTg4MFxuICAgIH0gY2F0Y2gge1xuICAgICAgcmV0dXJuIG51bGxcbiAgICB9XG4gIH0sIFtmb3JtLmJhc2VVUkxdKVxuICBjb25zdCBwb3J0TWlzbWF0Y2ggPVxuICAgIHNlcnZlclJ1bm5pbmcgJiYgc2VydmVyUG9ydCAhPT0gbnVsbCAmJiBmb3JtUG9ydCAhPT0gbnVsbCAmJiBmb3JtUG9ydCAhPT0gc2VydmVyUG9ydFxuXG4gIGFzeW5jIGZ1bmN0aW9uIGhhbmRsZVN0YXJ0U2VydmVyKCk6IFByb21pc2U8dm9pZD4ge1xuICAgIHNldFNlcnZlckJ1c3kodHJ1ZSlcbiAgICBzZXRTdGF0dXMoJ+ato+WcqOWQr+WKqCBUVFMg5pyN5YqhKOmmluasoeWQr+WKqOmcgOimgSAzMC05MCDnp5IpLi4uJylcbiAgICB0cnkge1xuICAgICAgY29uc3QgciA9IGF3YWl0IHdpbmRvdy5vcGVuZ2FsLnR0cy5zZXJ2ZXJTdGFydCgpXG4gICAgICBpZiAoIXIuc3VjY2VzcykgdGhyb3cgbmV3IEVycm9yKHIuZXJyb3IgfHwgJ3N0YXJ0IGZhaWxlZCcpXG4gICAgICBzZXRTdGF0dXMoYOacjeWKoeW3suWwsee7qiAocGlkPSR7ci5kYXRhPy5waWR9KWApXG4gICAgICB2b2lkIHByb2JlSGVhbHRoKClcbiAgICB9IGNhdGNoIChlcnIpIHtcbiAgICAgIHNldFN0YXR1cyhg5ZCv5Yqo5aSx6LSlOiAkeyhlcnIgYXMgRXJyb3IpLm1lc3NhZ2V9YClcbiAgICAgIHZvaWQgcHJvYmVIZWFsdGgoKVxuICAgIH0gZmluYWxseSB7XG4gICAgICBzZXRTZXJ2ZXJCdXN5KGZhbHNlKVxuICAgIH1cbiAgfVxuXG4gIGFzeW5jIGZ1bmN0aW9uIGhhbmRsZVN0b3BTZXJ2ZXIoKTogUHJvbWlzZTx2b2lkPiB7XG4gICAgc2V0U2VydmVyQnVzeSh0cnVlKVxuICAgIHRyeSB7XG4gICAgICBhd2FpdCB3aW5kb3cub3BlbmdhbC50dHMuc2VydmVyU3RvcCgpXG4gICAgICBzZXRTdGF0dXMoJ+acjeWKoeW3suWBnOatoicpXG4gICAgICB2b2lkIHByb2JlSGVhbHRoKClcbiAgICB9IGZpbmFsbHkge1xuICAgICAgc2V0U2VydmVyQnVzeShmYWxzZSlcbiAgICB9XG4gIH1cblxuICBhc3luYyBmdW5jdGlvbiBoYW5kbGVWaWV3TG9nKCk6IFByb21pc2U8dm9pZD4ge1xuICAgIGNvbnN0IHIgPSBhd2FpdCB3aW5kb3cub3BlbmdhbC50dHMuc2VydmVyTG9nKClcbiAgICBzZXRMb2dUZXh0KHIuc3VjY2VzcyA/IHIuZGF0YSB8fCAnKOepuiknIDogYOivu+WPluaXpeW/l+Wksei0pTogJHtyLmVycm9yIHx8ICd1bmtub3duJ31gKVxuICAgIHNldExvZ1Zpc2libGUodHJ1ZSlcbiAgfVxuXG4gIGZ1bmN0aW9uIHVwZGF0ZTxLIGV4dGVuZHMga2V5b2YgVFRTQ29uZmlnPihrZXk6IEssIHZhbHVlOiBUVFNDb25maWdbS10pIHtcbiAgICBzZXRGb3JtKChwcmV2KSA9PiAoeyAuLi5wcmV2LCBba2V5XTogdmFsdWUgfSkpXG4gIH1cblxuICBhc3luYyBmdW5jdGlvbiBoYW5kbGVTYXZlKCk6IFByb21pc2U8dm9pZD4ge1xuICAgIHNldFNhdmluZyh0cnVlKVxuICAgIHNldFN0YXR1cyhudWxsKVxuICAgIHRyeSB7XG4gICAgICBhd2FpdCBvblNhdmUoeyB0dHM6IGZvcm0gfSlcbiAgICAgIGF3YWl0IHdpbmRvdy5vcGVuZ2FsLnR0cy5yZXNldCgpXG4gICAgICB2b2lkIHdpbmRvdy5vcGVuZ2FsLmJvb3QucmVjaGVja1R0cygpXG4gICAgICBzZXRTdGF0dXMoJ+W3suS/neWtmCcpXG4gICAgfSBjYXRjaCAoZXJyb3IpIHtcbiAgICAgIHNldFN0YXR1cyhg5L+d5a2Y5aSx6LSlOiAkeyhlcnJvciBhcyBFcnJvcikubWVzc2FnZX1gKVxuICAgIH0gZmluYWxseSB7XG4gICAgICBzZXRTYXZpbmcoZmFsc2UpXG4gICAgfVxuICB9XG5cbiAgYXN5bmMgZnVuY3Rpb24gaGFuZGxlUGluZygpOiBQcm9taXNlPHZvaWQ+IHtcbiAgICBzZXRTdGF0dXMoJ+ato+WcqOa1i+ivlei/nuaOpS4uLicpXG4gICAgY29uc3QgcmVzdWx0ID0gYXdhaXQgd2luZG93Lm9wZW5nYWwudHRzLnBpbmcoKVxuICAgIGlmIChyZXN1bHQuc3VjY2VzcyAmJiByZXN1bHQuZGF0YT8ub2spIHtcbiAgICAgIHNldFN0YXR1cyhg6L+e5o6l5oiQ5YqfICgke3Jlc3VsdC5kYXRhLm1lc3NhZ2UgfHwgJ09LJ30pYClcbiAgICB9IGVsc2Uge1xuICAgICAgc2V0U3RhdHVzKGDov57mjqXlpLHotKU6ICR7cmVzdWx0LmRhdGE/Lm1lc3NhZ2UgfHwgcmVzdWx0LmVycm9yIHx8ICd1bmtub3duJ31gKVxuICAgIH1cbiAgICB2b2lkIHByb2JlSGVhbHRoKClcbiAgfVxuXG4gIGFzeW5jIGZ1bmN0aW9uIGhhbmRsZVRlc3QoKTogUHJvbWlzZTx2b2lkPiB7XG4gICAgc2V0U3RhdHVzKCfmraPlnKjlkIjmiJAuLi4nKVxuICAgIHRyeSB7XG4gICAgICBjb25zdCByZXN1bHQgPSBhd2FpdCB3aW5kb3cub3BlbmdhbC50dHMuc3BlYWsoeyB0ZXh0OiAnSGVsbG8hIFRoaXMgaXMgYSB0ZXN0LicgfSlcbiAgICAgIGlmICghcmVzdWx0LnN1Y2Nlc3MgfHwgIXJlc3VsdC5kYXRhKSB7XG4gICAgICAgIHRocm93IG5ldyBFcnJvcihyZXN1bHQuZXJyb3IgfHwgJ1RUUyBmYWlsZWQnKVxuICAgICAgfVxuICAgICAgaWYgKHJlc3VsdC5kYXRhLnNraXBwZWQpIHtcbiAgICAgICAgc2V0U3RhdHVzKCflt7Lot7Pov4fvvJrlvZPliY3op5LoibLmqKHlnovkuI7miYDpgInlvJXmk47kuI3ljLnphY0nKVxuICAgICAgICByZXR1cm5cbiAgICAgIH1cbiAgICAgIGNvbnN0IHsgYXVkaW9CYXNlNjQsIG1pbWVUeXBlIH0gPSByZXN1bHQuZGF0YVxuICAgICAgY29uc3QgYXVkaW8gPSBuZXcgQXVkaW8oYGRhdGE6JHttaW1lVHlwZX07YmFzZTY0LCR7YXVkaW9CYXNlNjR9YClcbiAgICAgIGF3YWl0IGF1ZGlvLnBsYXkoKVxuICAgICAgc2V0U3RhdHVzKCfmtYvor5XmiJDlip8nKVxuICAgIH0gY2F0Y2ggKGVycm9yKSB7XG4gICAgICBzZXRTdGF0dXMoYOa1i+ivleWksei0pTogJHsoZXJyb3IgYXMgRXJyb3IpLm1lc3NhZ2V9YClcbiAgICB9XG4gIH1cblxuICByZXR1cm4gKFxuICAgIDxkaXYgY2xhc3NOYW1lPVwic3BhY2UteS0zXCI+XG4gICAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggaXRlbXMtY2VudGVyIGdhcC0yIHRleHQtc20gZm9udC1zZW1pYm9sZFwiPlxuICAgICAgICA8Vm9sdW1lMiBjbGFzc05hbWU9XCJzaXplLTRcIiAvPiBUVFMg6K6+572uXG4gICAgICA8L2Rpdj5cblxuICAgICAge2FjdGl2ZUNoYXJhY3RlciAmJiBjYXJkVm9pY2UgJiYgKFxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInRleHQteHMgdGV4dC1tdXRlZC1mb3JlZ3JvdW5kIGJnLW11dGVkLzMwIHJvdW5kZWQgcHgtMyBweS0yXCI+XG4gICAgICAgICAg5b2T5YmN6KeS6Imy44CMe2FjdGl2ZUNoYXJhY3Rlci5kaXNwbGF5TmFtZSA/PyBhY3RpdmVDaGFyYWN0ZXIubmFtZX3jgI3nmoTor63pn7PnlLHop5LoibLljaHmj5DkvptcbiAgICAgICAgICDvvIh7YWN0aXZlQ2hhcmFjdGVyLnZvaWNlPy5jb25maWdSZWZ977yJ44CC5bim44CM6KeS6Imy5Y2h44CN5qCH6K6w55qE5a2X5q615Lul5Y2h5Li65YeG77yI54Gw5pi+5LiN5Y+v57yW6L6R77yMXG4gICAgICAgICAg5L+u5pS56ZyA57yW6L6R5Y2h5YaF6YWN572u77yJ77yb5YW25L2Z5a2X5q615Li65YWo5bGA6buY6K6k5YC844CCXG4gICAgICAgIDwvZGl2PlxuICAgICAgKX1cbiAgICAgIHthY3RpdmVDaGFyYWN0ZXI/LnZvaWNlPy5jb25maWdSZWYgJiYgIWNhcmRWb2ljZSAmJiAoXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LWFtYmVyLTYwMCBkYXJrOnRleHQtYW1iZXItNDAwIGJnLW11dGVkLzMwIHJvdW5kZWQgcHgtMyBweS0yXCI+XG4gICAgICAgICAg5b2T5YmN6KeS6Imy55qE6K+t6Z+z6YWN572u77yIe2FjdGl2ZUNoYXJhY3Rlci52b2ljZS5jb25maWdSZWZ977yJ6K+75Y+W5aSx6LSl77ya5ZCI5oiQ5pe25bCG5L2/55So5LiL5pa55YWo5bGA5YC8XG4gICAgICAgICAg5oiW5peg5Y+C6ICD5paH5pys5qih5byP44CCXG4gICAgICAgIDwvZGl2PlxuICAgICAgKX1cblxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMlwiPlxuICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7lkK/nlKg8L2xhYmVsPlxuICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJyZWxhdGl2ZSBpbmxpbmUtZmxleFwiPlxuICAgICAgICAgIDxDaGVja2JveFxuICAgICAgICAgICAgY2hlY2tlZD17Zm9ybS5lbmFibGVkfVxuICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiB1cGRhdGUoJ2VuYWJsZWQnLCBlLnRhcmdldC5jaGVja2VkKX1cbiAgICAgICAgICAvPlxuICAgICAgICAgIDxDaGVja2JveEluZGljYXRvciAvPlxuICAgICAgICA8L3NwYW4+XG4gICAgICA8L2Rpdj5cblxuICAgICAgPGRpdj5cbiAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgICAg5byV5pOOXG4gICAgICAgICAge2NhcmRFbmdpbmUgJiYgKFxuICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwibWwtMSByb3VuZGVkIGJnLXByaW1hcnkvMTUgcHgtMSBweS0wLjUgdGV4dC1bMTBweF0gdGV4dC1wcmltYXJ5XCI+XG4gICAgICAgICAgICAgIOinkuiJsuaooeWeizoge2NhcmRFbmdpbmV9XG4gICAgICAgICAgICA8L3NwYW4+XG4gICAgICAgICAgKX1cbiAgICAgICAgPC9sYWJlbD5cbiAgICAgICAgPFNlbGVjdFxuICAgICAgICAgIHZhbHVlPXtmb3JtLnByb3ZpZGVyfVxuICAgICAgICAgIG9uVmFsdWVDaGFuZ2U9eyh2KSA9PiB1cGRhdGUoJ3Byb3ZpZGVyJywgdiBhcyBUVFNDb25maWdbJ3Byb3ZpZGVyJ10pfVxuICAgICAgICA+XG4gICAgICAgICAgPFNlbGVjdFRyaWdnZXI+XG4gICAgICAgICAgICA8U2VsZWN0VmFsdWUgLz5cbiAgICAgICAgICA8L1NlbGVjdFRyaWdnZXI+XG4gICAgICAgICAgPFNlbGVjdENvbnRlbnQ+XG4gICAgICAgICAgICA8U2VsZWN0SXRlbSB2YWx1ZT1cImdwdC1zb3ZpdHNcIj5HUFQtU29WSVRTIChQeVRvcmNoKTwvU2VsZWN0SXRlbT5cbiAgICAgICAgICAgIDxTZWxlY3RJdGVtIHZhbHVlPVwiZ2VuaWVcIj5HZW5pZS1UVFMgKE9OTlgpPC9TZWxlY3RJdGVtPlxuICAgICAgICAgIDwvU2VsZWN0Q29udGVudD5cbiAgICAgICAgPC9TZWxlY3Q+XG4gICAgICA8L2Rpdj5cblxuICAgICAge2VuZ2luZU1pc21hdGNoICYmIChcbiAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJ0ZXh0LXhzIHRleHQtYW1iZXItNjAwIGRhcms6dGV4dC1hbWJlci00MDAgYmctYW1iZXItNTAgZGFyazpiZy1hbWJlci05NTAvMzAgYm9yZGVyIGJvcmRlci1hbWJlci0yMDAgZGFyazpib3JkZXItYW1iZXItODAwIHJvdW5kZWQgcHgtMyBweS0yXCI+XG4gICAgICAgICAg5b2T5YmN6KeS6Imy5qih5Z6L5Li6IHtjYXJkRW5naW5lfSDmoLzlvI/vvIzkuI7miYDpgInlvJXmk47kuI3ljLnphY3vvIzor6Xop5LoibLnmoTlm57lpI3lsIbmsqHmnInor63pn7PjgIJcbiAgICAgICAgPC9kaXY+XG4gICAgICApfVxuXG4gICAgICB7Zm9ybS5wcm92aWRlciA9PT0gJ2dlbmllJyAmJiAoXG4gICAgICAgIDxkaXYgY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LW11dGVkLWZvcmVncm91bmQgYmctbXV0ZWQvMzAgcm91bmRlZCBweC0zIHB5LTJcIj5cbiAgICAgICAgICBHZW5pZSDpnIDlhYjovazmjaLmqKHlnovkuLogT05OWCDmoLzlvI/vvIhzcmMvc2NyaXB0cy90dHMvY29udmVydF90b19vbm54LnB577yJ77yM5bm25ZCv5YqoIEdlbmllIEFQSSDmnI3liqHvvIhzcmMvc2NyaXB0cy90dHMvc3RhcnRfZ2VuaWVfdHRzLnB577yJ44CCXG4gICAgICAgIDwvZGl2PlxuICAgICAgKX1cblxuICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgIOWQjuerr+WcsOWdgFxuICAgICAgICB7ZnJvbUNhcmQoJ2Jhc2VVUkwnKSAmJiA8Q2FyZFRhZyAvPn1cbiAgICAgIDwvbGFiZWw+XG4gICAgICA8SW5wdXRcbiAgICAgICAgdmFsdWU9e1N0cmluZyhlZmZlY3RpdmUoJ2Jhc2VVUkwnKSl9XG4gICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4gdXBkYXRlKCdiYXNlVVJMJywgZS50YXJnZXQudmFsdWUpfVxuICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ2Jhc2VVUkwnKX1cbiAgICAgICAgcGxhY2Vob2xkZXI9e2Zvcm0ucHJvdmlkZXIgPT09ICdnZW5pZScgPyAnaHR0cDovLzEyNy4wLjAuMTo4MDAwJyA6ICdodHRwOi8vMTI3LjAuMC4xOjM5ODgwJ31cbiAgICAgIC8+XG5cbiAgICAgIHtmb3JtLnByb3ZpZGVyID09PSAnZ3B0LXNvdml0cycgJiYgKFxuICAgICAgICA8PlxuICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZ3JpZCBncmlkLWNvbHMtMiBnYXAtMlwiPlxuICAgICAgICAgICAgPGRpdj5cbiAgICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgICAgICAgICAgR1BUIOadg+mHjSAo55u45a+56Lev5b6EKVxuICAgICAgICAgICAgICAgIHtmcm9tQ2FyZCgnZ3B0TW9kZWxSZWxQYXRoJykgJiYgPENhcmRUYWcgLz59XG4gICAgICAgICAgICAgIDwvbGFiZWw+XG4gICAgICAgICAgICAgIDxJbnB1dFxuICAgICAgICAgICAgICAgIHZhbHVlPXtTdHJpbmcoZWZmZWN0aXZlKCdncHRNb2RlbFJlbFBhdGgnKSl9XG4gICAgICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiB1cGRhdGUoJ2dwdE1vZGVsUmVsUGF0aCcsIGUudGFyZ2V0LnZhbHVlKX1cbiAgICAgICAgICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ2dwdE1vZGVsUmVsUGF0aCcpfVxuICAgICAgICAgICAgICAgIHBsYWNlaG9sZGVyPVwiR1BUL3lvdXItbW9kZWwuY2twdFwiXG4gICAgICAgICAgICAgIC8+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgIDxkaXY+XG4gICAgICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPlxuICAgICAgICAgICAgICAgIFNvVklUUyDmnYPph40gKOebuOWvuei3r+W+hClcbiAgICAgICAgICAgICAgICB7ZnJvbUNhcmQoJ3Nvdml0c01vZGVsUmVsUGF0aCcpICYmIDxDYXJkVGFnIC8+fVxuICAgICAgICAgICAgICA8L2xhYmVsPlxuICAgICAgICAgICAgICA8SW5wdXRcbiAgICAgICAgICAgICAgICB2YWx1ZT17U3RyaW5nKGVmZmVjdGl2ZSgnc292aXRzTW9kZWxSZWxQYXRoJykpfVxuICAgICAgICAgICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4gdXBkYXRlKCdzb3ZpdHNNb2RlbFJlbFBhdGgnLCBlLnRhcmdldC52YWx1ZSl9XG4gICAgICAgICAgICAgICAgZGlzYWJsZWQ9e2Zyb21DYXJkKCdzb3ZpdHNNb2RlbFJlbFBhdGgnKX1cbiAgICAgICAgICAgICAgICBwbGFjZWhvbGRlcj1cIlNvVklUUy95b3VyLW1vZGVsLnB0aFwiXG4gICAgICAgICAgICAgIC8+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgPC8+XG4gICAgICApfVxuXG4gICAgICB7Zm9ybS5wcm92aWRlciA9PT0gJ2dlbmllJyAmJiAoXG4gICAgICAgIDw+XG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJncmlkIGdyaWQtY29scy0yIGdhcC0yXCI+XG4gICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj5cbiAgICAgICAgICAgICAgICDop5LoibLlkI1cbiAgICAgICAgICAgICAgICB7ZnJvbUNhcmQoJ2NoYXJhY3Rlck5hbWUnKSAmJiA8Q2FyZFRhZyAvPn1cbiAgICAgICAgICAgICAgPC9sYWJlbD5cbiAgICAgICAgICAgICAgPElucHV0XG4gICAgICAgICAgICAgICAgdmFsdWU9e1N0cmluZyhlZmZlY3RpdmUoJ2NoYXJhY3Rlck5hbWUnKSl9XG4gICAgICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiB1cGRhdGUoJ2NoYXJhY3Rlck5hbWUnLCBlLnRhcmdldC52YWx1ZSl9XG4gICAgICAgICAgICAgICAgZGlzYWJsZWQ9e2Zyb21DYXJkKCdjaGFyYWN0ZXJOYW1lJyl9XG4gICAgICAgICAgICAgICAgcGxhY2Vob2xkZXI9XCJjaGFyYWN0ZXItaWRcIlxuICAgICAgICAgICAgICAvPlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj5cbiAgICAgICAgICAgICAgICBPTk5YIOaooeWei+ebruW9lSAo55u45a+56Lev5b6EKVxuICAgICAgICAgICAgICAgIHtmcm9tQ2FyZCgnb25ueE1vZGVsRGlyJykgJiYgPENhcmRUYWcgLz59XG4gICAgICAgICAgICAgIDwvbGFiZWw+XG4gICAgICAgICAgICAgIDxJbnB1dFxuICAgICAgICAgICAgICAgIHZhbHVlPXtTdHJpbmcoZWZmZWN0aXZlKCdvbm54TW9kZWxEaXInKSl9XG4gICAgICAgICAgICAgICAgb25DaGFuZ2U9eyhlKSA9PiB1cGRhdGUoJ29ubnhNb2RlbERpcicsIGUudGFyZ2V0LnZhbHVlKX1cbiAgICAgICAgICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ29ubnhNb2RlbERpcicpfVxuICAgICAgICAgICAgICAgIHBsYWNlaG9sZGVyPVwiZ2VuaWUtb25ueC9jaGFyYWN0ZXItaWRcIlxuICAgICAgICAgICAgICAvPlxuICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgIDwvPlxuICAgICAgKX1cblxuICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgIOWPguiAg+mfs+mikSAo55u45a+56Lev5b6EKVxuICAgICAgICB7ZnJvbUNhcmQoJ3JlZmVyZW5jZUF1ZGlvUmVsUGF0aCcpICYmIDxDYXJkVGFnIC8+fVxuICAgICAgPC9sYWJlbD5cbiAgICAgIDxJbnB1dFxuICAgICAgICB2YWx1ZT17U3RyaW5nKGVmZmVjdGl2ZSgncmVmZXJlbmNlQXVkaW9SZWxQYXRoJykpfVxuICAgICAgICBvbkNoYW5nZT17KGUpID0+IHVwZGF0ZSgncmVmZXJlbmNlQXVkaW9SZWxQYXRoJywgZS50YXJnZXQudmFsdWUpfVxuICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ3JlZmVyZW5jZUF1ZGlvUmVsUGF0aCcpfVxuICAgICAgICBwbGFjZWhvbGRlcj1cInJlZmVyZW5jZS9yZWYud2F2XCJcbiAgICAgIC8+XG5cbiAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPlxuICAgICAgICDlj4LogIPmlofmnKxcbiAgICAgICAge2Zyb21DYXJkKCdyZWZlcmVuY2VUZXh0JykgJiYgPENhcmRUYWcgLz59XG4gICAgICA8L2xhYmVsPlxuICAgICAgPElucHV0XG4gICAgICAgIHZhbHVlPXtTdHJpbmcoZWZmZWN0aXZlKCdyZWZlcmVuY2VUZXh0JykpfVxuICAgICAgICBvbkNoYW5nZT17KGUpID0+IHVwZGF0ZSgncmVmZXJlbmNlVGV4dCcsIGUudGFyZ2V0LnZhbHVlKX1cbiAgICAgICAgZGlzYWJsZWQ9e2Zyb21DYXJkKCdyZWZlcmVuY2VUZXh0Jyl9XG4gICAgICAgIHBsYWNlaG9sZGVyPVwiSGVsbG8hXCJcbiAgICAgIC8+XG5cbiAgICAgIHtmb3JtLnByb3ZpZGVyID09PSAnZ3B0LXNvdml0cycgJiYgKFxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImdyaWQgZ3JpZC1jb2xzLTMgZ2FwLTJcIj5cbiAgICAgICAgICA8ZGl2PlxuICAgICAgICAgICAgPGxhYmVsIGNsYXNzTmFtZT1cInRleHQteHMgZm9udC1tZWRpdW0gdGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+XG4gICAgICAgICAgICAgIOWPguiAg+ivreiogFxuICAgICAgICAgICAgICB7ZnJvbUNhcmQoJ3JlZmVyZW5jZUxhbmd1YWdlJykgJiYgPENhcmRUYWcgLz59XG4gICAgICAgICAgICA8L2xhYmVsPlxuICAgICAgICAgICAgPFNlbGVjdFxuICAgICAgICAgICAgICB2YWx1ZT17U3RyaW5nKGVmZmVjdGl2ZSgncmVmZXJlbmNlTGFuZ3VhZ2UnKSl9XG4gICAgICAgICAgICAgIG9uVmFsdWVDaGFuZ2U9eyh2KSA9PiB1cGRhdGUoJ3JlZmVyZW5jZUxhbmd1YWdlJywgdiBhcyBUVFNDb25maWdbJ3JlZmVyZW5jZUxhbmd1YWdlJ10pfVxuICAgICAgICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ3JlZmVyZW5jZUxhbmd1YWdlJyl9XG4gICAgICAgICAgICA+XG4gICAgICAgICAgICAgIDxTZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgICAgICAgIDxTZWxlY3RWYWx1ZSAvPlxuICAgICAgICAgICAgICA8L1NlbGVjdFRyaWdnZXI+XG4gICAgICAgICAgICAgIDxTZWxlY3RDb250ZW50PlxuICAgICAgICAgICAgICAgIHtSRUZfTEFOR19PUFRJT05TLm1hcCgob3B0KSA9PiAoXG4gICAgICAgICAgICAgICAgICA8U2VsZWN0SXRlbSBrZXk9e29wdC52YWx1ZX0gdmFsdWU9e29wdC52YWx1ZX0+XG4gICAgICAgICAgICAgICAgICAgIHtvcHQubGFiZWx9XG4gICAgICAgICAgICAgICAgICA8L1NlbGVjdEl0ZW0+XG4gICAgICAgICAgICAgICAgKSl9XG4gICAgICAgICAgICAgIDwvU2VsZWN0Q29udGVudD5cbiAgICAgICAgICAgIDwvU2VsZWN0PlxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgIDxkaXY+XG4gICAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj5cbiAgICAgICAgICAgICAg6L6T5Ye66K+t6KiAXG4gICAgICAgICAgICAgIHtmcm9tQ2FyZCgnb3V0cHV0TGFuZ3VhZ2UnKSAmJiA8Q2FyZFRhZyAvPn1cbiAgICAgICAgICAgIDwvbGFiZWw+XG4gICAgICAgICAgICA8U2VsZWN0XG4gICAgICAgICAgICAgIHZhbHVlPXtTdHJpbmcoZWZmZWN0aXZlKCdvdXRwdXRMYW5ndWFnZScpKX1cbiAgICAgICAgICAgICAgb25WYWx1ZUNoYW5nZT17KHYpID0+IHVwZGF0ZSgnb3V0cHV0TGFuZ3VhZ2UnLCB2IGFzIFRUU0NvbmZpZ1snb3V0cHV0TGFuZ3VhZ2UnXSl9XG4gICAgICAgICAgICAgIGRpc2FibGVkPXtmcm9tQ2FyZCgnb3V0cHV0TGFuZ3VhZ2UnKX1cbiAgICAgICAgICAgID5cbiAgICAgICAgICAgICAgPFNlbGVjdFRyaWdnZXI+XG4gICAgICAgICAgICAgICAgPFNlbGVjdFZhbHVlIC8+XG4gICAgICAgICAgICAgIDwvU2VsZWN0VHJpZ2dlcj5cbiAgICAgICAgICAgICAgPFNlbGVjdENvbnRlbnQ+XG4gICAgICAgICAgICAgICAge09VVF9MQU5HX09QVElPTlMubWFwKChvcHQpID0+IChcbiAgICAgICAgICAgICAgICAgIDxTZWxlY3RJdGVtIGtleT17b3B0LnZhbHVlfSB2YWx1ZT17b3B0LnZhbHVlfT5cbiAgICAgICAgICAgICAgICAgICAge29wdC5sYWJlbH1cbiAgICAgICAgICAgICAgICAgIDwvU2VsZWN0SXRlbT5cbiAgICAgICAgICAgICAgICApKX1cbiAgICAgICAgICAgICAgPC9TZWxlY3RDb250ZW50PlxuICAgICAgICAgICAgPC9TZWxlY3Q+XG4gICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgPGRpdj5cbiAgICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9XCJ0ZXh0LXhzIGZvbnQtbWVkaXVtIHRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPlxuICAgICAgICAgICAgICDor63pgJ9cbiAgICAgICAgICAgICAge2Zyb21DYXJkKCdzcGVlZEZhY3RvcicpICYmIDxDYXJkVGFnIC8+fVxuICAgICAgICAgICAgPC9sYWJlbD5cbiAgICAgICAgICAgIDxJbnB1dFxuICAgICAgICAgICAgICB0eXBlPVwibnVtYmVyXCJcbiAgICAgICAgICAgICAgc3RlcD17MC4xfVxuICAgICAgICAgICAgICBtaW49ezAuNX1cbiAgICAgICAgICAgICAgbWF4PXsyfVxuICAgICAgICAgICAgICB2YWx1ZT17TnVtYmVyKGVmZmVjdGl2ZSgnc3BlZWRGYWN0b3InKSl9XG4gICAgICAgICAgICAgIG9uQ2hhbmdlPXsoZSkgPT4gdXBkYXRlKCdzcGVlZEZhY3RvcicsIHBhcnNlRmxvYXQoZS50YXJnZXQudmFsdWUpIHx8IDEpfVxuICAgICAgICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ3NwZWVkRmFjdG9yJyl9XG4gICAgICAgICAgICAvPlxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICA8L2Rpdj5cbiAgICAgICl9XG5cbiAgICAgIHtmb3JtLnByb3ZpZGVyID09PSAnZ2VuaWUnICYmIChcbiAgICAgICAgPGRpdj5cbiAgICAgICAgICA8bGFiZWwgY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bSB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj5cbiAgICAgICAgICAgIOWPguiAg+ivreiogFxuICAgICAgICAgICAge2Zyb21DYXJkKCdyZWZlcmVuY2VMYW5ndWFnZScpICYmIDxDYXJkVGFnIC8+fVxuICAgICAgICAgIDwvbGFiZWw+XG4gICAgICAgICAgPFNlbGVjdFxuICAgICAgICAgICAgdmFsdWU9e1N0cmluZyhlZmZlY3RpdmUoJ3JlZmVyZW5jZUxhbmd1YWdlJykpfVxuICAgICAgICAgICAgb25WYWx1ZUNoYW5nZT17KHYpID0+IHVwZGF0ZSgncmVmZXJlbmNlTGFuZ3VhZ2UnLCB2IGFzIFRUU0NvbmZpZ1sncmVmZXJlbmNlTGFuZ3VhZ2UnXSl9XG4gICAgICAgICAgICBkaXNhYmxlZD17ZnJvbUNhcmQoJ3JlZmVyZW5jZUxhbmd1YWdlJyl9XG4gICAgICAgICAgPlxuICAgICAgICAgICAgPFNlbGVjdFRyaWdnZXI+XG4gICAgICAgICAgICAgIDxTZWxlY3RWYWx1ZSAvPlxuICAgICAgICAgICAgPC9TZWxlY3RUcmlnZ2VyPlxuICAgICAgICAgICAgPFNlbGVjdENvbnRlbnQ+XG4gICAgICAgICAgICAgIDxTZWxlY3RJdGVtIHZhbHVlPVwiemhcIj7kuK3mloc8L1NlbGVjdEl0ZW0+XG4gICAgICAgICAgICAgIDxTZWxlY3RJdGVtIHZhbHVlPVwiZW5cIj5FbmdsaXNoPC9TZWxlY3RJdGVtPlxuICAgICAgICAgICAgICA8U2VsZWN0SXRlbSB2YWx1ZT1cImphXCI+5pel5pys6KqePC9TZWxlY3RJdGVtPlxuICAgICAgICAgICAgICA8U2VsZWN0SXRlbSB2YWx1ZT1cImtvXCI+7ZWc6rWt7Ja0PC9TZWxlY3RJdGVtPlxuICAgICAgICAgICAgPC9TZWxlY3RDb250ZW50PlxuICAgICAgICAgIDwvU2VsZWN0PlxuICAgICAgICA8L2Rpdj5cbiAgICAgICl9XG5cbiAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTIgcHQtMiBib3JkZXItdCBmbGV4LXdyYXBcIj5cbiAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14cyBmb250LW1lZGl1bVwiPlxuICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtbXV0ZWQtZm9yZWdyb3VuZFwiPlRUUyDmnI3liqE6IDwvc3Bhbj5cbiAgICAgICAgICB7aGVhbHRoID09PSAndW5rbm93bicgJiYgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+5qOA5rWL5LitLi4uPC9zcGFuPn1cbiAgICAgICAgICB7aGVhbHRoID09PSAnc3RvcHBlZCcgJiYgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC1tdXRlZC1mb3JlZ3JvdW5kXCI+5pyq6L+Q6KGMPC9zcGFuPn1cbiAgICAgICAgICB7aGVhbHRoID09PSAnc3RhcnRpbmcnICYmIChcbiAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtYW1iZXItNjAwIGRhcms6dGV4dC1hbWJlci00MDBcIj7ov5vnqIvlnKjkvYbnq6/lj6PkuI3lj6/ovr48L3NwYW4+XG4gICAgICAgICAgKX1cbiAgICAgICAgICB7aGVhbHRoID09PSAncmVhZHknICYmIChcbiAgICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQtZW1lcmFsZC02MDAgZGFyazp0ZXh0LWVtZXJhbGQtNDAwXCI+6L+Q6KGM5Lit77yI5bey5bCx57uq77yJPC9zcGFuPlxuICAgICAgICAgICl9XG4gICAgICAgIDwvc3Bhbj5cbiAgICAgICAgeyFzZXJ2ZXJSdW5uaW5nID8gKFxuICAgICAgICAgIDxCdXR0b24gb25DbGljaz17aGFuZGxlU3RhcnRTZXJ2ZXJ9IGRpc2FibGVkPXtzZXJ2ZXJCdXN5fSBzaXplPVwic21cIj5cbiAgICAgICAgICAgIHtzZXJ2ZXJCdXN5ID8gJ+WQr+WKqOS4rS4uLicgOiAn5ZCv5Yqo5pyN5YqhJ31cbiAgICAgICAgICA8L0J1dHRvbj5cbiAgICAgICAgKSA6IChcbiAgICAgICAgICA8QnV0dG9uIG9uQ2xpY2s9e2hhbmRsZVN0b3BTZXJ2ZXJ9IGRpc2FibGVkPXtzZXJ2ZXJCdXN5fSB2YXJpYW50PVwib3V0bGluZVwiIHNpemU9XCJzbVwiPlxuICAgICAgICAgICAg5YGc5q2i5pyN5YqhXG4gICAgICAgICAgPC9CdXR0b24+XG4gICAgICAgICl9XG4gICAgICAgIDxCdXR0b24gb25DbGljaz17aGFuZGxlVmlld0xvZ30gdmFyaWFudD1cImdob3N0XCIgc2l6ZT1cInNtXCI+XG4gICAgICAgICAg5p+l55yL5pel5b+XXG4gICAgICAgIDwvQnV0dG9uPlxuICAgICAgICB7c2VydmVyUG9ydCAhPT0gbnVsbCAmJiAoXG4gICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPVwidGV4dC14cyB0ZXh0LW11dGVkLWZvcmVncm91bmRcIj7nm5HlkKznq6/lj6M6IHtzZXJ2ZXJQb3J0fTwvc3Bhbj5cbiAgICAgICAgKX1cbiAgICAgICAge2hlYWx0aCA9PT0gJ3N0YXJ0aW5nJyAmJiBoZWFsdGhEZXRhaWwgJiYgKFxuICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT1cInRleHQteHMgdGV4dC1hbWJlci02MDAgZGFyazp0ZXh0LWFtYmVyLTQwMCBicmVhay1hbGxcIj5cbiAgICAgICAgICAgIHtoZWFsdGhEZXRhaWx9XG4gICAgICAgICAgPC9zcGFuPlxuICAgICAgICApfVxuICAgICAgPC9kaXY+XG5cbiAgICAgIHtwb3J0TWlzbWF0Y2ggJiYgKFxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInRleHQteHMgdGV4dC1hbWJlci02MDAgZGFyazp0ZXh0LWFtYmVyLTQwMCBiZy1hbWJlci01MCBkYXJrOmJnLWFtYmVyLTk1MC8zMCBib3JkZXIgYm9yZGVyLWFtYmVyLTIwMCBkYXJrOmJvcmRlci1hbWJlci04MDAgcm91bmRlZCBweC0zIHB5LTJcIj5cbiAgICAgICAgICDnq6/lj6PvvIh7Zm9ybVBvcnR977yJ5LiO5pyN5Yqh55uR5ZCs56uv5Y+j77yIe3NlcnZlclBvcnR977yJ5LiN5LiA6Ie077yM6K+36YeN5ZCv5pyN5Yqh44CCXG4gICAgICAgIDwvZGl2PlxuICAgICAgKX1cblxuICAgICAgPGRpdiBjbGFzc05hbWU9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMiBwdC0yXCI+XG4gICAgICAgIDxCdXR0b24gb25DbGljaz17aGFuZGxlU2F2ZX0gZGlzYWJsZWQ9e3NhdmluZ30gc2l6ZT1cInNtXCI+XG4gICAgICAgICAge3NhdmluZyA/ICfkv53lrZjkuK0uLi4nIDogJ+S/neWtmCd9XG4gICAgICAgIDwvQnV0dG9uPlxuICAgICAgICA8QnV0dG9uIG9uQ2xpY2s9e2hhbmRsZVBpbmd9IHZhcmlhbnQ9XCJvdXRsaW5lXCIgc2l6ZT1cInNtXCI+XG4gICAgICAgICAg5rWL6K+V6L+e5o6lXG4gICAgICAgIDwvQnV0dG9uPlxuICAgICAgICA8QnV0dG9uIG9uQ2xpY2s9e2hhbmRsZVRlc3R9IHZhcmlhbnQ9XCJvdXRsaW5lXCIgc2l6ZT1cInNtXCIgZGlzYWJsZWQ9eyFmb3JtLmVuYWJsZWR9PlxuICAgICAgICAgIOivleWQrFxuICAgICAgICA8L0J1dHRvbj5cbiAgICAgICAge3N0YXR1cyAmJiA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXhzIHRleHQtbXV0ZWQtZm9yZWdyb3VuZCBicmVhay1hbGxcIj57c3RhdHVzfTwvc3Bhbj59XG4gICAgICA8L2Rpdj5cblxuICAgICAge2xvZ1Zpc2libGUgJiYgKFxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImZpeGVkIGluc2V0LTAgYmctYmxhY2svNTAgZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXIgei01MCBwLTRcIj5cbiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cImJnLWJhY2tncm91bmQgcm91bmRlZC1sZyBzaGFkb3cteGwgdy1mdWxsIG1heC13LTN4bCBtYXgtaC1bODB2aF0gZmxleCBmbGV4LWNvbCBib3JkZXJcIj5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwiZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1iZXR3ZWVuIHB4LTQgcHktMiBib3JkZXItYlwiPlxuICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9XCJ0ZXh0LXNtIGZvbnQtc2VtaWJvbGRcIj5UVFMg5pyN5Yqh5pel5b+XPC9zcGFuPlxuICAgICAgICAgICAgICA8QnV0dG9uIHNpemU9XCJzbVwiIHZhcmlhbnQ9XCJnaG9zdFwiIG9uQ2xpY2s9eygpID0+IHNldExvZ1Zpc2libGUoZmFsc2UpfT5cbiAgICAgICAgICAgICAgICDlhbPpl61cbiAgICAgICAgICAgICAgPC9CdXR0b24+XG4gICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgIDxwcmUgY2xhc3NOYW1lPVwiZmxleC0xIG92ZXJmbG93LWF1dG8gcC00IHRleHQteHMgZm9udC1tb25vIHdoaXRlc3BhY2UtcHJlLXdyYXAgYnJlYWstYWxsXCI+XG4gICAgICAgICAgICAgIHtsb2dUZXh0IHx8ICco5pqC5peg5pel5b+XKSd9XG4gICAgICAgICAgICA8L3ByZT5cbiAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPVwicHgtNCBweS0yIGJvcmRlci10IGZsZXgganVzdGlmeS1lbmQgZ2FwLTJcIj5cbiAgICAgICAgICAgICAgPEJ1dHRvbiBzaXplPVwic21cIiB2YXJpYW50PVwib3V0bGluZVwiIG9uQ2xpY2s9e2hhbmRsZVZpZXdMb2d9PlxuICAgICAgICAgICAgICAgIOWIt+aWsFxuICAgICAgICAgICAgICA8L0J1dHRvbj5cbiAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICA8L2Rpdj5cbiAgICAgICl9XG4gICAgPC9kaXY+XG4gIClcbn1cbiJdLCJmaWxlIjoiRDovUHJvamVjdDIwMjUvTWlrdU1vZC9PcGVuR2FsL3NyYy9yZW5kZXJlci9zcmMvY29tcG9uZW50cy9zZXR0aW5ncy9UVFNTZXR0aW5ncy50c3gifQ==

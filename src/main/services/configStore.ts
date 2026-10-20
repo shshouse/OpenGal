@@ -88,65 +88,34 @@ function getStore(): Store<Record<string, unknown>> {
   return store
 }
 
+// safeStorage 在 Windows 下是 v10 前缀的 AES-GCM 密文，可据此识别“已经是密文”
+function isCiphertext(value: string): boolean {
+  const raw = Buffer.from(value, 'base64')
+  return raw.length > 15 && raw.subarray(0, 3).toString() === 'v10'
+}
+
 function encryptApiKey(key: string): string {
   if (!key) return ''
   if (!safeStorage.isEncryptionAvailable()) return key
+  if (isCiphertext(key)) return key
   return safeStorage.encryptString(key).toString('base64')
 }
 
+// 解密失败不能把密文当明文返回：否则下次保存会把密文再加密一次，密钥层层嵌套彻底不可用
 function decryptApiKey(value: string): string {
   if (!value) return ''
   if (!safeStorage.isEncryptionAvailable()) return value
-  try {
-    return safeStorage.decryptString(Buffer.from(value, 'base64'))
-  } catch {
-    return value
-  }
-}
-
-// 密钥掩码：config.get 下发渲染进程时隐藏真实密钥；回写时遇掩码则从当前配置还原
-export const SECRET_MASK = '••••••••••••'
-
-function mask(value: string): string {
-  return value ? SECRET_MASK : ''
-}
-
-export function redactSecrets(cfg: AppConfig): AppConfig {
-  return {
-    ...cfg,
-    llm: { ...cfg.llm, apiKey: mask(cfg.llm.apiKey) },
-    llmPresets: cfg.llmPresets?.map((p) => ({ ...p, apiKey: mask(p.apiKey) })),
-    tools: {
-      ...cfg.tools,
-      webSearch: { ...cfg.tools.webSearch, tavilyKey: mask(cfg.tools.webSearch.tavilyKey) },
-    },
-  }
-}
-
-function restoreMaskedSecrets(patch: Partial<AppConfig>, current: AppConfig): void {
-  if (patch.llm?.apiKey === SECRET_MASK) {
-    patch.llm.apiKey =
-      current.llmPresets?.find(
-        (p) => p.baseURL === patch.llm!.baseURL && p.modelName === patch.llm!.modelName,
-      )?.apiKey ?? current.llm.apiKey
-  }
-  if (patch.llmPresets) {
-    for (const p of patch.llmPresets) {
-      if (p.apiKey === SECRET_MASK) {
-        p.apiKey = current.llmPresets?.find((c) => c.id === p.id)?.apiKey ?? ''
-      }
+  let cur = value
+  for (let i = 0; i < 3; i += 1) {
+    if (!isCiphertext(cur)) return cur
+    try {
+      cur = safeStorage.decryptString(Buffer.from(cur, 'base64'))
+    } catch {
+      logBus.error('config', '密钥解密失败，需重新填写（通常因 userData 目录变动）')
+      return ''
     }
   }
-  if (patch.tools?.webSearch?.tavilyKey === SECRET_MASK) {
-    patch.tools.webSearch.tavilyKey = current.tools.webSearch.tavilyKey
-  }
-}
-
-// 渲染进程拿着掩码发起需要真实密钥的请求（如拉模型列表）时还原
-export function resolveMaskedApiKey(baseURL: string, apiKey: string): string {
-  if (apiKey !== SECRET_MASK) return apiKey
-  const cfg = readConfig()
-  return cfg.llmPresets?.find((p) => p.baseURL === baseURL)?.apiKey ?? cfg.llm.apiKey
+  return ''
 }
 
 export function readConfig(): AppConfig {
@@ -189,7 +158,6 @@ function summarizePatch(patch: Partial<AppConfig>): string {
 
 export function writeConfig(patch: Partial<AppConfig>): AppConfig {
   const current = readConfig()
-  restoreMaskedSecrets(patch, current)
   const next: AppConfig = {
     ...current,
     ...patch,

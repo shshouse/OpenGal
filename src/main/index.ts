@@ -16,17 +16,18 @@ import { logBus } from './services/logBus'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
-if (isDevRuntime()) {
-  app.setPath('userData', path.join(path.resolve(path.dirname(app.getPath('exe')), '../../../'), '.dev-userdata'))
-} else {
-  const portableUserData = path.join(path.dirname(app.getPath('exe')), 'userdata')
-  try {
-    fs.mkdirSync(portableUserData, { recursive: true })
-    fs.accessSync(portableUserData, fs.constants.W_OK)
-    app.setPath('userData', portableUserData)
-  } catch {
-    // 目录不可写则保持默认 AppData
-  }
+const userDataDir = path.join(
+  isDevRuntime()
+    ? path.resolve(path.dirname(app.getPath('exe')), '../../../')
+    : path.dirname(app.getPath('exe')),
+  'userdata'
+)
+try {
+  fs.mkdirSync(userDataDir, { recursive: true })
+  fs.accessSync(userDataDir, fs.constants.W_OK)
+  app.setPath('userData', userDataDir)
+} catch {
+  // 目录不可写则保持默认 AppData
 }
 if (process.env.OPENGAL_CDP_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.OPENGAL_CDP_PORT)

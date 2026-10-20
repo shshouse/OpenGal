@@ -197,8 +197,10 @@ async function compressHistory(
   history: ChatMessage[],
   contextWindow: number,
   systemTokens: number,
+  stale: () => boolean,
 ): Promise<ChatMessage[]> {
   const summariesText = await loadSummariesText(characterId)
+  if (stale()) return history
   const summaryMessage: ChatMessage | null = summariesText
     ? { role: 'system', content: `[既往对话摘要]\n${summariesText}` }
     : null
@@ -243,6 +245,7 @@ async function compressHistory(
     ],
   })
 
+  if (stale()) return history
   if (!res.success || !res.data?.content) {
     useLogsStore.getState().appendLocal('warn', 'llm-worker', '历史压缩失败，跳过本轮压缩')
     return summaryMessage ? [summaryMessage, ...history] : history
@@ -263,6 +266,7 @@ async function compressHistory(
     text: newText,
     message_count: toCompress.length,
   })
+  if (stale()) return history
   await useChatStore.getState().archiveFront(toCompress.length)
 
   useLogsStore.getState().appendLocal(
@@ -322,6 +326,7 @@ export function startLLMWorker(): () => void {
 
     const myTurn = ++turnSeq
     void runTurn(input.text, myTurn, input.systemPrompt).catch((err: Error) => {
+      if (myTurn !== turnSeq) return
       currentStreamId = null
       pipelineBus.emit('llm:done', { ok: false, error: err.message })
     })
@@ -333,7 +338,9 @@ export function startLLMWorker(): () => void {
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
     const memoryBlock = await fetchRelevantMemory(activeRoleCard!.id, userText)
+    if (stale()) return
     const toolsResp = await window.opengal.tools.list()
+    if (stale()) return
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
     const systemContent = buildSystemPrompt(
       activeRoleCard!,
@@ -346,6 +353,7 @@ export function startLLMWorker(): () => void {
       history,
       resolveContextWindow(),
       estimateTokens(systemContent),
+      stale,
     )
 
     let messagesForLLM: ChatMessage[] = [
@@ -355,8 +363,9 @@ export function startLLMWorker(): () => void {
     if (envMsg) messagesForLLM.push(envMsg)
     messagesForLLM.push(...sanitizeHistoryForLLM(compressedHistory))
     if (systemPrompt) messagesForLLM.push({ role: 'user', content: systemPrompt })
+    if (stale()) return
 
-    const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools)
+    const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools, stale)
     if (stale()) return
     if (!firstResult.ok) {
       currentStreamId = null
@@ -417,6 +426,7 @@ export function startLLMWorker(): () => void {
         for (const tc of prevToolCalls) {
           const start = performance.now()
           const exec = await window.opengal.tools.execute(tc.function.name, tc.function.arguments)
+          if (stale()) return
           const durationMs = Math.round(performance.now() - start)
           let resultContent: string
           let ok = true
@@ -516,17 +526,20 @@ export function startLLMWorker(): () => void {
   async function runStreamRoundWithRetry(
     messages: ChatMessage[],
     tools: ToolDefinition[],
+    stale: () => boolean,
   ): Promise<
     | { ok: true; assistantContent: string; toolCalls: ToolCall[] | undefined }
     | { ok: false; error: string }
   > {
     let lastError = ''
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (stale()) return { ok: false, error: 'Reply interrupted' }
       if (attempt > 0) {
         const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1)
         useLogsStore.getState().appendLocal('info', 'llm-worker', `LLM 请求重试 ${attempt}/${MAX_RETRIES}，等待 ${delay}ms`)
         await sleep(delay)
       }
+      if (stale()) return { ok: false, error: 'Reply interrupted' }
       const result = await runStreamRound(messages, tools)
       if (result.ok) return result
       lastError = result.error

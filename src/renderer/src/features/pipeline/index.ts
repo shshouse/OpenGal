@@ -7,6 +7,7 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { startASRBridge } from '@/features/asr/asrStore'
 import { startSubtitleWorker, useSubtitleStore } from './subtitles'
 import { subtitleText } from '@shared/subtitles'
+import { startBargeInBridge } from './bargeIn'
 
 export { pipelineBus, setActiveRoleCard }
 export type { MessageHandler } from './handlerChain'
@@ -76,12 +77,14 @@ export function startPipeline(): PipelineHandle {
   startLLMWorker()
   startTTSWorker()
   startUIWorker()
+  const stopBargeIn = startBargeInBridge()
   const stopMemory = startMemoryService()
   const stopBridge = startChatStreamBridge()
   const stopASR = startASRBridge()
   const stopPetBubble = startPetBubbleBridge()
   return {
     dispose: () => {
+      stopBargeIn()
       stopSubtitles()
       stopPetBubble()
       stopASR()

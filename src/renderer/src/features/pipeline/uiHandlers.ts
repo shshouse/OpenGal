@@ -1,26 +1,14 @@
 import type { TTSOutputMessage } from '@shared/messages'
 import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
-import { useASRStore } from '@/features/asr/asrStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { MessageHandler } from './handlerChain'
 import { pipelineBus } from './pipelineBus'
 
-let fallbackAudio: HTMLAudioElement | null = null
+let cancelPlayback: (() => void) | null = null
 
-export function stopFallbackAudio(): void {
-  if (fallbackAudio) {
-    try {
-      fallbackAudio.pause()
-      fallbackAudio.currentTime = 0
-    } catch {
-      /* ignore */
-    }
-    fallbackAudio = null
-  }
-}
+export function stopDialogPlayback(): void { cancelPlayback?.() }
 
 export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> {
-  private interrupted = false
   private turnStartedAt = 0
   private lastEmotion = ''
   private firstAudioLogged = false
@@ -30,7 +18,6 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
   }
 
   async handle(msg: TTSOutputMessage): Promise<void> {
-    this.interrupted = false
     if (msg.turnStartedAt && msg.turnStartedAt !== this.turnStartedAt) {
       this.turnStartedAt = msg.turnStartedAt
       this.lastEmotion = ''
@@ -49,9 +36,6 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       return
     }
 
-    const wasASRRunning = useASRStore.getState().running
-    if (wasASRRunning) await useASRStore.getState().stop()
-
     if (!this.firstAudioLogged && msg.turnStartedAt) {
       this.firstAudioLogged = true
       useLogsStore
@@ -60,55 +44,42 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
     }
     pipelineBus.emit('tts:segmentStart', msg)
 
-    const model = getLive2DModel()
-    if (model) {
-      await new Promise<void>((resolve) => {
-        const off = pipelineBus.on('user:input', () => {
-          this.interrupted = true
-          try { model.stopSpeaking() } catch { /* ignore */ }
-          resolve()
-        })
-        try {
-          model.speak(msg.audioUrl, {
-            volume: 1,
-            crossOrigin: 'anonymous',
-            onFinish: () => {
-              off()
-              if (!this.interrupted) resolve()
-            },
-            onError: (err: Error) => {
-              console.warn('[UIWorker] model.speak error', err)
-              off()
-              resolve()
-            },
-          })
-        } catch (err) {
-          console.warn('[UIWorker] model.speak threw', err)
-          off()
-          resolve()
-        }
-      })
-    } else {
-      await playFallbackAudio(msg.audioUrl)
-    }
-
-    if (wasASRRunning && !this.interrupted) await useASRStore.getState().start()
+    await playDialogAudio(msg.audioUrl)
   }
 }
 
-async function playFallbackAudio(audioUrl: string): Promise<void> {
+async function playDialogAudio(audioUrl: string): Promise<void> {
   await new Promise<void>((resolve) => {
-    const audio = new Audio(audioUrl)
-    fallbackAudio = audio
+    const model = getLive2DModel()
+    const audio = model ? null : new Audio(audioUrl)
+    let settled = false
     const done = (): void => {
-      if (fallbackAudio === audio) fallbackAudio = null
+      if (settled) return
+      settled = true
+      if (cancelPlayback === cancel) cancelPlayback = null
+      audio?.removeEventListener('ended', done)
+      audio?.removeEventListener('error', done)
       resolve()
     }
-    audio.addEventListener('ended', done)
-    audio.addEventListener('error', done)
-    audio.play().catch((err) => {
-      console.warn('[UIWorker] fallback audio.play rejected', err)
+    const cancel = (): void => {
       done()
-    })
+      try {
+        if (model) model.stopSpeaking()
+        if (audio) { audio.pause(); audio.currentTime = 0 }
+      } catch { /* 已释放的播放器不影响队列退出 */ }
+    }
+    cancelPlayback = cancel
+    try {
+      if (model) {
+        model.speak(audioUrl, { volume: 1, crossOrigin: 'anonymous', onFinish: done, onError: done })
+      } else if (audio) {
+        audio.addEventListener('ended', done)
+        audio.addEventListener('error', done)
+        void audio.play().catch(done)
+      }
+    } catch (err) {
+      console.warn('[UIWorker] audio playback failed', err)
+      done()
+    }
   })
 }

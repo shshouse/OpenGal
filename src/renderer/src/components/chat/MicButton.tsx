@@ -6,12 +6,13 @@ import { cn } from '@/lib/utils'
 
 export function MicButton() {
   const running = useASRStore((s) => s.running)
+  const applying = useASRStore((s) => s.applying)
   const error = useASRStore((s) => s.error)
   const start = useASRStore((s) => s.start)
   const stop = useASRStore((s) => s.stop)
 
   async function toggle(): Promise<void> {
-    if (running) {
+    if (running || applying) {
       await stop()
     } else {
       await start()
@@ -26,7 +27,7 @@ export function MicButton() {
           variant={running ? 'default' : 'outline'}
           size="icon"
           onClick={toggle}
-          title={error || (running ? '停止语音输入' : '语音输入')}
+          title={error || (applying ? '正在应用语音设置，点击可停止' : running ? '停止语音输入' : '语音输入')}
           className={cn(error && 'border-destructive text-destructive')}
         >
           {running ? <Mic className="size-4" /> : <MicOff className="size-4" />}

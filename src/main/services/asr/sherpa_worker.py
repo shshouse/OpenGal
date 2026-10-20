@@ -122,7 +122,7 @@ def main():
 
     def read_stdin():
         while True:
-            data = sys.stdin.buffer.read(4096)
+            data = sys.stdin.buffer.read(max(2, SAMPLE_RATE * 2 * 32 // 1000))
             chunks.put(data)
             if not data:
                 return

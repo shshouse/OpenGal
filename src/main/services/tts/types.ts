@@ -1,6 +1,7 @@
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 
 export interface TTSGenerateRequest {
+  signal?: AbortSignal
   text: string
   globalConfig: TTSConfig
   card?: RoleCardEntry | null

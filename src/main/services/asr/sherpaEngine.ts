@@ -11,6 +11,7 @@ import workerSrc from './sherpa_worker.py?raw'
 let child: ChildProcess | null = null
 let running = false
 let resultCallback: ASRResultCallback | null = null
+let speechStartCallback: (() => void) | null = null
 let lineBuf = ''
 let startup: { resolve: () => void; reject: (e: Error) => void } | null = null
 
@@ -121,8 +122,10 @@ export async function startASR(): Promise<void> {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   })
+  const launchedChild = child
   lineBuf = ''
   child.stdout!.on('data', (chunk: Buffer) => {
+    if (child !== launchedChild) return
     lineBuf += chunk.toString()
     const lines = lineBuf.split('\n')
     lineBuf = lines.pop() ?? ''
@@ -141,6 +144,7 @@ export async function startASR(): Promise<void> {
         }
         if (msg.type === 'speech_start') {
           logBus.debug('asr', 'speech_start')
+          speechStartCallback?.()
           continue
         }
         if (msg.type === 'error') {
@@ -154,11 +158,13 @@ export async function startASR(): Promise<void> {
     }
   })
   child.stderr!.on('data', (chunk: Buffer) => {
+    if (child !== launchedChild) return
     const text = chunk.toString().trim()
     stderrBuf += text + '\n'
     if (text) logBus.warn('asr', text)
   })
   child.on('exit', (code) => {
+    if (child !== launchedChild) return
     if (startup) {
       startup.reject(new Error(`ASR 子进程启动失败 (code=${code}): ${stderrBuf.slice(-300).trim() || '无错误输出'}`))
       startup = null
@@ -171,10 +177,11 @@ export async function startASR(): Promise<void> {
   })
   running = true
   logBus.info('asr', `ASR 已启动 (engine=sherpa, backend=${exe ? 'ASRWorker2.exe' : program}, model=${modelPath}, sampleRate=${config.sampleRate})`)
+  let startupTimer: ReturnType<typeof setTimeout> | undefined
   try {
     await new Promise<void>((resolve, reject) => {
       startup = { resolve, reject }
-      setTimeout(() => {
+      startupTimer = setTimeout(() => {
         if (startup) {
           startup = null
           reject(new Error('语音识别模型加载超时'))
@@ -182,11 +189,14 @@ export async function startASR(): Promise<void> {
       }, 30000)
     })
   } catch (err) {
-    running = false
-    const c = child
-    child = null
-    c?.kill()
+    if (child === launchedChild) {
+      running = false
+      child = null
+      launchedChild.kill()
+    }
     throw err
+  } finally {
+    if (startupTimer) clearTimeout(startupTimer)
   }
 }
 
@@ -198,10 +208,11 @@ export function stopASR(): void {
   if (!running) return
   running = false
   if (child) {
-    try { child.stdin!.end() } catch { /* ignore */ }
+    const stoppedChild = child
+    child = null
+    try { stoppedChild.stdin!.end() } catch { /* ignore */ }
     setTimeout(() => {
-      if (child && !child.killed) child.kill()
-      child = null
+      if (!stoppedChild.killed) stoppedChild.kill()
     }, 2000)
   }
   logBus.info('asr', 'ASR 已停止')
@@ -223,7 +234,8 @@ const engine: ASREngine = {
   stop: () => stopASR(),
   feed: (pcm16) => feedAudio(pcm16),
   isRunning: () => isASRRunning(),
-  setResultCallback: (cb) => setResultCallback(cb)
+  setResultCallback: (cb) => setResultCallback(cb),
+  setSpeechStartCallback: (cb) => { speechStartCallback = cb },
 }
 
 export default engine

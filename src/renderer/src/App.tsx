@@ -14,6 +14,7 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { useStartupStore } from '@/features/startup/startupStore'
+import { useASRStore } from '@/features/asr/asrStore'
 
 type View = 'chat' | 'market' | 'settings' | 'logs'
 const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
@@ -59,6 +60,7 @@ export default function App() {
       const cfg = await window.opengal.config.get()
       if (cfg.success && cfg.data) {
         setConfig(cfg.data)
+        await useASRStore.getState().applySettings(cfg.data.asr)
         useStartupStore.getState().beginBoot()
         if (!cfg.data.showLive2D) useStartupStore.getState().reportLive2d('skipped')
         await loadCharacters(cfg.data.activeCharacterId)
@@ -102,6 +104,10 @@ export default function App() {
     const res = await window.opengal.config.set(patch)
     if (!res.success || !res.data) throw new Error(res.error || 'save failed')
     setConfig(res.data)
+    if (patch.asr) {
+      try { await useASRStore.getState().applySettings(res.data.asr) }
+      catch (error) { throw new Error(`设置已保存，但识别重载失败：${(error as Error).message}`) }
+    }
     if (patch.model && model) {
       setModel({
         ...model,

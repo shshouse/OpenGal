@@ -68,6 +68,7 @@ export class GptSovitsAdapter implements TTSAdapter {
 
     const settings = this.resolveSettings(req)
     await this.applyWeightsIfNeeded(settings)
+    req.signal?.throwIfAborted()
 
     const body = {
       text,
@@ -94,7 +95,7 @@ export class GptSovitsAdapter implements TTSAdapter {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-          signal: controller.signal,
+          signal: req.signal ? AbortSignal.any([controller.signal, req.signal]) : controller.signal,
         },
         settings.baseURL,
       )

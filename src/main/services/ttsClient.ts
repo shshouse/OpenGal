@@ -83,7 +83,19 @@ export function checkTTSCompat(roleCardId?: string): { ok: boolean; reason?: str
   return chooseTTSAdapter(provider).checkAvailability({ globalConfig: config, card })
 }
 
+const speechRequests = new Set<AbortController>()
+
+export function cancelSpeech(): void {
+  for (const controller of speechRequests) controller.abort()
+}
+
 export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse> {
+  const controller = new AbortController()
+  speechRequests.add(controller)
+  try { return await speakRequest(request, controller.signal) } finally { speechRequests.delete(controller) }
+}
+
+async function speakRequest(request: TTSSpeakRequest, signal: AbortSignal): Promise<TTSSpeakResponse> {
   const config = readConfig().tts
   const card = resolveActiveCard(request.roleCardId)
   const provider = config.provider
@@ -101,10 +113,12 @@ export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse>
       globalConfig: config,
       card,
       overrides: request.overrides,
+      signal,
     })
     logBus.info('tts', `合成完成 长度=${res.audioBase64.length}B64 type=${res.mimeType}`)
     return res
   } catch (err) {
+    if (signal.aborted) return { audioBase64: '', mimeType: '', skipped: true }
     const msg = (err as Error).message
    const connRefused = /连接被拒绝|ECONNREFUSED/.test(msg)
     if (connRefused && provider === 'gpt-sovits' && !autoStartBusy) {
@@ -112,11 +126,13 @@ export async function speak(request: TTSSpeakRequest): Promise<TTSSpeakResponse>
       try {
         logBus.info('tts', '检测到 GPT-SoVITS 未启动，自动拉起服务（首次需 30-90 秒）...')
         await startGptSovitsServer()
+        signal.throwIfAborted()
         const res = await adapter.generateSpeech({
           text: request.text,
           globalConfig: config,
           card,
           overrides: request.overrides,
+          signal,
         })
         logBus.info('tts', `自动拉起后合成成功 长度=${res.audioBase64.length}B64`)
         return res

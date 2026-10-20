@@ -51,12 +51,19 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
   const [devices, setDevices] = React.useState<MediaDeviceInfo[]>([])
-  const engineDirty = form.engine !== normalizeAsrEngine(config?.asr?.engine)
+  const formRef = React.useRef(form)
+  const pending = React.useRef<ASRConfig | null>(null)
+  const ready = React.useRef(false)
+  const inFlight = React.useRef(false)
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mounted = React.useRef(true)
+  const save = React.useRef(onSave)
+  save.current = onSave
 
   React.useEffect(() => {
-    if (config?.asr) {
+    if (config?.asr && !pending.current && !inFlight.current) {
       const a = config.asr
-      setForm({
+      const next = {
         ...a,
         engine: normalizeAsrEngine(a.engine),
         deviceId: a.deviceId ?? '',
@@ -65,7 +72,9 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         directorEnabled: a.directorEnabled ?? false,
         directorScreenContext: a.directorScreenContext ?? false,
         directorCooldownSec: a.directorCooldownSec ?? 20
-      })
+      }
+      formRef.current = next
+      setForm(next)
     }
   }, [config])
 
@@ -81,22 +90,54 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
     void refreshDevices()
   }, [refreshDevices])
 
-  function patch(partial: Partial<ASRConfig>): void {
-    setForm((prev) => ({ ...prev, ...partial }))
-  }
-
-  async function handleSave(): Promise<void> {
-    setSaving(true)
-    setStatus(null)
+  async function applyPending(): Promise<void> {
+    if (inFlight.current || !ready.current) return
+    inFlight.current = true
+    if (mounted.current) setSaving(true)
     try {
-      await onSave({ asr: form })
-      setStatus('已保存')
-    } catch (err) {
-      setStatus(`保存失败: ${(err as Error).message}`)
+      while (pending.current && ready.current) {
+        const next = pending.current
+        pending.current = null
+        ready.current = false
+        if (!Number.isInteger(next.sampleRate) || next.sampleRate < 8000 || next.sampleRate > 48000 || !Number.isFinite(next.vadSilenceMs) || next.vadSilenceMs < 100 || !Number.isFinite(next.directorCooldownSec) || next.directorCooldownSec < 0) {
+          if (mounted.current) setStatus('未应用：采样率须为 8000–48000 的整数，VAD 至少 100 毫秒，冷却不能为负数')
+          continue
+        }
+        if (mounted.current) setStatus('正在应用设置…')
+        try {
+          await save.current({ asr: next })
+          if (mounted.current && !pending.current) setStatus('已应用；运行中的识别已同步，无需手动重开')
+        } catch (error) {
+          if (mounted.current) setStatus(`应用失败：${(error as Error).message}`)
+        }
+      }
     } finally {
-      setSaving(false)
+      inFlight.current = false
+      if (mounted.current) setSaving(false)
     }
   }
+
+  function patch(partial: Partial<ASRConfig>): void {
+    const next = { ...formRef.current, ...partial }
+    formRef.current = next
+    setForm(next)
+    pending.current = next
+    ready.current = false
+    setStatus('等待应用…')
+    if (timer.current) clearTimeout(timer.current)
+    const immediate = Object.entries(partial).some(([key, value]) => typeof value === 'boolean' || ['deviceId', 'language', 'engine'].includes(key))
+    timer.current = setTimeout(() => { ready.current = true; void applyPending() }, immediate ? 0 : 600)
+  }
+
+  React.useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      if (timer.current) clearTimeout(timer.current)
+      ready.current = true
+      void applyPending()
+    }
+  }, [])
 
   return (
     <div className="space-y-3">
@@ -107,6 +148,9 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         {form.engine === 'sherpa'
           ? 'sherpa-onnx 离线识别，支持 Qwen3-ASR、SenseVoice、FunASR-Nano 等模型（自带 ASRWorker2 或系统 Python + sherpa-onnx）'
           : '自带 ASRWorker 离线识别引擎，无需安装 Python'}
+      </p>
+      <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+        {status || '修改自动应用：麦克风、语言和开关立即生效；文本参数停止输入后应用。运行中会按需自动重载。'}
       </p>
 
       <div className="space-y-1">
@@ -151,9 +195,6 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
             ))}
           </SelectContent>
         </Select>
-        {engineDirty && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-400">切换引擎后需重启语音识别生效</p>
-        )}
       </div>
 
       <div className="space-y-1">
@@ -266,12 +307,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         )}
       </div>
 
-      <div className="flex items-center gap-2 pt-2">
-        <Button onClick={handleSave} disabled={saving} size="sm">
-          {saving ? '保存中...' : '保存'}
-        </Button>
-        {status && <span className="text-xs text-muted-foreground">{status}</span>}
-      </div>
+      {saving && <p className="text-xs text-muted-foreground">正在同步识别设置…</p>}
     </div>
   )
 }

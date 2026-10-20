@@ -38,6 +38,18 @@ let waitRound = 0
 let waitUtterances: Utterance[] = []
 let lastReplyAt = 0
 let evaluatingSince = 0
+let decisionGeneration = 0
+
+export function cancelDirectorPending(): void {
+  decisionGeneration++
+  evaluatingSince = 0
+  lastShot = null
+  if (silenceTimer) clearTimeout(silenceTimer)
+  silenceTimer = null
+  buffer = []
+  backlog = []
+  clearWaitState()
+}
 const EVALUATE_LATCH_TTL_MS = 180_000
 let dispatch: ((input: UserInputMessage) => void) | null = null
 let lastShot: { at: number; dataUrl: string } | null = null
@@ -109,12 +121,14 @@ async function evaluate(): Promise<void> {
   if (evaluatingSince && Date.now() - evaluatingSince < EVALUATE_LATCH_TTL_MS) return
   if (buffer.length === 0) return
   evaluatingSince = Date.now()
+  const generation = decisionGeneration
   try {
     const utterances = buffer
     buffer = []
     clearWaitState()
     const cfg = (await window.opengal.config.get()).data?.asr
     if (!cfg) return
+    if (generation !== decisionGeneration) return
 
     const joined = utterances.map((u) => u.text).join(' ')
     const compact = joined.replace(/[\s，。？！,.?！]/g, '')
@@ -145,8 +159,10 @@ async function evaluate(): Promise<void> {
 
     pruneBacklog()
     const startedAt = Date.now()
-    const { decision, screenIncluded } = await askDirector(utterances, backlog, cfg.directorScreenContext)
+    if (generation !== decisionGeneration) return
+    const { decision, screenIncluded } = await askDirector(utterances, backlog, cfg.directorScreenContext, () => generation === decisionGeneration)
     const llmLatencyMs = Date.now() - startedAt
+    if (generation !== decisionGeneration) return
     if (decision.action === 'respond') {
       lastReplyAt = Date.now()
       const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
@@ -191,7 +207,7 @@ async function evaluate(): Promise<void> {
   } catch (err) {
     log('warn', `导演判定失败，保持沉默: ${(err as Error).message}`)
   } finally {
-    evaluatingSince = 0
+    if (generation === decisionGeneration) evaluatingSince = 0
     if (buffer.length > 0) {
       void evaluate()
     }
@@ -217,7 +233,8 @@ async function captureScreen(): Promise<string | null> {
 async function askDirector(
   utterances: Utterance[],
   backlogUtterances: Utterance[],
-  screenContext: boolean
+  screenContext: boolean,
+  current: () => boolean,
 ): Promise<{ decision: DirectorDecision; screenIncluded: boolean }> {
   const now = new Date()
   const chat = useChatStore.getState().messages
@@ -259,6 +276,7 @@ async function askDirector(
     }
   }
   let screenIncluded = false
+  if (!current()) throw new Error('导演设置已变化，放弃旧判定')
   if (allowScreen) {
     const dataUrl = await captureScreen()
     if (dataUrl) {
@@ -271,6 +289,7 @@ async function askDirector(
     { role: 'system', content: buildDirectorPrompt(roleName) },
     { role: 'user', content: userParts }
   ]
+  if (!current()) throw new Error('导演设置已变化，放弃旧判定')
   const res = await window.opengal.llm.chat({ messages, slot: 'sub' })
   if (!res.success || !res.data?.content) throw new Error(res.error || 'empty director response')
   return { decision: parseDecision(res.data.content), screenIncluded }

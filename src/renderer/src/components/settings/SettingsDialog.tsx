@@ -144,6 +144,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     setModelOptions([])
     setModelFetchError(null)
     setStatus(null)
+    setShowKey(false)
   }
 
   function startEdit(p: LLMPreset): void {
@@ -163,6 +164,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     setModelOptions([])
     setModelFetchError(null)
     setStatus(null)
+    setShowKey(false)
   }
 
   async function fetchModels(baseURL: string, apiKey: string): Promise<void> {
@@ -428,6 +430,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                   <div className="relative">
                     <Input
                       type={showKey ? 'text' : 'password'}
+                      className="pr-8"
                       value={form.apiKey}
                       onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
                       placeholder="sk-..."

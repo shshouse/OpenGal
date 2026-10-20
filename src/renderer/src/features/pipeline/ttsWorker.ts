@@ -32,6 +32,8 @@ function clearQueue(): void {
   useLogsStore.getState().appendLocal('info', 'tts-worker', 'TTS 队列已清空')
 }
 
+export function isTTSBusy(): boolean { return processing || queue.length > 0 }
+
 export function startTTSWorker(): () => void {
   if (bound) return stopTTSWorker
   bound = true
@@ -44,11 +46,13 @@ export function startTTSWorker(): () => void {
   const offAbort = pipelineBus.on('pipeline:abort', () => {
     clearQueue()
     drainGen++
+    void window.opengal.tts.cancel().catch(() => {})
   })
 
   const offUserInput = pipelineBus.on('user:input', () => {
     clearQueue()
     drainGen++
+    void window.opengal.tts.cancel().catch(() => {})
   })
 
   unsubscribers = [offDialog, offAbort, offUserInput]
@@ -56,11 +60,12 @@ export function startTTSWorker(): () => void {
 }
 
 export function stopTTSWorker(): void {
+  drainGen++
+  void window.opengal.tts.cancel().catch(() => {})
   for (const off of unsubscribers) off()
   unsubscribers = []
   bound = false
   queue = []
-  processing = false
 }
 
 async function drainQueue(): Promise<void> {

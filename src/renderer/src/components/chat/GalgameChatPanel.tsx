@@ -13,6 +13,7 @@ import { extractAssistantDisplayText } from '@shared/roleCard'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useStartupStore } from '@/features/startup/startupStore'
 import { displaySubtitle, useSubtitleStore } from '@/features/pipeline/subtitles'
+import { consumeVoiceInterruption } from '@/features/pipeline/bargeIn'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
@@ -56,15 +57,13 @@ export function GalgameChatPanel() {
   }, [historyOpen, messages.length, streamingSegments.length])
 
   React.useEffect(() => {
-    let directorEnabled = false
-    let autoSend = true
-    window.opengal.config.get().then((res) => {
-      directorEnabled = res.data?.asr?.directorEnabled ?? false
-      autoSend = res.data?.asr?.autoSend !== false
-    })
     setASRFinalCallback((text) => {
       if (!text.trim()) return
-      if (directorEnabled) {
+      const settings = useASRStore.getState().settings
+      const directorEnabled = settings?.directorEnabled ?? false
+      const autoSend = settings?.autoSend !== false
+      const interrupted = consumeVoiceInterruption()
+      if (directorEnabled && !interrupted) {
         offerUtterance(text)
         return
       }
