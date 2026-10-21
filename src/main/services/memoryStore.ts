@@ -210,9 +210,12 @@ function isFactFrozen(f: MemoryFact): boolean {
 export function retentionScore(f: MemoryFact): number {
   if (isFactFrozen(f)) return 1
   if (isFactExpired(f)) return 0
-  const days = (Date.now() - new Date(f.last_confirmed_at).getTime()) / 86400000
-  const stability = f.importance * 7
-  return Math.exp(-days / stability)
+  const stamp = f.last_confirmed_at || f.created_at
+  const confirmed = new Date(stamp).getTime()
+  if (Number.isNaN(confirmed)) return 1
+  const days = (Date.now() - confirmed) / 86400000
+  const stability = Math.max(1, f.importance * 7)
+  return Math.max(0, Math.min(1, Math.exp(-Math.max(0, days) / stability)))
 }
 
 export function factScore(f: MemoryFact): number {
@@ -520,7 +523,8 @@ function assembleMemoryBlock(
   const lines: string[] = []
   const relationshipItems: Item[] = []
   for (const p of promises) {
-    const due = p.due_at ? `（约 ${p.due_at.slice(0, 10)}）` : ''
+    const dueText = p.due_at ? p.due_at.slice(0, 10) : ''
+    const due = dueText && !Number.isNaN(new Date(p.due_at!).getTime()) ? `（约 ${dueText}）` : ''
     const rel = 0.5 + wValue * valueNormStory(p) + wDue * dueProximity(p.due_at, now)
     relationshipItems.push({ text: `约定：${p.text}${due}（还没兑现）`, score: storyScore(p) * (factScoreScale + rel) })
   }

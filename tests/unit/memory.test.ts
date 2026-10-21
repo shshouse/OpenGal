@@ -18,6 +18,7 @@ import {
   manualAddFact,
   normalizeText,
   relevanceScore,
+  retentionScore,
   textSimilarity,
   unfreezeFact,
 } from '../../src/main/services/memoryStore'
@@ -41,6 +42,27 @@ describe('memory text and adjudication', () => {
     expect(normalizeText('你好， 世界！')).toBe('你好世界')
     expect(textSimilarity('用户的生日是6月12日', '用户的生日是 6 月 12 日')).toBe(1)
     expect(textSimilarity('用户喜欢猫', '用户讨厌下雨')).toBeLessThan(0.6)
+  })
+
+  it('缺失或非法确认时间不产生 NaN 分数', () => {
+    const base = {
+      id: 'score',
+      text: '测试事实',
+      entity: 'user' as const,
+      importance: 3,
+      confidence: 0.5,
+      source: 'llm_inferred' as const,
+      created_at: '',
+      last_confirmed_at: '',
+      status: 'active' as const,
+      evidence: { reinforce: 0, negate: 0 },
+      valid_until: null,
+      frozen_at: null,
+      embedding: null,
+    }
+    expect(retentionScore(base)).toBe(1)
+    expect(retentionScore({ ...base, last_confirmed_at: 'not-a-date' })).toBe(1)
+    expect(Number.isFinite(retentionScore({ ...base, last_confirmed_at: new Date().toISOString() }))).toBe(true)
   })
 
   it('相同与近似事实的裁决', () => {
