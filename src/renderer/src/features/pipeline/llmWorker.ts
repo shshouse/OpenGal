@@ -1,4 +1,5 @@
 import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
+import { packContext, type ContextItem } from './contextAssembler'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, RoleCard, ToolCall, ToolDefinition } from '@shared/types'
 import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
 import { useChatStore } from '@/features/chat/chatStore'
@@ -227,7 +228,7 @@ async function compressHistory(
   const summariesText = await loadSummariesText(characterId)
   if (stale()) return history
   const summaryMessage: ChatMessage | null = summariesText
-    ? { role: 'system', content: `[既往对话摘要]\n${summariesText}` }
+    ? { role: 'system', content: `[既往对话摘要]\n${summariesText}`, contextTag: 'summary' }
     : null
 
   const headCount = Math.min(PROTECT_HEAD_MESSAGES, history.length)
@@ -401,14 +402,42 @@ export function startLLMWorker(): () => void {
       stale,
     )
 
-    let messagesForLLM: ChatMessage[] = [
-      { role: 'system', content: systemContent },
-    ]
     const envMsg = await fetchEnvBlock()
-    if (envMsg) messagesForLLM.push(envMsg)
-    messagesForLLM.push(...sanitizeHistoryForLLM(compressedHistory))
-    if (systemPrompt) messagesForLLM.push({ role: 'user', content: systemPrompt })
+    const contextItems: ContextItem[] = [
+      { id: 'system', message: { role: 'system', content: systemContent }, priority: 1000 },
+    ]
+    if (envMsg) {
+      contextItems.push({ id: 'env', message: { ...envMsg, contextTag: 'env' }, priority: 800 })
+    }
+    sanitizeHistoryForLLM(compressedHistory).forEach((message, index) => {
+      contextItems.push({
+        id: `history-${index}`,
+        message,
+        // 摘要段代表更长的历史，优先于任何单条原文；原文越新优先级越高
+        priority: message.contextTag === 'summary' ? 700 : 100 + index,
+      })
+    })
+    if (systemPrompt) {
+      contextItems.push({
+        id: 'intent',
+        message: { role: 'user', content: systemPrompt, contextTag: 'intent' },
+        priority: 950,
+      })
+    }
     if (stale()) return
+    const packed = packContext(contextItems, resolveTurnBudget(), (message) =>
+      estimateTokens(messageText(message)),
+    )
+    if (packed.droppedIds.length > 0) {
+      useLogsStore
+        .getState()
+        .appendLocal(
+          'warn',
+          'context',
+          `上下文预算不足，丢弃 ${packed.droppedIds.length} 段：${packed.droppedIds.slice(0, 6).join(', ')}${packed.droppedIds.length > 6 ? '…' : ''}`,
+        )
+    }
+    let messagesForLLM: ChatMessage[] = packed.messages
 
     pendingPromptRawTokens = promptRawTokens(messagesForLLM)
     const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools, stale)

@@ -1,9 +1,20 @@
-import type { LLMConfig, LLMRequest, LLMResponse } from '@shared/types'
+import type { ChatMessage, LLMConfig, LLMRequest, LLMResponse } from '@shared/types'
 import { resolveSlotConfig } from '@shared/llmSlot'
 import type { BrowserWindow } from 'electron'
 import { readConfig } from './configStore'
 import { chooseAdapter } from './llm/factory'
 import { logBus } from './logBus'
+
+// 只发送协议字段：dbId/ts/contextTag 是本地辅助信息，不能进入 API 请求体
+function toApiMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    const out: ChatMessage = { role: message.role, content: message.content }
+    if (message.tool_calls) out.tool_calls = message.tool_calls
+    if (message.tool_call_id) out.tool_call_id = message.tool_call_id
+    if (message.name) out.name = message.name
+    return out
+  })
+}
 
 function resolveSettings(request: LLMRequest): LLMConfig {
   const config = readConfig()
@@ -98,7 +109,7 @@ async function callLLMOnce(request: LLMRequest): Promise<LLMResponse> {
   )
   try {
     const res = await adapter.chat({
-      messages: request.messages,
+      messages: toApiMessages(request.messages),
       config: settings,
       signal: controller.signal,
       tools: request.tools,
@@ -162,7 +173,7 @@ export async function callLLMStream(
 
   try {
     await adapter.chatStream(
-      { messages: request.messages, config: settings, signal: controller.signal, tools: request.tools, toolChoice: request.toolChoice },
+      { messages: toApiMessages(request.messages), config: settings, signal: controller.signal, tools: request.tools, toolChoice: request.toolChoice },
       {
         onContent: (delta) => {
           armIdle()

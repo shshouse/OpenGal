@@ -8,7 +8,7 @@ import { useLogsStore } from '@/features/logs/logsStore'
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
 const MAX_BUFFER_WAIT_MS = 8000
-const SHOT_TTL_MS = 10000
+const SHOT_TTL_MS = 3000
 const BACKLOG_TTL_MS = 120000
 const MAX_WAIT_ROUNDS = 2
 const DIRECTOR_TIMEOUT_MS = 15_000
@@ -263,12 +263,12 @@ interface DirectorDecision {
   waitSec?: number
 }
 
-async function captureScreen(): Promise<string | null> {
-  if (lastShot && Date.now() - lastShot.at < SHOT_TTL_MS) return lastShot.dataUrl
+async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> {
+  if (lastShot && Date.now() - lastShot.at < SHOT_TTL_MS) return lastShot
   const shot = await window.opengal.screen.capture()
   if (shot.success && shot.data) {
     lastShot = { at: Date.now(), dataUrl: `data:image/png;base64,${shot.data}` }
-    return lastShot.dataUrl
+    return lastShot
   }
   return null
 }
@@ -321,9 +321,11 @@ async function askDirector(
   let screenIncluded = false
   if (!current()) throw new Error('导演设置已变化，放弃旧判定')
   if (allowScreen) {
-    const dataUrl = await captureScreen()
-    if (dataUrl) {
-      userParts.push({ type: 'image_url', image_url: { url: dataUrl } })
+    const shot = await captureScreen()
+    if (shot) {
+      const ageSec = Math.max(0, Math.round((Date.now() - shot.at) / 1000))
+      userParts.push({ type: 'text', text: `【屏幕截图】约 ${ageSec} 秒前的静态快照，只能当作线索，不要断言用户此刻仍在做同一件事；与麦克风听到的内容矛盾时以语音为准。` })
+      userParts.push({ type: 'image_url', image_url: { url: shot.dataUrl } })
       screenIncluded = true
     }
   }
@@ -375,6 +377,7 @@ function buildDirectorPrompt(roleName: string | null): string {
 - 用户话没说完（句子不完整、明显在组织语言、刚说了半句）=> action="wait"，并给出建议等待秒数 waitSec（2~15）
 - 转写是疑问句或以角色名开头 => 大概率 action="respond"
 - 依据屏幕内容辅助判断：用户在打字、看视频、游戏中激战 => 倾向 action="silence"；用户停下看着屏幕发呆、在浏览与角色相关内容 => 可以放宽
+- 屏幕截图最多 3 秒前的静态快照：只作线索，不要断言"用户正在……"；与语音矛盾时以语音为准
 - 判断模糊时 => action="silence"（安静永远比打扰安全）
 
 只输出一个 JSON 对象，不要输出任何其他内容：

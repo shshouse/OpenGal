@@ -23,40 +23,53 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       this.lastEmotion = ''
       this.firstAudioLogged = false
     }
-    if (msg.emotion && msg.emotion !== this.lastEmotion) {
-      this.lastEmotion = msg.emotion
-      applyEmotion(msg.emotion)
-    }
-    if (msg.motion) {
-      playMotionGroup(msg.motion)
+
+    // 视觉推进：气泡、字幕、表情、动作都在真实发声时触发，避免声画错位
+    const startVisuals = (): void => {
+      if (msg.emotion && msg.emotion !== this.lastEmotion) {
+        this.lastEmotion = msg.emotion
+        applyEmotion(msg.emotion)
+      }
+      if (msg.motion) {
+        playMotionGroup(msg.motion)
+      }
+      pipelineBus.emit('tts:segmentStart', msg)
     }
 
     if (!msg.audioUrl) {
-      pipelineBus.emit('tts:segmentStart', msg)
+      startVisuals()
       return
     }
 
-    if (!this.firstAudioLogged && msg.turnStartedAt) {
-      this.firstAudioLogged = true
-      useLogsStore
-        .getState()
-        .appendLocal('info', 'latency', `audioStart +${Math.round(performance.now() - msg.turnStartedAt)}ms`)
-    }
-    pipelineBus.emit('tts:segmentStart', msg)
-
-    await playDialogAudio(msg.audioUrl)
+    await playDialogAudio(msg.audioUrl, () => {
+      if (!this.firstAudioLogged && msg.turnStartedAt) {
+        this.firstAudioLogged = true
+        useLogsStore
+          .getState()
+          .appendLocal('info', 'latency', `audioStart +${Math.round(performance.now() - msg.turnStartedAt)}ms`)
+      }
+      startVisuals()
+    })
   }
 }
 
-async function playDialogAudio(audioUrl: string): Promise<void> {
+// 只在真实播放开始时回调 onStart；取消后不再触发（防止迟到的声画复活旧回复）。
+async function playDialogAudio(audioUrl: string, onStart: () => void): Promise<void> {
   await new Promise<void>((resolve) => {
     const model = getLive2DModel()
     const audio = model ? null : new Audio(audioUrl)
     let settled = false
+    let started = false
+    const start = (): void => {
+      if (settled || started) return
+      started = true
+      onStart()
+    }
     const done = (): void => {
       if (settled) return
       settled = true
       if (cancelPlayback === cancel) cancelPlayback = null
+      audio?.removeEventListener('playing', start)
       audio?.removeEventListener('ended', done)
       audio?.removeEventListener('error', done)
       resolve()
@@ -65,20 +78,43 @@ async function playDialogAudio(audioUrl: string): Promise<void> {
       done()
       try {
         if (model) model.stopSpeaking()
-        if (audio) { audio.pause(); audio.currentTime = 0 }
-      } catch { /* 已释放的播放器不影响队列退出 */ }
+        if (audio) {
+          audio.pause()
+          audio.currentTime = 0
+        }
+      } catch {
+        /* 已释放的播放器不影响队列退出 */
+      }
     }
     cancelPlayback = cancel
     try {
       if (model) {
-        model.speak(audioUrl, { volume: 1, crossOrigin: 'anonymous', onFinish: done, onError: done })
+        // Live2D 库没有 onStart 回调：speak 调用即开始排入播放，紧随其后推进视觉
+        model.speak(audioUrl, {
+          volume: 1,
+          crossOrigin: 'anonymous',
+          onFinish: done,
+          onError: () => {
+            start()
+            done()
+          },
+        })
+        start()
       } else if (audio) {
+        audio.addEventListener('playing', start)
         audio.addEventListener('ended', done)
-        audio.addEventListener('error', done)
-        void audio.play().catch(done)
+        audio.addEventListener('error', () => {
+          start()
+          done()
+        })
+        void audio.play().catch(() => {
+          start()
+          done()
+        })
       }
     } catch (err) {
       console.warn('[UIWorker] audio playback failed', err)
+      start()
       done()
     }
   })
