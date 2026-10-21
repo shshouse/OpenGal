@@ -19,8 +19,9 @@ export function getModRoot(): string {
         path.join(path.resolve(exeDir, '../../../'), 'mods')
       ]
     : [
-        path.join(process.resourcesPath, 'mods'),
-        path.join(exeDir, 'mods')
+        // 用户模组优先放 exe 同级：可写、更新时不随程序文件被替换
+        path.join(exeDir, 'mods'),
+        path.join(process.resourcesPath, 'mods')
       ]
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
@@ -47,6 +48,7 @@ export function getDataRoot(): string {
   }
   const fallback = path.join(app.getPath('userData'), 'data')
   ensureWritableDir(fallback)
+  console.warn(`[paths] 安装目录不可写，数据回退到 ${fallback}`)
   cachedDataRoot = fallback
   return fallback
 }

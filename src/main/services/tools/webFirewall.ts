@@ -4,6 +4,7 @@ const MAX_SNIPPET_CHARS = 500
 export function sanitizeWebText(raw: string, maxLen: number): string {
   return raw
     .replace(/<[^>]{0,200}>/g, ' ')
+    // eslint-disable-next-line no-control-regex -- 明确需要剔除控制字符
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim()

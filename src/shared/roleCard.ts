@@ -367,7 +367,7 @@ function stripMarkdownFence(text: string): string {
 }
 
 function extractJsonSubstring(text: string): string {
-  const startIdx = text.search(/[\[{]/)
+  const startIdx = text.search(/[[{]/)
   if (startIdx === -1) return text
   const opener = text[startIdx]
   const closer = opener === '{' ? '}' : ']'

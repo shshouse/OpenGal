@@ -24,6 +24,7 @@ let nativeBroken = false
 function sampleForeground(): void {
   if (nativeBroken) return
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- 原生模块延迟加载，避免打包期解析
     const mod = require('get-windows') as {
       activeWindowSync: () => {
         title?: string

@@ -261,7 +261,7 @@ function normalizeBaseURL(url: string): string {
 async function fetchReadable(
   input: string,
   init: RequestInit,
-  baseURL: string,
+  _baseURL: string,
 ): Promise<Response> {
   try {
     return await fetch(input, init)

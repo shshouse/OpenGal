@@ -222,8 +222,8 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     setStatus(null)
     try {
       const llm = buildLLM()
-      let nextPresets = [...presets]
       let newActive = activePresetId
+      const nextPresets = [...presets]
 
       if (editingId === 'new' || editingId === 'custom') {
         const preset: LLMPreset = {

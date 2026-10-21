@@ -1,6 +1,5 @@
 import type {
   MemoryCandidateFact,
-  MemoryCandidateStory,
   MemoryApplyPayload,
   MemoryConfig,
   MemoryFact,

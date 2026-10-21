@@ -13,6 +13,7 @@ import { getDataRoot, getModRoot, isDevRuntime } from './services/paths'
 import { flushMemoryDb } from './services/memoryDb'
 import { shutdownPlugins } from './services/plugins/registry'
 import { logBus, initLogFile } from './services/logBus'
+import { initUpdater } from './services/updater'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
@@ -51,6 +52,7 @@ app.whenReady().then(() => {
   })
   windows = createWindowManager('../renderer/index.html')
   registerIpc(windows)
+  initUpdater()
   logBus.info('app', 'OpenGal 主进程启动')
   logBus.info('app', `__dirname: ${__dirname}`)
   logBus.info('app', `mods 根目录: ${getModRoot()}`)

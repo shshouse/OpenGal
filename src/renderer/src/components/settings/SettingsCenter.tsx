@@ -33,7 +33,6 @@ const SECTIONS = [
 
 export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
   const [tab, setTab] = React.useState<string>('character')
-  const active = SECTIONS.find((s) => s.value === tab) ?? SECTIONS[0]
 
   return (
     <Tabs

@@ -16,6 +16,7 @@ function localModelPath(): string | null {
     path.join(process.resourcesPath ?? '', 'models', 'bge-small-zh-v1.5'),
   ]
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- 仅 Electron 环境可用，测试环境走回退
     const { app } = require('electron')
     if (app?.getAppPath) {
       candidates.unshift(path.join(app.getAppPath(), 'resources', 'models', 'bge-small-zh-v1.5'))
