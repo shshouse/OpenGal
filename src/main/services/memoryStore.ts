@@ -10,10 +10,18 @@ import {
   initMemoryDb,
   memoryDbReady,
   listFacts,
-  saveFacts,
   listStories,
-  saveStories,
   clearCharacterMemory,
+  insertFactRow,
+  insertStoryRow,
+  getFactRow,
+  reinforceFactRow,
+  negateFactRow,
+  setFactStatusRow,
+  setFactFrozenRow,
+  setFactEmbeddingRow,
+  deleteFactRow,
+  setStoryStatusRow,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
@@ -33,9 +41,9 @@ let config: MemoryConfig = {
   fallbackHours: 12,
 }
 
-export function initMemoryStore(root: string, cfg?: Partial<MemoryConfig>): void {
+export function initMemoryStore(root: string, cfg?: Partial<MemoryConfig>, backupRoot?: string): void {
   if (cfg) config = { ...config, ...cfg }
-  void initMemoryDb(root).catch(() => {})
+  void initMemoryDb(root, backupRoot).catch(() => {})
 }
 
 // ---- 行 <-> 类型转换 ----
@@ -229,23 +237,25 @@ function charsOf(list: { text: string }[]): number {
   return list.reduce((sum, x) => sum + x.text.length, 0)
 }
 
-function fitBudget<T extends { text: string; status: 'active' | 'archived'; protected?: boolean; frozen_at?: string | null }>(
+function fitBudget<T extends { id: string; text: string; status: 'active' | 'archived'; protected?: boolean; frozen_at?: string | null }>(
   all: T[],
   incoming: T,
   budget: number,
   scoreOf: (x: T) => number,
-): T | null {
-  if (incoming.text.length > budget) return null
+): { accepted: T | null; archivedIds: string[] } {
+  const archivedIds: string[] = []
+  if (incoming.text.length > budget) return { accepted: null, archivedIds }
   const activeChars = (): number => charsOf(all.filter((x) => x.status === 'active'))
-  if (activeChars() + incoming.text.length <= budget) return incoming
+  if (activeChars() + incoming.text.length <= budget) return { accepted: incoming, archivedIds }
   const ordered = all
     .filter((x) => x.status === 'active' && !x.protected && !x.frozen_at)
     .sort((a, b) => scoreOf(a) - scoreOf(b))
   for (const item of ordered) {
     item.status = 'archived'
-    if (activeChars() + incoming.text.length <= budget) return incoming
+    archivedIds.push(item.id)
+    if (activeChars() + incoming.text.length <= budget) return { accepted: incoming, archivedIds }
   }
-  return null
+  return { accepted: null, archivedIds }
 }
 
 export interface ApplyResult {
@@ -279,6 +289,8 @@ export async function applyCandidates(
     if (adjudication.action === 'refresh') {
       adjudication.target.last_confirmed_at = ts
       adjudication.target.evidence.reinforce += 1
+      await memoryDbReady()
+      reinforceFactRow(adjudication.target.id, ts)
       result.refreshedFacts++
       continue
     }
@@ -289,14 +301,29 @@ export async function applyCandidates(
       }
       try {
         const verdict = await judge(adjudication.target, cand)
-        if (verdict === 'reinforces' || adjudication.target.protected) {
-          adjudication.target.last_confirmed_at = ts
-          adjudication.target.evidence.reinforce += 1
+        // 关键：await 期间目标可能被用户删除或冻结，以用户操作为准，不用旧快照覆盖
+        const freshRow = getFactRow(adjudication.target.id)
+        if (!freshRow) {
+          result.judgedAway++
+          continue
+        }
+        const fresh = rowToFact(freshRow)
+        const local = facts.find((f) => f.id === fresh.id)
+        if (verdict === 'reinforces' || fresh.protected || fresh.frozen_at) {
+          reinforceFactRow(fresh.id, ts)
+          if (local) {
+            local.last_confirmed_at = ts
+            local.evidence.reinforce += 1
+            local.frozen_at = fresh.frozen_at
+          }
           result.refreshedFacts++
         } else {
-          adjudication.target.status = 'archived'
-          adjudication.target.evidence.negate += 1
-          facts.push({
+          negateFactRow(fresh.id)
+          if (local) {
+            local.status = 'archived'
+            local.evidence.negate += 1
+          }
+          const entry: MemoryFact = {
             id: newId('f'),
             text: cand.text,
             entity: cand.entity,
@@ -310,7 +337,9 @@ export async function applyCandidates(
             valid_until: cand.valid_until ?? null,
             frozen_at: null,
             embedding: null,
-          })
+          }
+          facts.push(entry)
+          insertFactRow(characterId, factToRow(entry))
           result.insertedFacts++
         }
       } catch {
@@ -333,12 +362,14 @@ export async function applyCandidates(
       frozen_at: cand.frozen ? ts : null,
       embedding: null, // 延迟计算：写入时先不 embedding，首次检索时批量算
     }
-    const accepted = fitBudget(facts, entry, config.factBudgetChars, factScore)
-    if (!accepted) {
+    const fit = fitBudget(facts, entry, config.factBudgetChars, factScore)
+    for (const id of fit.archivedIds) setFactStatusRow(id, 'archived')
+    if (!fit.accepted) {
       result.budgetRejected++
       continue
     }
     facts.push(entry)
+    insertFactRow(characterId, factToRow(entry))
     result.insertedFacts++
   }
 
@@ -355,18 +386,17 @@ export async function applyCandidates(
       status: 'active',
       created_at: ts,
     }
-    const accepted = fitBudget(stories, entry, config.storyBudgetChars, storyScore)
-    if (!accepted) {
+    const fit = fitBudget(stories, entry, config.storyBudgetChars, storyScore)
+    for (const id of fit.archivedIds) setStoryStatusRow(id, 'archived')
+    if (!fit.accepted) {
       result.budgetRejected++
       continue
     }
     stories.push(entry)
+    insertStoryRow(characterId, storyToRow(entry))
     result.insertedStories++
   }
 
-  await memoryDbReady()
-  saveFacts(characterId, facts.map(factToRow))
-  saveStories(characterId, stories.map(storyToRow))
   return result
 }
 
@@ -375,7 +405,6 @@ export async function manualAddFact(
   text: string,
   entity: MemoryFact['entity'] = 'user',
 ): Promise<MemoryFact> {
-  const facts = await loadFactsTyped(characterId)
   const ts = nowIso()
   const entry: MemoryFact = {
     id: newId('f'),
@@ -393,9 +422,8 @@ export async function manualAddFact(
     frozen_at: ts,
     embedding: null,
   }
-  facts.push(entry)
   await memoryDbReady()
-  saveFacts(characterId, facts.map(factToRow))
+  insertFactRow(characterId, factToRow(entry))
   return entry
 }
 
@@ -548,15 +576,16 @@ export async function getMemoryBlock(
   characterId: string,
   context?: string,
   useVector = false,
+  charCap = config.injectCharCap,
 ): Promise<string | null> {
   const [facts, stories] = await Promise.all([
     loadFactsTyped(characterId),
     loadStoriesTyped(characterId),
   ])
   if (useVector && context) {
-    return buildMemoryBlockVector(characterId, facts, stories, context, config.injectCharCap)
+    return buildMemoryBlockVector(characterId, facts, stories, context, charCap)
   }
-  return buildMemoryBlock(facts, stories, config.injectCharCap, context)
+  return buildMemoryBlock(facts, stories, charCap, context)
 }
 
 export async function buildMemoryBlockVector(
@@ -573,9 +602,9 @@ export async function buildMemoryBlockVector(
     if (needEmbedding.length > 0) {
       for (const f of needEmbedding) {
         f.embedding = await computeEmbeddingAsync(f.text)
+        await memoryDbReady()
+        setFactEmbeddingRow(f.id, JSON.stringify(f.embedding))
       }
-      await memoryDbReady()
-      saveFacts(characterId, facts.map(factToRow))
     }
     vectorHits = await searchSimilarAsync(actives, context, 10, 0.2)
   } catch (err) {
@@ -601,43 +630,23 @@ export async function decaySweep(characterId: string): Promise<{ archived: numbe
     if (f.status !== 'active') continue
     if (f.protected || isFactFrozen(f)) continue
     if (retentionScore(f) < 0.1) {
-      f.status = 'archived'
-      archived++
+      if (setFactStatusRow(f.id, 'archived') > 0) archived++
     }
-  }
-  if (archived > 0) {
-    await memoryDbReady()
-    saveFacts(characterId, facts.map(factToRow))
   }
   return { archived }
 }
 
-export async function freezeFact(characterId: string, factId: string): Promise<boolean> {
-  const facts = await loadFactsTyped(characterId)
-  const target = facts.find((f) => f.id === factId)
-  if (!target) return false
-  target.frozen_at = nowIso()
+export async function freezeFact(_characterId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
-  saveFacts(characterId, facts.map(factToRow))
-  return true
+  return setFactFrozenRow(factId, nowIso()) > 0
 }
 
-export async function unfreezeFact(characterId: string, factId: string): Promise<boolean> {
-  const facts = await loadFactsTyped(characterId)
-  const target = facts.find((f) => f.id === factId)
-  if (!target) return false
-  target.frozen_at = null
+export async function unfreezeFact(_characterId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
-  saveFacts(characterId, facts.map(factToRow))
-  return true
+  return setFactFrozenRow(factId, null) > 0
 }
 
-export async function deleteFact(characterId: string, factId: string): Promise<boolean> {
-  const facts = await loadFactsTyped(characterId)
-  const idx = facts.findIndex((f) => f.id === factId)
-  if (idx === -1) return false
-  facts.splice(idx, 1)
+export async function deleteFact(_characterId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
-  saveFacts(characterId, facts.map(factToRow))
-  return true
+  return deleteFactRow(factId) > 0
 }

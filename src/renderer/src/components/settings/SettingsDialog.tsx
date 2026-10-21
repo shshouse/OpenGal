@@ -46,6 +46,20 @@ const BUILTIN_MODEL: LLMPreset = {
   multimodal: false,
 }
 
+const BUILTIN_MODEL_1M: LLMPreset = {
+  id: 'builtin_kimi_k3',
+  label: 'Kimi K3（1M 上下文）',
+  provider: 'openai',
+  baseURL: 'https://api.moonshot.cn/v1',
+  apiKey: '',
+  modelName: 'kimi-k3',
+  maxTokens: 8192,
+  contextWindow: 1048576,
+  multimodal: true,
+}
+
+const BUILTIN_MODELS = [BUILTIN_MODEL, BUILTIN_MODEL_1M]
+
 function providerLabel(baseURL: string): string {
   const host = baseURL.replace(/^https?:\/\//, '').split('/')[0]
   const hit = PROVIDER_TEMPLATES.find((t) => host === t.defaultBaseURL.replace(/^https?:\/\//, '').split('/')[0])
@@ -123,8 +137,8 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     if (!config) return
     let list = config.llmPresets ?? []
     // 首次使用：内置模型尚未入列时注入（不含 key，用户在编辑时填）
-    if (!list.some((p) => p.id === BUILTIN_MODEL.id)) {
-      list = [BUILTIN_MODEL, ...list]
+    for (const builtin of BUILTIN_MODELS) {
+      if (!list.some((p) => p.id === builtin.id)) list = [builtin, ...list]
     }
     setPresets(list)
     const cur = config.llm
@@ -222,17 +236,21 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       } else if (editingId) {
         const idx = nextPresets.findIndex((p) => p.id === editingId)
         if (idx >= 0) {
-          const isBuiltin = nextPresets[idx].id === BUILTIN_MODEL.id
+          const builtin = BUILTIN_MODELS.find((p) => p.id === nextPresets[idx].id)
           // 内置模型编辑后转为自定义条目（保留内置行不动）
-          const updated: LLMPreset = isBuiltin
-            ? { ...BUILTIN_MODEL, ...llm, id: newPresetId(), label: llm.modelName ?? BUILTIN_MODEL.label }
+          const updated: LLMPreset = builtin
+            ? { ...builtin, ...llm, id: newPresetId(), label: llm.modelName ?? builtin.label }
             : { ...nextPresets[idx], ...llm, label: llm.modelName ?? nextPresets[idx].label }
           nextPresets[idx] = updated
           if (activePresetId === editingId) newActive = updated.id
         }
       }
 
-      const activate = editingId === 'new' || editingId === 'custom' || editingId === activePresetId || activePresetId === BUILTIN_MODEL.id
+      const activate =
+        editingId === 'new' ||
+        editingId === 'custom' ||
+        editingId === activePresetId ||
+        BUILTIN_MODELS.some((b) => b.id === activePresetId)
       const payload: Partial<AppConfig> = { llmPresets: nextPresets }
       if (activate) {
         payload.llm = llm

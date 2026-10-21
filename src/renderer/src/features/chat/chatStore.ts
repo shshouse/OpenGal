@@ -32,7 +32,7 @@ interface ChatState {
   setSending: (sending: boolean) => void
   appendStreamingSegment: (segment: StreamingSegment) => void
   finalizeStream: (content?: string, toolCalls?: ToolCallRecord[]) => void
-  archiveFront: (count: number) => Promise<void>
+  archiveFront: (count: number, offset?: number) => Promise<void>
   clear: () => void
   switchSession: (characterId: string | null) => void
   ensureHydrated: (characterId: string) => Promise<void>
@@ -102,17 +102,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
   // 存档式压缩：库侧按 id 锚点标记 archived（原文保留），本地移除前缀，摘要由 llmWorker 持久化
-  archiveFront: async (count) => {
+  archiveFront: async (count, offset = 0) => {
     const { sessionId, messages } = get()
-    if (!sessionId || count <= 0 || count > messages.length) return
-    const slice = messages.slice(0, count)
+    if (!sessionId || count <= 0 || offset < 0 || offset + count > messages.length) return
+    const slice = messages.slice(offset, offset + count)
     const fromId = (slice[0] as ChatMessage & { dbId?: number }).dbId
     const toId = (slice[slice.length - 1] as ChatMessage & { dbId?: number }).dbId
     if (typeof fromId === 'number' && typeof toId === 'number') {
       await window.opengal.chatHistory.archiveRange(sessionId, fromId, toId).catch(() => {})
     }
     suppressPersist++
-    set((state) => ({ messages: state.messages.slice(count) }))
+    set((state) => ({
+      messages: [...state.messages.slice(0, offset), ...state.messages.slice(offset + count)],
+    }))
   },
   clear: () => {
     set({ messages: [], error: null, streamingSegments: [] })

@@ -256,6 +256,9 @@ export interface ChatMessage {
   tool_calls?: ToolCall[]
   tool_call_id?: string
   name?: string
+  // 持久化辅助字段：由主进程读取时附带，渲染层原样带回用于保序/保时间戳
+  dbId?: number
+  ts?: number
 }
 
 export interface LLMRequest {
@@ -267,9 +270,16 @@ export interface LLMRequest {
   toolChoice?: unknown
 }
 
+export interface LLMUsage {
+  promptTokens: number
+  completionTokens?: number
+  totalTokens?: number
+}
+
 export interface LLMResponse {
   content: string
   toolCalls?: ToolCall[]
+  usage?: LLMUsage
 }
 
 export interface IpcResult<T = unknown> {

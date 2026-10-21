@@ -1,4 +1,4 @@
-import type { LLMConfig, LLMResponse, ToolCall } from '@shared/types'
+import type { LLMConfig, LLMResponse, LLMUsage, ToolCall } from '@shared/types'
 import { logBus } from '../logBus'
 import type { LLMAdapter, LLMChatRequest, LLMStreamCallbacks } from './types'
 import { splitChunk } from './chunkSplit'
@@ -16,6 +16,22 @@ interface ChatBody {
   thinking?: { type: 'enabled' | 'disabled'; budget_tokens?: number }
   tools?: unknown[]
   tool_choice?: unknown
+  stream_options?: { include_usage: boolean }
+}
+
+interface RawUsage {
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+}
+
+function mapUsage(raw: RawUsage | undefined): LLMUsage | undefined {
+  if (!raw || typeof raw.prompt_tokens !== 'number') return undefined
+  return {
+    promptTokens: raw.prompt_tokens,
+    completionTokens: raw.completion_tokens,
+    totalTokens: raw.total_tokens,
+  }
 }
 
 function buildChatBody(
@@ -32,7 +48,10 @@ function buildChatBody(
     max_tokens: Math.min(config.maxTokens ?? 8192, 32768),
     response_format: stream || tools?.length ? undefined : { type: 'json_object' },
   }
-  if (stream) body.stream = true
+  if (stream) {
+    body.stream = true
+    body.stream_options = { include_usage: true }
+  }
   if (config.thinking === false) {
     body.thinking = { type: 'disabled' }
   } else if (config.thinking === true) {
@@ -94,12 +113,13 @@ export class OpenAIAdapter implements LLMAdapter {
         }
         finish_reason?: string | null
       }>
+      usage?: RawUsage
     }
     const message = data.choices?.[0]?.message
     const content = (message?.content ?? '').trim()
     const toolCalls = message?.tool_calls
     if (!content && !toolCalls?.length) throw new Error('Empty response from LLM')
-    return { content, toolCalls }
+    return { content, toolCalls, usage: mapUsage(data.usage) }
   }
 
   async chatStream(req: LLMChatRequest, callbacks: LLMStreamCallbacks): Promise<void> {
@@ -163,6 +183,7 @@ export class OpenAIAdapter implements LLMAdapter {
             }
             finish_reason?: string | null
           }>
+          usage?: RawUsage
         }
         try {
           parsed = JSON.parse(payload)
@@ -176,6 +197,8 @@ export class OpenAIAdapter implements LLMAdapter {
               : parsed.error.message || JSON.stringify(parsed.error)
           throw new Error(`LLM stream error: ${msg}`)
         }
+        const usage = mapUsage(parsed.usage)
+        if (usage) callbacks.onUsage?.(usage)
         const choice = parsed.choices?.[0]
         const delta = choice?.delta
         const reasoningField = delta?.reasoning_content

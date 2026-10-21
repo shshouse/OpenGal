@@ -182,6 +182,9 @@ export async function callLLMStream(
         onWarning: (msg) => {
           logBus.warn('llm', msg)
         },
+        onUsage: (usage) => {
+          sender.send('llm:stream:usage', streamId, usage)
+        },
       },
     )
     sender.send('llm:stream:done', streamId)

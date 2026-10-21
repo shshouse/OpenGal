@@ -1,10 +1,11 @@
-import type { ChatMessage, LLMConfig, LLMResponse, ToolCall, ToolDefinition } from '@shared/types'
+import type { ChatMessage, LLMConfig, LLMResponse, LLMUsage, ToolCall, ToolDefinition } from '@shared/types'
 
 export interface LLMStreamCallbacks {
   onContent: (delta: string) => void
   onReasoning?: (delta: string) => void
   onWarning?: (msg: string) => void
   onToolCalls?: (calls: ToolCall[]) => void
+  onUsage?: (usage: LLMUsage) => void
 }
 
 export interface LLMChatRequest {

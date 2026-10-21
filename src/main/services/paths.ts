@@ -50,6 +50,22 @@ export function getDataRoot(): string {
   cachedDataRoot = fallback
   return fallback
 }
+
+// 备份必须活在数据目录之外：data 目录被整体删除或安装目录被替换时仍可恢复。
+export function getBackupRoot(): string {
+  const fromEnv = process.env.OPENGAL_BACKUP_DIR
+  if (fromEnv) {
+    ensureWritableDir(fromEnv)
+    return fromEnv
+  }
+  try {
+    const inDocuments = path.join(app.getPath('documents'), 'OpenGal', 'backups')
+    if (ensureWritableDir(inDocuments)) return inDocuments
+  } catch {
+    // documents 不可用时回退到数据目录旁
+  }
+  return path.join(getDataRoot(), 'backups')
+}
 function ensureWritableDir(dir: string): boolean {
   try {
     fs.mkdirSync(dir, { recursive: true })

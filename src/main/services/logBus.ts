@@ -1,12 +1,42 @@
 import type { WebContents } from 'electron'
+import fs from 'node:fs'
+import path from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { LogEntry, LogLevel } from '@shared/log'
 
 const MAX_ENTRIES = 2000
+const MAX_LOG_FILES = 14
 
 const buffer: LogEntry[] = []
 const subscribers = new Set<WebContents>()
 let seq = 0
+let logDir: string | null = null
+
+// 日志落盘到 <dataRoot>/logs/app-YYYYMMDD.ndjson，保留最近 14 天；
+// 崩溃或强退后仍能追溯，内存缓冲只负责实时展示。
+export function initLogFile(dir: string): void {
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    logDir = dir
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => /^app-\d{8}\.ndjson$/.test(f))
+      .sort()
+    while (files.length > MAX_LOG_FILES) {
+      fs.rmSync(path.join(dir, files.shift() as string), { force: true })
+    }
+  } catch {
+    logDir = null
+  }
+}
+
+function appendToFile(entry: LogEntry): void {
+  if (!logDir) return
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  fs.promises
+    .appendFile(path.join(logDir, `app-${day}.ndjson`), `${JSON.stringify(entry)}\n`, 'utf-8')
+    .catch(() => {})
+}
 
 function nextId(): string {
   seq += 1
@@ -54,6 +84,7 @@ function push(level: LogLevel, source: string, message: string, details?: string
   const line = `[${level}] [${source}] ${message}`
   if (level === 'error') console.error(details ? `${line}\n${details}` : line)
   else console.log(details ? `${line}\n${details}` : line)
+  appendToFile(entry)
   broadcast(entry)
 }
 

@@ -19,7 +19,7 @@ import {
 } from '../services/ttsServer'
 import type { TTSServerStatus } from '../services/ttsServer'
 import { getEngine } from '../services/asr/factory'
-import { getDataRoot } from '../services/paths'
+import { getBackupRoot, getDataRoot } from '../services/paths'
 import { startEnvMonitor, getEnvSnapshot } from '../services/envContext'
 import { runBootSequence, recheckTts } from '../services/bootService'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
@@ -50,7 +50,7 @@ function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
 export function registerIpc(windows: WindowManager): void {
   setMemoryDbLogger(logBus)
   initPlugins(getDataRoot())
-  initMemoryStore(getDataRoot(), readConfig().memory)
+  initMemoryStore(getDataRoot(), readConfig().memory, getBackupRoot())
   startEnvMonitor()
 
   async function judgeFact(existing: MemoryFact, cand: MemoryCandidateFact): Promise<'reinforces' | 'negates'> {
@@ -139,15 +139,15 @@ export function registerIpc(windows: WindowManager): void {
   )
   // 消息 content 列存完整消息对象 JSON；兼容旧 JSON 导入的裸 content 格式
   // 附带 dbId 供归档锚点使用
-  const rowToChatMessage = (row: { id?: number; role: string; content: string }): ChatMessage => {
+  const rowToChatMessage = (row: { id?: number; role: string; content: string; ts?: number }): ChatMessage => {
     try {
       const parsed = JSON.parse(row.content) as unknown
       const base = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'role' in (parsed as Record<string, unknown>))
         ? (parsed as ChatMessage)
         : { role: row.role as ChatMessage['role'], content: parsed as ChatMessage['content'] }
-      return { ...base, dbId: row.id } as ChatMessage
+      return { ...base, dbId: row.id, ts: row.ts } as ChatMessage
     } catch {
-      return { role: row.role as ChatMessage['role'], content: row.content, dbId: row.id } as ChatMessage
+      return { role: row.role as ChatMessage['role'], content: row.content, dbId: row.id, ts: row.ts } as ChatMessage
     }
   }
 
@@ -170,10 +170,11 @@ export function registerIpc(windows: WindowManager): void {
         replaceUnarchivedMessages(
           characterId,
           messages.map((m) => ({
+            id: (m as ChatMessage & { dbId?: number }).dbId,
             character_id: characterId,
             role: m.role,
             content: JSON.stringify(m),
-            ts: Date.now(),
+            ts: (m as ChatMessage & { ts?: number }).ts ?? Date.now(),
             archived: 0,
           }))
         )

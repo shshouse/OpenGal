@@ -12,6 +12,7 @@ export const IpcChannels = {
     streamError: 'llm:stream:error',
     streamAbort: 'llm:stream:abort',
     streamToolCalls: 'llm:stream:tool_calls',
+    streamUsage: 'llm:stream:usage',
     listModels: 'llm:listModels'
   },
   tools: {

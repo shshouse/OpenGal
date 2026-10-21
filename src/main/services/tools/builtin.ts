@@ -5,6 +5,7 @@ import type { ToolDefinition } from '@shared/types'
 import { registerTool } from './index'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
 import { readConfig } from '../configStore'
+import { getMemoryBlock } from '../memoryStore'
 import { logBus } from '../logBus'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
@@ -189,6 +190,17 @@ async function handleReadWebPage(args: Record<string, unknown>): Promise<string>
   return wrapWebContent(`web_page: ${url}`, [{ text }])
 }
 
+const RECALL_CHAR_CAP = 1200
+
+async function handleRecallMemory(args: Record<string, unknown>): Promise<string> {
+  const query = String(args.query ?? '').trim()
+  if (!query) throw new Error('query 不能为空')
+  const characterId = readConfig().activeCharacterId
+  if (!characterId) throw new Error('当前没有激活角色')
+  const block = await getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP)
+  return block ?? '没有找到相关的长期记忆'
+}
+
 export function registerBuiltinTools(): void {
   const defs: Array<{ def: ToolDefinition; handle: ToolHandler }> = [
     {
@@ -255,6 +267,24 @@ export function registerBuiltinTools(): void {
         },
       },
       handle: (args) => handleReadWebPage(args),
+    },
+    {
+      def: {
+        type: 'function',
+        function: {
+          name: 'recall_memory',
+          description:
+            '检索长期记忆（过去的事实、约定、偏好、共同经历）。用户提到"以前/上次/你还记得"、或你不确定自己是否记得某件事时使用。返回按相关度筛选的记忆片段。',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: '要回忆的主题或关键词' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      handle: (args) => handleRecallMemory(args),
     },
   ]
   for (const { def, handle } of defs) {

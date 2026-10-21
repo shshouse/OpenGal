@@ -12,7 +12,7 @@ import { registerTTSServerCleanup, stopTTSServer } from './services/ttsServer'
 import { getDataRoot, getModRoot, isDevRuntime } from './services/paths'
 import { flushMemoryDb } from './services/memoryDb'
 import { shutdownPlugins } from './services/plugins/registry'
-import { logBus } from './services/logBus'
+import { logBus, initLogFile } from './services/logBus'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
@@ -34,6 +34,7 @@ let windows: WindowManager
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.opengal.desktop')
+  initLogFile(path.join(getDataRoot(), 'logs'))
   registerModProtocolHandler()
 
   app.on('render-process-gone', (_event, _wc, details) => {

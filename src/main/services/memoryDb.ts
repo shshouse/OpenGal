@@ -120,12 +120,16 @@ CREATE TABLE IF NOT EXISTS summaries (
 
 let db: DatabaseSync | null = null
 let dbFile = ''
+let backupRootDir = ''
 let readyPromise: Promise<void> | null = null
 
-export function initMemoryDb(dataRoot: string): Promise<void> {
+export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<void> {
   if (readyPromise) return readyPromise
   readyPromise = (async () => {
     fs.mkdirSync(dataRoot, { recursive: true })
+    backupRootDir = backupRoot && backupRoot.trim() ? backupRoot : path.join(dataRoot, 'backups')
+    fs.mkdirSync(backupRootDir, { recursive: true })
+    migrateLegacyBackups(dataRoot)
     dbFile = path.join(dataRoot, 'memory.db')
     db = new DatabaseSync(dbFile)
     db.exec('PRAGMA journal_mode = WAL')
@@ -134,10 +138,10 @@ export function initMemoryDb(dataRoot: string): Promise<void> {
       throw new Error(`memory.db 完整性检查失败: ${JSON.stringify(check)}`)
     }
     db.exec(SCHEMA)
-    migrateFactsSchema(dataRoot)
-    preMigrationBackup(dataRoot)
+    migrateFactsSchema()
+    preMigrationBackup()
     checkpoint()
-    snapshotBackup(dataRoot)
+    snapshotBackup()
     syncLegacyMemoryFromJson(dataRoot)
     await syncChatHistoryFromJson(dataRoot)
     logger.info('memory', `记忆库已就绪(WAL): ${dbFile}`)
@@ -164,9 +168,10 @@ export function closeMemoryDb(): void {
   db = null
 }
 
-// 进程退出前调用，把 WAL 合并回主库（平时由 SQLite 自动 checkpoint）
+// 进程退出前调用，把 WAL 合并回主库并补一份当日快照
 export function flushMemoryDb(): void {
   checkpoint()
+  snapshotBackup()
 }
 
 function checkpoint(): void {
@@ -177,30 +182,45 @@ function checkpoint(): void {
   }
 }
 
-function preMigrationBackup(dataRoot: string): void {
+// 旧版备份留在 data/backups：首次启动时复制到新备份目录，原文件保留不动
+function migrateLegacyBackups(dataRoot: string): void {
+  try {
+    const legacy = path.join(dataRoot, 'backups')
+    if (path.resolve(legacy) === path.resolve(backupRootDir) || !fs.existsSync(legacy)) return
+    for (const name of fs.readdirSync(legacy)) {
+      if (!/^memory-.*\.db$/.test(name)) continue
+      const target = path.join(backupRootDir, name)
+      if (!fs.existsSync(target)) fs.copyFileSync(path.join(legacy, name), target)
+    }
+    logger.info('memory', `旧备份已复制到 ${backupRootDir}（原文件保留）`)
+  } catch (err) {
+    logger.warn('memory', `旧备份迁移失败（不影响主库）: ${(err as Error).message}`)
+  }
+}
+
+function preMigrationBackup(): void {
   try {
     if (getMeta('native_sqlite_migrated')) return
-    const backupDir = path.join(dataRoot, 'backups')
-    fs.mkdirSync(backupDir, { recursive: true })
-    const target = path.join(backupDir, 'memory-pre-wal.db')
+    const target = path.join(backupRootDir, 'memory-pre-wal.db')
     if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
     setMeta('native_sqlite_migrated', new Date().toISOString())
-    logger.info('memory', '已创建迁移前备份: backups/memory-pre-wal.db')
+    logger.info('memory', `已创建迁移前备份: ${target}`)
   } catch (err) {
     logger.warn('memory', `迁移前备份失败（不影响主库）: ${(err as Error).message}`)
   }
 }
 
-function snapshotBackup(dataRoot: string): void {
+function snapshotBackup(): void {
   try {
     if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return
-    const backupDir = path.join(dataRoot, 'backups')
-    fs.mkdirSync(backupDir, { recursive: true })
     const day = new Date().toISOString().slice(0, 10)
-    const target = path.join(backupDir, `memory-${day}.db`)
+    const target = path.join(backupRootDir, `memory-${day}.db`)
     if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
-    const all = fs.readdirSync(backupDir).filter((f) => f.startsWith('memory-')).sort()
-    while (all.length > 3) fs.rmSync(path.join(backupDir, all.shift() as string), { force: true })
+    const all = fs
+      .readdirSync(backupRootDir)
+      .filter((f) => /^memory-\d{4}-\d{2}-\d{2}\.db$/.test(f))
+      .sort()
+    while (all.length > 7) fs.rmSync(path.join(backupRootDir, all.shift() as string), { force: true })
   } catch (err) {
     logger.warn('memory', `备份失败（不影响主库）: ${(err as Error).message}`)
   }
@@ -233,7 +253,7 @@ function run(query: string, params: SQLInputValue[] = []): void {
   db.prepare(query).run(...params)
 }
 
-function migrateFactsSchema(dataRoot: string): void {
+function migrateFactsSchema(): void {
   try {
     const existing = rows("PRAGMA table_info(facts)", []).map((r) => String(r.name))
     const needValidUntil = !existing.includes('valid_until')
@@ -241,11 +261,9 @@ function migrateFactsSchema(dataRoot: string): void {
     const needEmbedding = !existing.includes('embedding')
     if (!needValidUntil && !needFrozenAt && !needEmbedding) return
     if (!getMeta('facts_schema_migrated')) {
-      const backupDir = path.join(dataRoot, 'backups')
-      fs.mkdirSync(backupDir, { recursive: true })
-      const target = path.join(backupDir, 'memory-pre-schema.db')
+      const target = path.join(backupRootDir, 'memory-pre-schema.db')
       if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
-      logger.info('memory', '已创建 schema 迁移前备份: backups/memory-pre-schema.db')
+      logger.info('memory', `已创建 schema 迁移前备份: ${target}`)
     }
     if (needValidUntil) {
       db!.exec('ALTER TABLE facts ADD COLUMN valid_until TEXT')
@@ -283,17 +301,27 @@ export function listUnarchivedMessages(characterId: string): MessageRow[] {
   ) as unknown as MessageRow[]
 }
 
-export function replaceUnarchivedMessages(characterId: string, items: Omit<MessageRow, 'id'>[]): void {
+export function replaceUnarchivedMessages(
+  characterId: string,
+  items: Array<Omit<MessageRow, 'id'> & { id?: number }>,
+): void {
   withTx(() => {
     run('DELETE FROM messages WHERE character_id = ? AND archived = 0', [characterId])
     for (const item of items) {
-      run('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?)', [
-        characterId,
-        item.role,
-        item.content,
-        item.ts,
-        item.archived,
-      ])
+      if (typeof item.id === 'number') {
+        run(
+          'INSERT OR REPLACE INTO messages(id, character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?, ?)',
+          [item.id, characterId, item.role, item.content, item.ts, item.archived]
+        )
+      } else {
+        run('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?)', [
+          characterId,
+          item.role,
+          item.content,
+          item.ts,
+          item.archived,
+        ])
+      }
     }
   })
 }
@@ -412,6 +440,78 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
   })
 }
 
+// ---- facts：单实体增量写（避免整表读改写互相覆盖） ----
+
+export function insertFactRow(characterId: string, f: FactRow): void {
+  withTx(() => {
+    run(
+      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        f.id,
+        characterId,
+        f.text,
+        f.entity,
+        f.importance,
+        f.confidence,
+        f.source,
+        f.created_at,
+        f.last_confirmed_at,
+        f.status,
+        f.evidence_reinforce,
+        f.evidence_negate,
+        f.protected_,
+        f.valid_until,
+        f.frozen_at,
+        f.embedding,
+      ]
+    )
+  })
+}
+
+export function getFactRow(id: string): FactRow | null {
+  const found = rows('SELECT * FROM facts WHERE id = ?', [id])
+  return found.length > 0 ? (found[0] as unknown as FactRow) : null
+}
+
+export function reinforceFactRow(id: string, ts: string): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE facts SET last_confirmed_at = ?, evidence_reinforce = evidence_reinforce + 1 WHERE id = ?')
+      .run(ts, id).changes
+  ))
+}
+
+export function negateFactRow(id: string): number {
+  return withTx(() => Number(
+    db!.prepare("UPDATE facts SET status = 'archived', evidence_negate = evidence_negate + 1 WHERE id = ?")
+      .run(id).changes
+  ))
+}
+
+export function setFactStatusRow(id: string, status: string): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE facts SET status = ? WHERE id = ?').run(status, id).changes
+  ))
+}
+
+export function setFactFrozenRow(id: string, frozenAt: string | null): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE facts SET frozen_at = ? WHERE id = ?').run(frozenAt, id).changes
+  ))
+}
+
+export function setFactEmbeddingRow(id: string, embedding: string): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE facts SET embedding = ? WHERE id = ?').run(embedding, id).changes
+  ))
+}
+
+export function deleteFactRow(id: string): number {
+  return withTx(() => Number(
+    db!.prepare('DELETE FROM facts WHERE id = ?').run(id).changes
+  ))
+}
+
 // ---- stories ----
 
 export function listStories(characterId: string): StoryRow[] {
@@ -431,6 +531,24 @@ export function saveStories(characterId: string, items: StoryRow[]): void {
       )
     }
   })
+}
+
+// ---- stories：单实体增量写 ----
+
+export function insertStoryRow(characterId: string, s: StoryRow): void {
+  withTx(() => {
+    run(
+      `INSERT OR REPLACE INTO stories(id, character_id, kind, text, occurred_at, due_at, fulfilled, importance, status, created_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [s.id, characterId, s.kind, s.text, s.occurred_at, s.due_at, s.fulfilled, s.importance, s.status, s.created_at]
+    )
+  })
+}
+
+export function setStoryStatusRow(id: string, status: string): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE stories SET status = ? WHERE id = ?').run(status, id).changes
+  ))
 }
 
 export function clearCharacterMemory(characterId: string): void {

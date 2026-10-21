@@ -25,7 +25,12 @@ export function setActiveRoleCard(card: RoleCard): void {
   activeRoleCard = card
 }
 
-const COMPRESSION_THRESHOLD = 0.8
+// 上下文预算按 1M 窗口设计：默认全局配置为 1M，且只信任模型真实窗口
+const COMPRESSION_THRESHOLD = 0.85
+const TARGET_RATIO = 0.6
+const PROTECT_HEAD_MESSAGES = 6
+const MAX_SUMMARY_FAILURES = 3
+let summaryFailures = 0
 let cachedSummariesText: string | null = null
 
 async function loadSummariesText(characterId: string): Promise<string | null> {
@@ -69,7 +74,10 @@ async function fetchRelevantMemory(characterId: string, context: string): Promis
   return getMemorySnapshot(characterId) ?? null
 }
 
-function estimateTokens(text: string): number {
+let tokenCalibration = 1
+let pendingPromptRawTokens = 0
+
+function rawEstimateTokens(text: string): number {
   let tokens = 0
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i)
@@ -82,6 +90,25 @@ function estimateTokens(text: string): number {
     }
   }
   return Math.ceil(tokens)
+}
+
+// 用 API 返回的 prompt_tokens 校准估算，避免中文分词误差导致压缩时机失真
+function estimateTokens(text: string): number {
+  return Math.ceil(rawEstimateTokens(text) * tokenCalibration)
+}
+
+function calibratePromptTokens(actualPrompt: number | undefined, rawEstimate: number): void {
+  if (!actualPrompt || actualPrompt <= 0 || rawEstimate <= 0) return
+  const ratio = actualPrompt / rawEstimate
+  if (ratio < 0.3 || ratio > 3) return
+  tokenCalibration = ratio
+  useLogsStore
+    .getState()
+    .appendLocal('info', 'llm-worker', `分词校准 ${ratio.toFixed(2)}x（实测 ${actualPrompt} / 估算 ${rawEstimate}）`)
+}
+
+function promptRawTokens(messages: ChatMessage[]): number {
+  return messages.reduce((sum, m) => sum + rawEstimateTokens(messageText(m)) + 8, 0)
 }
 
 function computeContextUsage(
@@ -128,11 +155,11 @@ function resolveContextWindow(): number {
   return activeRoleCard?.llm?.contextWindow ?? globalContextWindow ?? 1048576
 }
 
-// 每轮实际发送预算：与模型窗口解耦，1M 窗口不等于每轮塞 1M
-const TURN_CONTEXT_BUDGET = 131_072
+// 每轮实际发送预算：默认按 1M 窗口设计，超出再靠 50% 阈值压缩
+const MAX_TURN_BUDGET = 1_048_576
 
 function resolveTurnBudget(): number {
-  return Math.min(resolveContextWindow(), TURN_CONTEXT_BUDGET)
+  return Math.min(resolveContextWindow(), MAX_TURN_BUDGET)
 }
 
 const MAX_TOOL_ROUNDS = 5
@@ -189,11 +216,11 @@ function sleep(ms: number): Promise<void> {
 }
 
 // 存档式压缩：超阈值时把旧段摘要追加进 L1（SQLite summaries 分段），原文标记 archived 永不删除
-// 返回值 = [既往摘要消息(若有), ...可用历史]
+// 头部若干条始终保留，避免把开场设定摘要掉
 async function compressHistory(
   characterId: string,
   history: ChatMessage[],
-  contextWindow: number,
+  turnBudget: number,
   systemTokens: number,
   stale: () => boolean,
 ): Promise<ChatMessage[]> {
@@ -203,27 +230,29 @@ async function compressHistory(
     ? { role: 'system', content: `[既往对话摘要]\n${summariesText}` }
     : null
 
+  const headCount = Math.min(PROTECT_HEAD_MESSAGES, history.length)
+  const head = history.slice(0, headCount)
+  const withSummary = (rest: ChatMessage[]): ChatMessage[] =>
+    summaryMessage ? [...head, summaryMessage, ...rest] : [...head, ...rest]
+  const unchanged = (): ChatMessage[] =>
+    summaryMessage ? withSummary(history.slice(headCount)) : history
+
   const summaryTokens = summariesText ? estimateTokens(summariesText) : 0
   const historyTokens = history.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
-  const budget = contextWindow * COMPRESSION_THRESHOLD - systemTokens - summaryTokens
-  if (historyTokens <= budget) {
-    return summaryMessage ? [summaryMessage, ...history] : history
-  }
+  const budget = turnBudget * COMPRESSION_THRESHOLD - systemTokens - summaryTokens
+  if (historyTokens <= budget) return unchanged()
 
-  // 尾巴按 token 预算保留（非消息比例），避免大窗口下保留过多无效原文
-  const tailBudget = Math.max(4000, Math.floor(contextWindow * 0.2))
+  // 尾部预算 = 窗口 × 触发阈值 × 目标比例；1M 窗口约保留 100k 原文
+  const tailBudget = Math.max(4000, Math.floor(turnBudget * COMPRESSION_THRESHOLD * TARGET_RATIO))
   let tailTokens = 0
   let keepFrom = history.length
-  while (keepFrom > 0 && tailTokens < tailBudget) {
+  while (keepFrom > headCount && tailTokens < tailBudget) {
     keepFrom--
     tailTokens += estimateTokens(messageText(history[keepFrom]))
   }
-  const keepRecent = history.length - keepFrom
-  if (history.length <= keepRecent) {
-    return summaryMessage ? [summaryMessage, ...history] : history
-  }
-  const toCompress = history.slice(0, history.length - keepRecent)
-  const recent = history.slice(history.length - keepRecent)
+  const toCompress = history.slice(headCount, keepFrom)
+  const recent = history.slice(keepFrom)
+  if (toCompress.length === 0) return unchanged()
 
   const summarySource = [
     summariesText ? `【此前摘要】\n${summariesText}` : '',
@@ -245,35 +274,52 @@ async function compressHistory(
 
   if (stale()) return history
   if (!res.success || !res.data?.content) {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', '历史压缩失败，跳过本轮压缩')
-    return summaryMessage ? [summaryMessage, ...history] : history
+    summaryFailures++
+    useLogsStore
+      .getState()
+      .appendLocal('warn', 'llm-worker', `历史压缩失败（连续 ${summaryFailures} 次），跳过本轮`)
+    if (summaryFailures >= MAX_SUMMARY_FAILURES) {
+      useLogsStore
+        .getState()
+        .appendLocal('warn', 'llm-worker', `摘要连续失败，强制丢弃 ${toCompress.length} 条最旧原文以控制上下文`)
+      return withSummary(recent)
+    }
+    return unchanged()
   }
+  summaryFailures = 0
 
   const newText = res.data.content.trim()
   // 兜底：压缩后仍超阈值则放弃归档，保原文返回（避免归档与注入脱节）
-  const newSummaryTokens = summaryTokens + estimateTokens(newText)
-  const newTotal = systemTokens + newSummaryTokens + recent.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
-  if (newTotal > contextWindow) {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', `压缩后仍超窗口 (${newTotal}/${contextWindow})，放弃本轮归档`)
-    return summaryMessage ? [summaryMessage, ...history] : history
+  const newTotal =
+    systemTokens +
+    summaryTokens +
+    estimateTokens(newText) +
+    recent.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
+  if (newTotal > turnBudget) {
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', `压缩后仍超预算 (${newTotal}/${turnBudget})，放弃本轮归档`)
+    return unchanged()
   }
 
-  await window.opengal.chatHistory.summaryAdd(characterId, {
+  const added = await window.opengal.chatHistory.summaryAdd(characterId, {
     start_ts: Date.now(),
     end_ts: Date.now(),
     text: newText,
     message_count: toCompress.length,
   })
+  if (!added?.success || added.data !== true) {
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', '摘要写入失败，取消本轮归档')
+    return unchanged()
+  }
   if (stale()) return history
-  await useChatStore.getState().archiveFront(toCompress.length)
+  await useChatStore.getState().archiveFront(toCompress.length, headCount)
 
   useLogsStore.getState().appendLocal(
     'info',
     'llm-worker',
-    `存档压缩: ${toCompress.length} 条归档，新摘要段 ${estimateTokens(newText)} tokens，预算 ${contextWindow}`,
+    `存档压缩: ${toCompress.length} 条归档，新摘要段 ${estimateTokens(newText)} tokens，预算 ${turnBudget}`,
   )
 
-  return [{ role: 'system', content: `[既往对话摘要]\n${summariesText ? summariesText + '\n' : ''}${newText}` }, ...recent]
+  return withSummary(recent)
 }
 
 function logLatency(stage: string): void {
@@ -364,6 +410,7 @@ export function startLLMWorker(): () => void {
     if (systemPrompt) messagesForLLM.push({ role: 'user', content: systemPrompt })
     if (stale()) return
 
+    pendingPromptRawTokens = promptRawTokens(messagesForLLM)
     const firstResult = await runStreamRoundWithRetry(messagesForLLM, tools, stale)
     if (stale()) return
     if (!firstResult.ok) {
@@ -487,6 +534,7 @@ export function startLLMWorker(): () => void {
       lastRoundSigs = roundSigs
       messagesForLLM = messagesForLLM.concat(toolMessages, imageMessages)
 
+      const roundRawTokens = promptRawTokens(messagesForLLM)
       const nonStream = await window.opengal.llm.chat({
         messages: messagesForLLM,
         overrides: activeRoleCard!.llm,
@@ -500,6 +548,7 @@ export function startLLMWorker(): () => void {
         return
       }
       const data = nonStream.data!
+      calibratePromptTokens(data.usage?.promptTokens, roundRawTokens)
       const assistantContent = data.content || ''
       const toolCalls = data.toolCalls
 
@@ -628,6 +677,12 @@ export function startLLMWorker(): () => void {
     pipelineBus.emit('llm:reasoning', { delta, accumulated: accumulatedReasoning })
   })
 
+  const offUsage = window.opengal.llm.onStreamUsage((id, usage) => {
+    if (id !== currentStreamId) return
+    calibratePromptTokens(usage.promptTokens, pendingPromptRawTokens)
+    pendingPromptRawTokens = 0
+  })
+
   const offError = window.opengal.llm.onStreamError((id, error) => {
    if (id !== currentStreamId) return
     useLogsStore.getState().appendLocal('error', 'llm-worker', `LLM 流错误: ${error}`)
@@ -650,7 +705,7 @@ export function startLLMWorker(): () => void {
     }
   })
 
-  unsubscribers = [offUserInput, offChunk, offReasoning, offError, offAbort]
+  unsubscribers = [offUserInput, offChunk, offReasoning, offUsage, offError, offAbort]
   return stopLLMWorker
 }
 

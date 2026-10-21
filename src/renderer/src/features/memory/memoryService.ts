@@ -4,6 +4,7 @@ import type { MemoryApplyPayload } from '@shared/types'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { setMemorySnapshot } from './snapshot'
+import { CorpusBuffer, type CorpusEntry } from './corpusBuffer'
 
 async function refreshSnapshot(characterId: string): Promise<void> {
   try {
@@ -14,14 +15,6 @@ async function refreshSnapshot(characterId: string): Promise<void> {
   }
 }
 
-interface CorpusEntry {
-  characterId: string
-  role: 'user' | 'assistant'
-  text: string
-  source?: string
-  at: number
-}
-
 interface MemoryTuning {
   batchTurns: number
   idleMinutes: number
@@ -30,7 +23,9 @@ interface MemoryTuning {
 
 const DEFAULTS: MemoryTuning = { batchTurns: 8, idleMinutes: 5, fallbackHours: 12 }
 
-let buffer: CorpusEntry[] = []
+const buffer = new CorpusBuffer(1000, (dropped) => {
+  log('warn', `语料缓冲超过上限，已丢弃最旧 ${dropped} 条未提取对话`)
+})
 let extractBusySince = 0
 const EXTRACT_LATCH_TTL_MS = 180_000
 let lastSuccessAt = 0
@@ -110,8 +105,9 @@ async function runExtract(force = false): Promise<void> {
   if (extractBusySince) {
     log('warn', '记忆提取闩锁超时，强制复位')
   }
+  const snapshot = buffer.snapshot()
   const groups = new Map<string, CorpusEntry[]>()
-  for (const e of buffer) {
+  for (const e of snapshot.entries) {
     if (e.role === 'user' && (e.source === 'plugin' || e.source === 'live')) continue
     const list = groups.get(e.characterId) ?? []
     list.push(e)
@@ -154,7 +150,7 @@ async function runExtract(force = false): Promise<void> {
         continue
       }
       const r = applied.data
-      dropEntries(characterId)
+      buffer.dropExtracted(characterId, snapshot.maxSeq)
       lastSuccessAt = Date.now()
       await refreshSnapshot(characterId)
       log(
@@ -167,10 +163,6 @@ async function runExtract(force = false): Promise<void> {
   } finally {
     extractBusySince = 0
   }
-}
-
-function dropEntries(characterId: string): void {
-  buffer = buffer.filter((e) => e.characterId !== characterId)
 }
 
 let decaySweepTimer: ReturnType<typeof setInterval> | null = null
@@ -244,15 +236,14 @@ export function startMemoryService(): () => void {
       text: msg.text.slice(0, 300),
       at: Date.now()
     })
-    if (buffer.length > 400) buffer = buffer.slice(-400)
   })
   watchdogTimer = setInterval(
     () => {
       void loadTuning().then((tuning) => {
-        const hasPending = buffer.some((e) => e.role === 'user')
+        const hasPending = buffer.hasPendingUser()
         const overdue = Date.now() - lastSuccessAt > tuning.fallbackHours * 3_600_000
         if (hasPending && (overdue || lastSuccessAt === 0)) {
-          if (lastSuccessAt === 0 && buffer.length > 0) return
+          if (lastSuccessAt === 0 && buffer.size() > 0) return
           void runExtract(true)
         }
       })
