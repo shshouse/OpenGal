@@ -6,7 +6,11 @@ export default defineConfig({
     alias: {
       '@': path.resolve(process.cwd(), 'src/renderer/src'),
       '@shared': path.resolve(process.cwd(), 'src/shared'),
+      'node:sqlite': path.resolve(process.cwd(), 'tests/support/sqlite.ts'),
     },
+  },
+  ssr: {
+    external: ['node:sqlite'],
   },
   test: {
     environment: 'node',
