@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { RoleCard, RoleCardEntry } from '@shared/types'
-import { sanitizeCardLlm } from '@shared/cardLlm'
+import type { RoleCardEntry } from '@shared/types'
+import { validateRoleCard, type RoleCardIssue } from '@shared/roleCardSchema'
 import { getModRoot } from './paths'
 
 const ROLE_CARD_DIR_REL = 'Role'
@@ -11,44 +11,35 @@ function getRoleCardRoot(): string {
   return path.join(getModRoot(), ROLE_CARD_DIR_REL)
 }
 
-function normalizeEntry(folderName: string, rootPath: string, raw: unknown): RoleCardEntry | null {
-  if (!raw || typeof raw !== 'object') return null
-  const card = raw as Partial<RoleCard>
-  if (!card.name || typeof card.name !== 'string') return null
-  if (!card.persona || typeof card.persona !== 'object') return null
-  if (!card.performance || typeof card.performance !== 'object') return null
+export interface LoadedRoleCard {
+  entry: RoleCardEntry
+  issues: RoleCardIssue[]
+}
 
-  const id = (typeof card.id === 'string' && card.id) || folderName
-  return {
-    id,
-    name: card.name,
-    displayName: card.displayName,
-    color: card.color,
-    language: typeof card.language === 'string' ? card.language.trim().slice(0, 64) : undefined,
-    windowMode: card.windowMode ?? 'pet',
-    performance: card.performance,
-    voice: card.voice,
-    asr: card.asr,
-    llm: sanitizeCardLlm(card.llm),
-    persona: {
-      description: card.persona.description ?? '',
-      personality: card.persona.personality ?? '',
-      scenario: card.persona.scenario,
-      rules: card.persona.rules,
-      userIdentity: card.persona.userIdentity,
-      userTerm: card.persona.userTerm,
-    },
+function normalizeEntry(folderName: string, rootPath: string, raw: unknown): LoadedRoleCard | null {
+  const result = validateRoleCard(raw, folderName)
+  if (!result.card) {
+    const detail = result.issues
+      .filter((issue) => issue.severity === 'error')
+      .map((issue) => `${issue.path || '<root>'}: ${issue.message}`)
+      .join('; ')
+    console.warn(`[roleCardLoader] 角色卡校验失败 (${folderName}): ${detail || '未知原因'}`)
+    return null
+  }
+  const entry: RoleCardEntry = {
+    ...result.card,
     rootPath,
     folderName,
     builtin: true,
   }
+  return { entry, issues: result.issues }
 }
 
-export function listRoleCards(): RoleCardEntry[] {
+export function listRoleCardsDetailed(): LoadedRoleCard[] {
   const root = getRoleCardRoot()
   if (!fs.existsSync(root)) return []
 
-  const entries: RoleCardEntry[] = []
+  const loaded: LoadedRoleCard[] = []
   for (const folder of fs.readdirSync(root, { withFileTypes: true })) {
     if (!folder.isDirectory()) continue
     const folderPath = path.join(root, folder.name)
@@ -57,14 +48,23 @@ export function listRoleCards(): RoleCardEntry[] {
 
     try {
       const raw = JSON.parse(fs.readFileSync(cardPath, 'utf-8')) as unknown
-      const entry = normalizeEntry(folder.name, folderPath, raw)
-      if (entry) entries.push(entry)
-      else console.warn(`[roleCardLoader] invalid card: ${cardPath}`)
+      const result = normalizeEntry(folder.name, folderPath, raw)
+      if (!result) continue
+      for (const issue of result.issues) {
+        if (issue.severity === 'warning') {
+          console.warn(`[roleCardLoader] ${folder.name} ${issue.path}: ${issue.message}`)
+        }
+      }
+      loaded.push(result)
     } catch (err) {
       console.error(`[roleCardLoader] failed to load ${cardPath}:`, err)
     }
   }
-  return entries
+  return loaded
+}
+
+export function listRoleCards(): RoleCardEntry[] {
+  return listRoleCardsDetailed().map((item) => item.entry)
 }
 
 export function getRoleCard(id: string): RoleCardEntry | null {

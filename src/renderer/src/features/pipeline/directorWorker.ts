@@ -83,7 +83,7 @@ const EVALUATE_LATCH_TTL_MS = 180_000
 let dispatch: ((input: UserInputMessage) => void) | null = null
 let lastShot: { at: number; dataUrl: string } | null = null
 
-// perHour <= 0 表示不限，保持默认行为与旧版一致；接入配置后由 setDirectorBudget 打开
+// perHour<=0 表示不限
 let budget = createProactiveBudget({ perHour: 0, cooldownMs: 0 })
 
 export function setDirectorBudget(perHour: number, cooldownMs = 0): void {
@@ -319,8 +319,6 @@ async function evaluate(): Promise<void> {
     }
   }
 }
-
-// DirectorDecision 定义在 ./directorContract
 
 function currentDoing(): string {
   if (isSpeaking()) return 'speaking'

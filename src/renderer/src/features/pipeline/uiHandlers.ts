@@ -9,7 +9,7 @@ let speakingCount = 0
 
 export function stopDialogPlayback(): void { cancelPlayback?.() }
 
-/** 当前是否有语音正在实际播放；供导演判断角色是否在说话 */
+/** 是否有语音正在播放 */
 export function isSpeaking(): boolean {
   return speakingCount > 0
 }

@@ -1,7 +1,6 @@
 import type { PerformanceMode, RoleCard, WindowMode } from './types'
 import { sanitizeCardLlm } from './cardLlm'
 
-/** 角色卡格式版本；加载器只接受小于等于该值的卡 */
 export const CARD_SCHEMA_VERSION = 1
 
 const MAX_TEXT = 20_000
@@ -45,7 +44,6 @@ function isObject(value: unknown): value is Obj {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** 角色卡内的路径必须是相对路径，且不能逃出卡片目录 */
 export function isSafeCardRelativePath(value: string): boolean {
   if (!value || value.includes('\0')) return false
   const normalized = value.replace(/\\/g, '/')
@@ -215,10 +213,7 @@ function validatePersona(value: unknown, issues: RoleCardIssue[]): RoleCard['per
   }
 }
 
-/**
- * 校验并归一化角色卡。errors 非空即视为不可用，不做"尽力加载"。
- * 未知顶层字段只记 warning，便于格式向前扩展。
- */
+/** 有 error 即不可用；未知字段只记 warning。 */
 export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidation {
   const issues: RoleCardIssue[] = []
   if (!isObject(raw)) {
@@ -253,7 +248,7 @@ export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidat
   let id = folderName
   if (raw.id !== undefined) {
     if (typeof raw.id !== 'string' || !ID_RE.test(raw.id)) {
-      // 兼容旧卡：id 只作内部标识，非法时回退到目录名而不拒绝整张卡
+      // 非法 id 回退到目录名，避免拒绝旧卡
       issues.push({
         path: 'id',
         code: 'format',

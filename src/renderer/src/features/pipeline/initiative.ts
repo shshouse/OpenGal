@@ -27,10 +27,7 @@ function buildNudge(idleMinutes: number): string {
   return `（你已经注意到对方 ${idleMinutes} 分钟没有理你了。现在是${timeBucket()}。如果你想开口，就用一两句符合你性格的话主动说点什么，自然、简短，不要提到"很久没说话"这类元信息。）`
 }
 
-/**
- * 主动时刻调度：固定间隔检查用户是否静默足够久，交给导演决定要不要开口。
- * 配置关闭时只维持计时，不做任何请求。
- */
+/** 静默达到阈值时交给导演决定是否主动开口 */
 export function startInitiative(): () => void {
   let lastActivityAt = Date.now()
   let lastInitiativeAt = 0
