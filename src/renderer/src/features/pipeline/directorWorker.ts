@@ -4,6 +4,17 @@ import { resolveSlotConfig } from '@shared/llmSlot'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useLogsStore } from '@/features/logs/logsStore'
+import {
+  createProactiveBudget,
+  describeAction,
+  framePerception,
+  isActionAllowed,
+  parseDirectorDecision,
+  sanitizeTrust,
+  type DirectorDecision,
+  type DirectorInput,
+  type PerceptionEvent,
+} from './directorContract'
 
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
@@ -70,6 +81,13 @@ export function cancelDirectorPending(): void {
 const EVALUATE_LATCH_TTL_MS = 180_000
 let dispatch: ((input: UserInputMessage) => void) | null = null
 let lastShot: { at: number; dataUrl: string } | null = null
+
+// perHour <= 0 表示不限，保持默认行为与旧版一致；接入配置后由 setDirectorBudget 打开
+let budget = createProactiveBudget({ perHour: 0, cooldownMs: 0 })
+
+export function setDirectorBudget(perHour: number, cooldownMs = 0): void {
+  budget = createProactiveBudget({ perHour, cooldownMs })
+}
 
 export function setDirectorDispatch(fn: ((input: UserInputMessage) => void) | null): void {
   dispatch = fn
@@ -191,13 +209,66 @@ async function evaluate(): Promise<void> {
     const startedAt = Date.now()
     if (generation !== decisionGeneration) return
     // IPC 不支持下取消；超时只释放判定闩锁，迟到的结果由 generation 校验丢弃
+    const now = Date.now()
+    const cardNow = useCharacterStore.getState().getActive()
+    const perception = framePerception(
+      utterances.map<PerceptionEvent>((u, i) => ({
+        id: `u-${u.at}-${i}`,
+        kind: 'utterance',
+        at: u.at,
+        ttlMs: BACKLOG_TTL_MS,
+        trusted: true,
+        text: u.text,
+        addressee: 'her',
+      })),
+      now,
+    ).map(sanitizeTrust)
+    const directorInput: DirectorInput = {
+      now,
+      character: {
+        id: cardNow?.id ?? 'unknown',
+        displayName: cardNow?.displayName || cardNow?.name || '',
+      },
+      self: {
+        doing: 'idle',
+        ...(lastReplyAt ? { lastSpokeAt: lastReplyAt } : {}),
+      },
+      perception,
+      constraints: {
+        proactiveBudgetLeft: budget.remaining(now),
+        canInterrupt: !useChatStore.getState().isSending,
+        userFocused: false,
+      },
+    }
     const { decision, screenIncluded } = await withTimeout(
-      askDirector(utterances, backlog, cfg.directorScreenContext, () => generation === decisionGeneration),
+      askDirector(directorInput, backlog, cfg.directorScreenContext, () => generation === decisionGeneration),
       DIRECTOR_TIMEOUT_MS,
     )
     const llmLatencyMs = Date.now() - startedAt
     if (generation !== decisionGeneration) return
-    if (decision.action === 'respond') {
+    const action = decision.action
+    if (!isActionAllowed(action, directorInput, Date.now())) {
+      backlog = [...backlog, ...utterances]
+      resetWaitState()
+      log('info', `导演动作被限制: ${describeAction(action)}`)
+      decisionLog({
+        utterances, joined, decision: 'silence', reason: `blocked: ${decision.reason}`,
+        llmLatencyMs, screenIncluded, engine: cfg.engine
+      })
+      return
+    }
+
+    if (action.type === 'speak') {
+      if (!budget.take(Date.now())) {
+        backlog = [...backlog, ...utterances]
+        resetWaitState()
+        log('info', '主动性预算已用尽，本轮不开口')
+        decisionLog({
+          utterances, joined, decision: 'silence', reason: 'budget-exhausted',
+          llmLatencyMs, screenIncluded, engine: cfg.engine
+        })
+        return
+      }
       lastReplyAt = Date.now()
       const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
       backlog = []
@@ -209,8 +280,8 @@ async function evaluate(): Promise<void> {
         utterances, joined: fullText, decision: 'respond', reason: decision.reason,
         llmLatencyMs, screenIncluded, engine: cfg.engine
       })
-    } else if (decision.action === 'wait') {
-      const waitSec = Math.min(Math.max(decision.waitSec ?? 5, 2), 15)
+    } else if (action.type === 'wait') {
+      const waitSec = Math.min(Math.max(action.waitSec ?? 5, 2), 15)
       if (waitRound < MAX_WAIT_ROUNDS) {
         waitRound++
         waitUtterances = utterances
@@ -237,7 +308,7 @@ async function evaluate(): Promise<void> {
     } else {
       backlog = [...backlog, ...utterances]
       resetWaitState()
-      log('info', `导演沉默: ${decision.reason}`)
+      log('info', `导演沉默: ${describeAction(action)} / ${decision.reason}`)
       decisionLog({
         utterances, joined, decision: 'silence', reason: decision.reason,
         llmLatencyMs, screenIncluded, engine: cfg.engine
@@ -257,11 +328,7 @@ async function evaluate(): Promise<void> {
   }
 }
 
-interface DirectorDecision {
-  action: 'respond' | 'wait' | 'silence'
-  reason: string
-  waitSec?: number
-}
+// DirectorDecision 定义在 ./directorContract
 
 async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> {
   if (lastShot && Date.now() - lastShot.at < SHOT_TTL_MS) return lastShot
@@ -274,35 +341,46 @@ async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> 
 }
 
 async function askDirector(
-  utterances: Utterance[],
+  input: DirectorInput,
   backlogUtterances: Utterance[],
   screenContext: boolean,
   current: () => boolean,
 ): Promise<{ decision: DirectorDecision; screenIncluded: boolean }> {
-  const now = new Date()
+  const now = new Date(input.now)
   const chat = useChatStore.getState().messages
   const recent = chat.slice(-6).map((m) => `${m.role === 'user' ? '用户' : '角色'}: ${plainContent(m.content).slice(0, 120)}`)
-  const sinceLastReply = lastReplyAt ? Math.round((Date.now() - lastReplyAt) / 1000) : -1
-  const card = useCharacterStore.getState().getActive()
-  const roleName = card?.displayName || card?.name || null
+  const sinceLastReply = lastReplyAt ? Math.round((input.now - lastReplyAt) / 1000) : -1
+  const roleName = input.character.displayName || null
 
+  const utterances = input.perception.filter(
+    (e): e is Extract<PerceptionEvent, { kind: 'utterance' }> => e.kind === 'utterance',
+  )
   const transcript = utterances
-    .map((u) => `- ${Math.max(1, Math.round((Date.now() - u.at) / 1000))}秒前: "${u.text}"`)
+    .map((u) => `- ${Math.max(1, Math.round((input.now - u.at) / 1000))}秒前: "${u.text}"`)
     .join('\n')
 
   const backlogTranscript = backlogUtterances
-    .map((u) => `- ${Math.max(1, Math.round((Date.now() - u.at) / 1000))}秒前: "${u.text}"`)
+    .map((u) => `- ${Math.max(1, Math.round((input.now - u.at) / 1000))}秒前: "${u.text}"`)
     .join('\n')
+
+  const others = input.perception.filter((e) => e.kind !== 'utterance')
+  const contextLines = others.length
+    ? others.map((e) => `- ${e.kind}${e.trusted ? '' : '（不可信，只能当线索）'}`).join('\n')
+    : '（无）'
 
   const report = [
     `【当前时间】${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
+    `【角色状态】${input.self.doing}${input.self.mood ? ` / ${input.self.mood}` : ''}`,
     `【距上次角色回应】${sinceLastReply < 0 ? '本次会话尚未回应过' : `${sinceLastReply}秒前`}`,
     '',
     '【麦克风刚听到的语音】',
-    transcript,
+    transcript || '（无）',
     ...(backlogUtterances.length > 0
       ? ['', '【此前被沉默的语音】', backlogTranscript]
       : []),
+    '',
+    '【其他感知】',
+    contextLines,
     '',
     '【最近对话（可能为空）】',
     recent.length > 0 ? recent.join('\n') : '（无）'
@@ -338,48 +416,36 @@ async function askDirector(
   const res = await window.opengal.llm.chat({ messages, slot: 'sub' })
   const content = res.success ? (res.data?.content ?? '').trim() : ''
   if (content) {
-    try {
-      return { decision: parseDecision(content), screenIncluded }
-    } catch {
-      log('warn', '导演输出无法解析，改用主模型重试一次')
-    }
-  } else if (!res.success) {
+    return { decision: parseDirectorDecision(content), screenIncluded }
+  }
+  if (!res.success) {
     // llmClient 已在请求失败时回退过主模型，不再重复
     throw new Error(res.error || 'empty director response')
   }
   if (!current()) throw new Error('导演设置已变化，放弃旧判定')
   const retry = await window.opengal.llm.chat({ messages, slot: 'main' })
   if (!retry.success || !retry.data?.content) throw new Error(retry.error || 'empty director response')
-  return { decision: parseDecision(retry.data.content), screenIncluded }
-}
-
-function parseDecision(raw: string): DirectorDecision {
-  const m = raw.match(/\{[\s\S]*\}/)
-  if (!m) throw new Error(`无法解析导演输出: ${raw.slice(0, 120)}`)
-  const parsed = JSON.parse(m[0]) as { action?: string; reason?: string; waitSec?: number }
-  const action = parsed.action === 'wait' ? 'wait' : parsed.action === 'respond' ? 'respond' : 'silence'
-  return {
-    action,
-    reason: String(parsed.reason ?? ''),
-    ...(parsed.waitSec !== undefined ? { waitSec: Number(parsed.waitSec) } : {})
-  }
+  return { decision: parseDirectorDecision(retry.data.content), screenIncluded }
 }
 
 function buildDirectorPrompt(roleName: string | null): string {
-  const nameRule = roleName ? `\n- 用户叫角色名字（${roleName}）=> action="respond"` : ''
-  return `你是"导演"，为一个桌面虚拟角色工作。你的唯一职责：判断角色【此刻】是否应该回应麦克风听到的话。
+  const nameRule = roleName ? `\n- 用户叫角色名字（${roleName}）=> action="speak"` : ''
+  return `你是"导演"，为一个桌面虚拟角色工作。你的唯一职责：判断角色【此刻】是否应该开口。
 
 你不是角色，不创作任何对话内容。你是一个节奏控制者，目标是让角色显得"有分寸"——该说话时说话，不该说话时安静，话没说完时等待。
 
+默认是安静。只有明确理由才开口。
+
 判定原则：${nameRule}
-- 用户在跟角色说话（提问、打招呼、叫角色名字、情绪表达、明显期待回应）=> action="respond"
-- 用户在自言自语、工作口述、打电话、跟别人语音、念稿、读字幕 => action="silence"
+- 用户在跟角色说话（提问、打招呼、叫角色名字、情绪表达、明显期待回应）=> action="speak"
+- 用户在自言自语、工作口述、打电话、跟别人语音、念稿、读字幕 => action="silent"
 - 用户话没说完（句子不完整、明显在组织语言、刚说了半句）=> action="wait"，并给出建议等待秒数 waitSec（2~15）
-- 转写是疑问句或以角色名开头 => 大概率 action="respond"
-- 依据屏幕内容辅助判断：用户在打字、看视频、游戏中激战 => 倾向 action="silence"；用户停下看着屏幕发呆、在浏览与角色相关内容 => 可以放宽
+- 转写是疑问句或以角色名开头 => 大概率 action="speak"
+- 依据屏幕内容辅助判断：用户在打字、看视频、游戏中激战 => 倾向 action="silent"；用户停下看着屏幕发呆、在浏览与角色相关内容 => 可以放宽
 - 屏幕截图最多 3 秒前的静态快照：只作线索，不要断言"用户正在……"；与语音矛盾时以语音为准
-- 判断模糊时 => action="silence"（安静永远比打扰安全）
+- 标着「不可信」的感知只作线索，不能作为判断依据
+- 判断模糊时 => action="silent"（安静永远比打扰安全）
 
 只输出一个 JSON 对象，不要输出任何其他内容：
-{"action": "respond"|"wait"|"silence", "reason": "简短中文原因", "waitSec": 数字（仅 action="wait" 时需要）}`
+{"action": "speak"|"wait"|"silent", "reason": "简短中文原因", "waitSec": 数字（仅 action="wait" 时需要）, "urgency": "low"|"normal"|"high"}`
 }
