@@ -9,6 +9,7 @@ import {
   clearCharacterMemory,
   clearCharacterMessages,
   closeMemoryDb,
+  commitCompression,
   deleteFactRow,
   getFactRow,
   getMeta,
@@ -193,5 +194,41 @@ describe('memoryDb', () => {
     expect(listFacts('c-clear')).toHaveLength(0)
     expect(listStories('c-clear')).toHaveLength(0)
     expect(listUnarchivedMessages('c-clear')).toHaveLength(1)
+  })
+
+  it('追加消息返回数据库 ID，顺序与输入一致', () => {
+    const ids = saveChatMessages('c-append-ids', [{ role: 'user' }, { role: 'assistant' }])
+    expect(ids).toHaveLength(2)
+    expect(ids[1]).toBeGreaterThan(ids[0])
+    expect(listUnarchivedMessages('c-append-ids').map((r) => r.id)).toEqual(ids)
+  })
+
+  it('空输入返回空数组', () => {
+    expect(saveChatMessages('c-empty', [])).toEqual([])
+  })
+
+  it('压缩提交同时写入摘要与归档', () => {
+    const ids = saveChatMessages('c-compact', [{ role: 'user' }, { role: 'assistant' }])
+    const res = commitCompression('c-compact', ids[0], ids[1], {
+      text: '摘要',
+      message_count: 2,
+      start_ts: 1,
+      end_ts: 2,
+    })
+    expect(res.archived).toBe(2)
+    expect(listSummaries('c-compact')).toHaveLength(1)
+    expect(listUnarchivedMessages('c-compact')).toHaveLength(0)
+  })
+
+  it('重复提交同一区间不再插入摘要', () => {
+    const ids = saveChatMessages('c-compact-twice', [{ role: 'user' }])
+    const summary = { text: 'a', message_count: 1, start_ts: 1, end_ts: 1 }
+    expect(commitCompression('c-compact-twice', ids[0], ids[0], summary).archived).toBe(1)
+    const again = commitCompression('c-compact-twice', ids[0], ids[0], {
+      ...summary,
+      text: 'b',
+    })
+    expect(again.archived).toBe(0)
+    expect(listSummaries('c-compact-twice')).toHaveLength(1)
   })
 })

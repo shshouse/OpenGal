@@ -36,6 +36,7 @@ import {
   latestMessageId,
   listSummaries,
   addSummary,
+  commitCompression,
 } from '../services/memoryDb'
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryFact } from '@shared/types'
 import type { WindowManager } from '../windows/windowManager'
@@ -199,6 +200,17 @@ export function registerIpc(windows: WindowManager): void {
         addSummary(characterId, s)
         return true
       })
+  )
+
+  ipcMain.handle(
+    IpcChannels.chatHistory.commitCompression,
+    (
+      _,
+      characterId: string,
+      fromId: number,
+      toId: number,
+      s: { start_ts: number; end_ts: number; text: string; message_count: number }
+    ) => wrap<{ archived: number }>(() => commitCompression(characterId, fromId, toId, s))
   )
 
   ipcMain.handle(IpcChannels.pet.open, () => wrap(() => windows.openPetWindow()))

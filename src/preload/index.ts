@@ -143,7 +143,20 @@ const api = {
     summaryAdd: (
       characterId: string,
       s: { start_ts: number; end_ts: number; text: string; message_count: number }
-    ) => invoke<boolean>(IpcChannels.chatHistory.summaryAdd, characterId, s)
+    ) => invoke<boolean>(IpcChannels.chatHistory.summaryAdd, characterId, s),
+    commitCompression: (
+      characterId: string,
+      fromId: number,
+      toId: number,
+      s: { start_ts: number; end_ts: number; text: string; message_count: number }
+    ) =>
+      invoke<{ archived: number }>(
+        IpcChannels.chatHistory.commitCompression,
+        characterId,
+        fromId,
+        toId,
+        s
+      )
   },
   pet: {
     open: () => invoke(IpcChannels.pet.open),

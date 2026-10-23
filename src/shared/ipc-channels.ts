@@ -60,7 +60,8 @@ export const IpcChannels = {
     archiveRange: 'chatHistory:archiveRange',
     latestMessageId: 'chatHistory:latestMessageId',
     summaries: 'chatHistory:summaries',
-    summaryAdd: 'chatHistory:summaryAdd'
+    summaryAdd: 'chatHistory:summaryAdd',
+    commitCompression: 'chatHistory:commitCompression'
   },
   tts: {
     speak: 'tts:speak',

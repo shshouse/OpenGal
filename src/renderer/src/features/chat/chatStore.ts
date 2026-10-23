@@ -33,6 +33,7 @@ interface ChatState {
   appendStreamingSegment: (segment: StreamingSegment) => void
   finalizeStream: (content?: string, toolCalls?: ToolCallRecord[]) => void
   archiveFront: (count: number, offset?: number) => Promise<void>
+  dropFront: (count: number, offset?: number) => void
   clear: () => void
   switchSession: (characterId: string | null) => void
   ensureHydrated: (characterId: string) => Promise<void>
@@ -118,6 +119,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   clear: () => {
     set({ messages: [], error: null, streamingSegments: [] })
+  },
+  // 库侧已提交过归档，这里只做本地移除
+  dropFront: (count, offset = 0) => {
+    const { messages } = get()
+    if (count <= 0 || offset < 0 || offset + count > messages.length) return
+    suppressPersist++
+    set((state) => ({
+      messages: [...state.messages.slice(0, offset), ...state.messages.slice(offset + count)],
+    }))
   },
   switchSession: (characterId) => {
     const { sessionId } = get()

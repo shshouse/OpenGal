@@ -364,6 +364,26 @@ export function archiveMessagesRange(characterId: string, fromId: number, toId: 
   })
 }
 
+// 摘要与归档必须同一个事务：先归档，归档 0 行说明区间已处理过，不能再插摘要
+export function commitCompression(
+  characterId: string,
+  fromId: number,
+  toId: number,
+  summary: { text: string; message_count: number; start_ts: number; end_ts: number },
+): { archived: number } {
+  return withTx(() => {
+    const info = db!.prepare(
+      'UPDATE messages SET archived = 1 WHERE character_id = ? AND archived = 0 AND id >= ? AND id <= ?'
+    ).run(characterId, fromId, toId)
+    const archived = Number(info.changes)
+    if (archived === 0) return { archived }
+    db!.prepare(
+      'INSERT INTO summaries(character_id, start_ts, end_ts, text, message_count, created_at) VALUES(?, ?, ?, ?, ?, ?)'
+    ).run(characterId, summary.start_ts, summary.end_ts, summary.text, summary.message_count, Date.now())
+    return { archived }
+  })
+}
+
 // 取未归档消息的最新 id，作为下一次归档的锚点
 export function latestMessageId(characterId: string): number | null {
   const found = rows('SELECT MAX(id) AS m FROM messages WHERE character_id = ? AND archived = 0', [characterId])

@@ -301,18 +301,25 @@ async function compressHistory(
     return unchanged()
   }
 
-  const added = await window.opengal.chatHistory.summaryAdd(characterId, {
+  const ids = toCompress.map((m) => (m as ChatMessage & { dbId?: number }).dbId)
+  const fromId = ids[0]
+  const toId = ids[ids.length - 1]
+  if (typeof fromId !== 'number' || typeof toId !== 'number') {
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', '待压缩消息缺少数据库 ID，跳过本轮归档')
+    return unchanged()
+  }
+  const committed = await window.opengal.chatHistory.commitCompression(characterId, fromId, toId, {
     start_ts: Date.now(),
     end_ts: Date.now(),
     text: newText,
     message_count: toCompress.length,
   })
-  if (!added?.success || added.data !== true) {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', '摘要写入失败，取消本轮归档')
+  if (!committed?.success || !committed.data || committed.data.archived === 0) {
+    useLogsStore.getState().appendLocal('warn', 'llm-worker', '压缩提交失败或区间已归档，取消本轮归档')
     return unchanged()
   }
   if (stale()) return history
-  await useChatStore.getState().archiveFront(toCompress.length, headCount)
+  useChatStore.getState().dropFront(toCompress.length, headCount)
 
   useLogsStore.getState().appendLocal(
     'info',
