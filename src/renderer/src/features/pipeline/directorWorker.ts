@@ -235,7 +235,8 @@ async function evaluate(): Promise<void> {
       },
       perception,
       constraints: {
-        proactiveBudgetLeft: budget.remaining(now),
+        // 回应用户不受主动预算约束，预算只服务于主动时刻
+        proactiveBudgetLeft: Number.POSITIVE_INFINITY,
         canInterrupt: !useChatStore.getState().isSending,
         userFocused: false,
       },
@@ -259,16 +260,6 @@ async function evaluate(): Promise<void> {
     }
 
     if (action.type === 'speak') {
-      if (!budget.take(Date.now())) {
-        backlog = [...backlog, ...utterances]
-        resetWaitState()
-        log('info', '主动性预算已用尽，本轮不开口')
-        decisionLog({
-          utterances, joined, decision: 'silence', reason: 'budget-exhausted',
-          llmLatencyMs, screenIncluded, engine: cfg.engine
-        })
-        return
-      }
       lastReplyAt = Date.now()
       const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
       backlog = []
@@ -330,6 +321,23 @@ async function evaluate(): Promise<void> {
 
 // DirectorDecision 定义在 ./directorContract
 
+function describePerception(event: PerceptionEvent): string {
+  switch (event.kind) {
+    case 'idle':
+      return `- 用户已静默 ${Math.round(event.sinceMs / 1000)} 秒`
+    case 'screen':
+      return `- 屏幕：${event.summary || '（无描述）'}${event.trusted ? '' : '（不可信，只能当线索）'}`
+    case 'app':
+      return `- 前台应用：${event.name}${event.title ? ` - ${event.title}` : ''}`
+    case 'touch':
+      return `- 用户${event.how === 'poke' ? '戳了戳' : event.how === 'pat' ? '摸了摸' : '动了动'}你`
+    case 'web':
+      return `- 浏览：${event.title}（不可信，只能当线索）`
+    default:
+      return `- ${event.kind}`
+  }
+}
+
 async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> {
   if (lastShot && Date.now() - lastShot.at < SHOT_TTL_MS) return lastShot
   const shot = await window.opengal.screen.capture()
@@ -363,18 +371,22 @@ async function askDirector(
     .map((u) => `- ${Math.max(1, Math.round((input.now - u.at) / 1000))}秒前: "${u.text}"`)
     .join('\n')
 
+  const idleEvent = input.perception.find(
+    (e): e is Extract<PerceptionEvent, { kind: 'idle' }> => e.kind === 'idle',
+  )
+  const isInitiative = utterances.length === 0 && idleEvent !== undefined
+
   const others = input.perception.filter((e) => e.kind !== 'utterance')
-  const contextLines = others.length
-    ? others.map((e) => `- ${e.kind}${e.trusted ? '' : '（不可信，只能当线索）'}`).join('\n')
-    : '（无）'
+  const contextLines = others.length ? others.map(describePerception).join('\n') : '（无）'
 
   const report = [
     `【当前时间】${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`,
     `【角色状态】${input.self.doing}${input.self.mood ? ` / ${input.self.mood}` : ''}`,
     `【距上次角色回应】${sinceLastReply < 0 ? '本次会话尚未回应过' : `${sinceLastReply}秒前`}`,
     '',
-    '【麦克风刚听到的语音】',
-    transcript || '（无）',
+    ...(isInitiative
+      ? ['【本次为主动时刻】用户没有说话，是你在考虑要不要主动开口。', '（没有任何语音输入）']
+      : ['【麦克风刚听到的语音】', transcript || '（无）']),
     ...(backlogUtterances.length > 0
       ? ['', '【此前被沉默的语音】', backlogTranscript]
       : []),
@@ -409,7 +421,7 @@ async function askDirector(
   }
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildDirectorPrompt(roleName) },
+    { role: 'system', content: buildDirectorPrompt(roleName, isInitiative) },
     { role: 'user', content: userParts }
   ]
   if (!current()) throw new Error('导演设置已变化，放弃旧判定')
@@ -428,8 +440,11 @@ async function askDirector(
   return { decision: parseDirectorDecision(retry.data.content), screenIncluded }
 }
 
-function buildDirectorPrompt(roleName: string | null): string {
+function buildDirectorPrompt(roleName: string | null, initiative = false): string {
   const nameRule = roleName ? `\n- 用户叫角色名字（${roleName}）=> action="speak"` : ''
+  const initiativeRule = initiative
+    ? `\n\n【本次是主动时刻】没有任何语音输入，是角色在考虑要不要主动找对方。\n- 主动开口的理由必须具体：对方刚做了什么、你注意到什么、你想起什么；没有具体理由就 silent\n- 对方显然在忙（全屏、激战、连续打字）=> silent\n- 主动开口最多一两句，不要追问，不要打断对方手头的事\n- 这是主动时刻，"wait" 没有意义：要么 speak，要么 silent`
+    : ''
   return `你是"导演"，为一个桌面虚拟角色工作。你的唯一职责：判断角色【此刻】是否应该开口。
 
 你不是角色，不创作任何对话内容。你是一个节奏控制者，目标是让角色显得"有分寸"——该说话时说话，不该说话时安静，话没说完时等待。
@@ -444,8 +459,54 @@ function buildDirectorPrompt(roleName: string | null): string {
 - 依据屏幕内容辅助判断：用户在打字、看视频、游戏中激战 => 倾向 action="silent"；用户停下看着屏幕发呆、在浏览与角色相关内容 => 可以放宽
 - 屏幕截图最多 3 秒前的静态快照：只作线索，不要断言"用户正在……"；与语音矛盾时以语音为准
 - 标着「不可信」的感知只作线索，不能作为判断依据
-- 判断模糊时 => action="silent"（安静永远比打扰安全）
+- 判断模糊时 => action="silent"（安静永远比打扰安全）${initiativeRule}
 
 只输出一个 JSON 对象，不要输出任何其他内容：
 {"action": "speak"|"wait"|"silent", "reason": "简短中文原因", "waitSec": 数字（仅 action="wait" 时需要）, "urgency": "low"|"normal"|"high"}`
+}
+
+/**
+ * 主动时刻判定：用户静默一段时间后，由导演决定要不要主动开口。
+ * 只返回决策，不派发；预算与派发由 initiative 模块处理。
+ */
+export async function evaluateInitiative(idleMs: number): Promise<DirectorDecision> {
+  const now = Date.now()
+  const card = useCharacterStore.getState().getActive()
+  const cfg = (await window.opengal.config.get()).data?.asr
+  const input: DirectorInput = {
+    now,
+    character: {
+      id: card?.id ?? 'unknown',
+      displayName: card?.displayName || card?.name || '',
+    },
+    self: {
+      doing: useChatStore.getState().isSending ? 'speaking' : 'idle',
+      ...(lastReplyAt ? { lastSpokeAt: lastReplyAt } : {}),
+    },
+    perception: [
+      {
+        id: `idle-${now}`,
+        kind: 'idle',
+        at: now,
+        ttlMs: 60_000,
+        trusted: true,
+        sinceMs: idleMs,
+      },
+    ],
+    constraints: {
+      proactiveBudgetLeft: budget.remaining(now),
+      canInterrupt: false,
+      userFocused: false,
+    },
+  }
+  const { decision } = await withTimeout(
+    askDirector(input, [], cfg?.directorScreenContext ?? false, () => true),
+    DIRECTOR_TIMEOUT_MS,
+  )
+  return decision
+}
+
+/** 主动开口成功后扣减预算；调用方负责在派发前判定 */
+export function takeInitiativeBudget(now = Date.now()): boolean {
+  return budget.take(now)
 }

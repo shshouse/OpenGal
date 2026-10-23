@@ -51,7 +51,10 @@ const defaultConfig: AppConfig = {
     vadSilenceMs: 600,
     directorEnabled: false,
     directorScreenContext: false,
-    directorCooldownSec: 20
+    directorCooldownSec: 20,
+    directorInitiativeEnabled: false,
+    directorInitiativePerHour: 3,
+    directorIdleMinutes: 10
   },
   model: null,
   activeCharacterId: null,

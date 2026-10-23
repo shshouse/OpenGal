@@ -46,7 +46,10 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
     vadSilenceMs: 600,
     directorEnabled: false,
     directorScreenContext: false,
-    directorCooldownSec: 20
+    directorCooldownSec: 20,
+    directorInitiativeEnabled: false,
+    directorInitiativePerHour: 3,
+    directorIdleMinutes: 10
   })
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
@@ -71,7 +74,10 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         vadSilenceMs: a.vadSilenceMs ?? 600,
         directorEnabled: a.directorEnabled ?? false,
         directorScreenContext: a.directorScreenContext ?? false,
-        directorCooldownSec: a.directorCooldownSec ?? 20
+        directorCooldownSec: a.directorCooldownSec ?? 20,
+        directorInitiativeEnabled: a.directorInitiativeEnabled ?? false,
+        directorInitiativePerHour: a.directorInitiativePerHour ?? 3,
+        directorIdleMinutes: a.directorIdleMinutes ?? 10
       }
       formRef.current = next
       setForm(next)
@@ -302,6 +308,42 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                 onChange={(e) => patch({ directorCooldownSec: Number(e.target.value) || 0 })}
               />
               <p className="text-[11px] text-muted-foreground">两次语音回应之间的最小间隔</p>
+            </div>
+            <div className="space-y-2 border-t pl-6 pt-2">
+              <label className="flex items-center gap-2 text-xs">
+                <span className="relative inline-flex">
+                  <Checkbox
+                    checked={form.directorInitiativeEnabled}
+                    onChange={(e) => patch({ directorInitiativeEnabled: e.target.checked })}
+                  />
+                  <CheckboxIndicator />
+                </span>
+                允许主动开口
+              </label>
+              <p className="pl-6 text-[11px] text-muted-foreground">
+                开启后，对方静默超过设定时间时由导演判断要不要主动说一句；没有具体理由就不说
+              </p>
+              {form.directorInitiativeEnabled && (
+                <>
+                  <div className="pl-6">
+                    <label className="text-xs font-medium text-muted-foreground">静默多少分钟后允许主动</label>
+                    <Input
+                      type="number"
+                      value={form.directorIdleMinutes}
+                      onChange={(e) => patch({ directorIdleMinutes: Number(e.target.value) || 1 })}
+                    />
+                  </div>
+                  <div className="pl-6">
+                    <label className="text-xs font-medium text-muted-foreground">每小时最多主动几次</label>
+                    <Input
+                      type="number"
+                      value={form.directorInitiativePerHour}
+                      onChange={(e) => patch({ directorInitiativePerHour: Number(e.target.value) || 0 })}
+                    />
+                    <p className="text-[11px] text-muted-foreground">填 0 表示不限</p>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}

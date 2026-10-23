@@ -1,6 +1,8 @@
 import { startLLMWorker, stopLLMWorker, setActiveRoleCard, setGlobalContextWindow } from './llmWorker'
 import { startTTSWorker, stopTTSWorker } from './ttsWorker'
 import { startUIWorker, stopUIWorker } from './uiWorker'
+import { startInitiative } from './initiative'
+import { setDirectorBudget } from './directorWorker'
 import { startMemoryService } from '@/features/memory/memoryService'
 import { pipelineBus } from './pipelineBus'
 import { useChatStore } from '@/features/chat/chatStore'
@@ -71,6 +73,8 @@ export function startPipeline(): PipelineHandle {
   void window.opengal.config.get().then((res) => {
     const cw = res.data?.llm?.contextWindow
     if (typeof cw === 'number' && cw > 0) setGlobalContextWindow(cw)
+    const asr = res.data?.asr
+    if (asr) setDirectorBudget(asr.directorInitiativePerHour, asr.directorCooldownSec * 1000)
   })
   startLLMWorker()
   startTTSWorker()
@@ -80,8 +84,10 @@ export function startPipeline(): PipelineHandle {
   const stopBridge = startChatStreamBridge()
   const stopASR = startASRBridge()
   const stopPetBubble = startPetBubbleBridge()
+  const stopInitiative = startInitiative()
   return {
     dispose: () => {
+      stopInitiative()
       stopBargeIn()
       stopSubtitles()
       stopPetBubble()

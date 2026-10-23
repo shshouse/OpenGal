@@ -80,6 +80,12 @@ export interface ASRConfig {
   directorEnabled: boolean
   directorScreenContext: boolean
   directorCooldownSec: number
+  /** 允许导演在用户长时间不说话时主动开口 */
+  directorInitiativeEnabled: boolean
+  /** 每小时最多主动开口次数；<= 0 表示不限 */
+  directorInitiativePerHour: number
+  /** 用户静默多少分钟后才允许主动开口 */
+  directorIdleMinutes: number
 }
 
 export interface MarketMod {
