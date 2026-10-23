@@ -52,6 +52,7 @@ export function registerIpc(windows: WindowManager): void {
   initPlugins(getDataRoot())
   initMemoryStore(getDataRoot(), readConfig().memory, getBackupRoot())
   startEnvMonitor()
+  windows.setSelfExclusion(readConfig().screen?.excludeSelf ?? true)
 
   async function judgeFact(existing: MemoryFact, cand: MemoryCandidateFact): Promise<'reinforces' | 'negates'> {
     const res = await callLLM({
@@ -79,6 +80,7 @@ export function registerIpc(windows: WindowManager): void {
     wrap<AppConfig>(() => {
       const next = writeConfig(patch)
       if (patch.activeCharacterId !== undefined) void warmupTTS()
+      if (patch.screen?.excludeSelf !== undefined) windows.setSelfExclusion(patch.screen.excludeSelf)
       return next
     })
   )

@@ -72,6 +72,9 @@ const defaultConfig: AppConfig = {
   },
   startup: {
     greetingEnabled: true
+  },
+  screen: {
+    excludeSelf: true
   }
 }
 

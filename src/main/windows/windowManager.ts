@@ -16,8 +16,14 @@ export class WindowManager {
   private pet: BrowserWindow | null = null
   private petDragCursor: { x: number; y: number } | null = null
   private petDragPos: number[] | null = null
+  private excludeSelf = true
 
   constructor(private readonly deps: WindowDeps) {}
+
+  setSelfExclusion(enabled: boolean): void {
+    this.excludeSelf = enabled
+    if (this.pet && !this.pet.isDestroyed()) this.pet.setContentProtection(enabled)
+  }
 
   createMainWindow(): BrowserWindow {
     if (this.main && !this.main.isDestroyed()) {
@@ -90,6 +96,7 @@ export class WindowManager {
     })
     this.pet.setAlwaysOnTop(true, 'screen-saver')
     this.pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    this.pet.setContentProtection(this.excludeSelf)
     this.loadRoute(this.pet, 'pet')
     this.pet.on('closed', () => {
       this.pet = null
