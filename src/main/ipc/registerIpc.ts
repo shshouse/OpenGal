@@ -160,9 +160,9 @@ export function registerIpc(windows: WindowManager): void {
     })
   )
   ipcMain.handle(IpcChannels.chatHistory.append, (_, characterId: string, messages: ChatMessage[]) =>
-    wrap<boolean>(() => {
-      saveChatMessages(characterId, messages)
-      return true
+    wrap<number[]>(async () => {
+      await memoryDbReady()
+      return saveChatMessages(characterId, messages)
     })
   )
   ipcMain.handle(

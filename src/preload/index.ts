@@ -128,7 +128,7 @@ const api = {
   chatHistory: {
     load: (characterId: string) => invoke<ChatMessage[]>(IpcChannels.chatHistory.load, characterId),
     append: (characterId: string, messages: ChatMessage[]) =>
-      invoke<boolean>(IpcChannels.chatHistory.append, characterId, messages),
+      invoke<number[]>(IpcChannels.chatHistory.append, characterId, messages),
     replaceAll: (characterId: string, messages: ChatMessage[]) =>
       invoke<boolean>(IpcChannels.chatHistory.replaceAll, characterId, messages),
     archiveRange: (characterId: string, fromId: number, toId: number) =>

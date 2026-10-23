@@ -339,19 +339,19 @@ export function appendMessage(item: Omit<MessageRow, 'id'>): void {
 }
 
 // 批量追加聊天消息（单事务），content 为完整消息对象 JSON
-export function saveChatMessages(characterId: string, items: Array<{ role: string }>): void {
-  if (items.length === 0) return
+export function saveChatMessages(characterId: string, items: Array<{ role: string }>): number[] {
+  if (items.length === 0) return []
   const base = Date.now()
+  const ids: number[] = []
   withTx(() => {
     for (let i = 0; i < items.length; i++) {
-      run('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, 0)', [
-        characterId,
-        items[i].role,
-        JSON.stringify(items[i]),
-        base + i,
-      ])
+      const info = db!
+        .prepare('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, 0)')
+        .run(characterId, items[i].role, JSON.stringify(items[i]), base + i)
+      ids.push(Number(info.lastInsertRowid))
     }
   })
+  return ids
 }
 
 // 锚点归档：把 [fromId..toId] 区间内的未归档消息标记 archived（原文保留）

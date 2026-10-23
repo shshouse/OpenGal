@@ -174,7 +174,21 @@ useChatStore.subscribe((state, prev) => {
   if (isAppendOf(prev.messages, messages)) {
     const added = messages.slice(prev.messages.length)
     if (added.length > 0) {
-      void window.opengal.chatHistory.append(sessionId, added as ChatMessage[]).catch(() => {})
+      const refs = added as ChatMessage[]
+      void window.opengal.chatHistory
+        .append(sessionId, refs)
+        .then((res) => {
+          if (!res?.success || !Array.isArray(res.data) || res.data.length !== refs.length) return
+          const ids = res.data
+          suppressPersist++
+          useChatStore.setState((state) => ({
+            messages: state.messages.map((m) => {
+              const idx = refs.indexOf(m as ChatMessage)
+              return idx >= 0 ? ({ ...m, dbId: ids[idx] } as typeof m) : m
+            }),
+          }))
+        })
+        .catch(() => {})
     }
   } else {
     void window.opengal.chatHistory.replaceAll(sessionId, messages as ChatMessage[]).catch(() => {})
