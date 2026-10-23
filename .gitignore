@@ -12,3 +12,5 @@ resources
 __pycache__/
 *.pyc
 *.spec
+
+coverage

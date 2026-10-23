@@ -19,12 +19,16 @@ export default defineConfig({
     hookTimeout: 30_000,
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'html', 'json-summary'],
       include: [
         'src/shared/**/*.ts',
-        'src/renderer/src/features/pipeline/contextAssembler.ts',
-        'src/renderer/src/features/memory/corpusBuffer.ts',
         'src/main/services/memoryStore.ts',
         'src/main/services/memoryDb.ts',
+        'src/main/services/ttsPort.ts',
+        'src/main/services/plugins/manifest.ts',
+        'src/renderer/src/features/pipeline/contextAssembler.ts',
+        'src/renderer/src/features/pipeline/subtitles.ts',
+        'src/renderer/src/features/memory/corpusBuffer.ts',
       ],
     },
   },

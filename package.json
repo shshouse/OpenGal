@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "chcp 65001 && electron-vite dev",
+    "dev": "electron-vite dev",
     "build": "electron-vite build && electron-builder",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
@@ -60,7 +60,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.20",
-    "electron": "^44.2.0",
+    "electron": "^45.0.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "eslint": "^9.39.5",
