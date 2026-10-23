@@ -5,8 +5,14 @@ import type { MessageHandler } from './handlerChain'
 import { pipelineBus } from './pipelineBus'
 
 let cancelPlayback: (() => void) | null = null
+let speakingCount = 0
 
 export function stopDialogPlayback(): void { cancelPlayback?.() }
+
+/** 当前是否有语音正在实际播放；供导演判断角色是否在说话 */
+export function isSpeaking(): boolean {
+  return speakingCount > 0
+}
 
 export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> {
   private turnStartedAt = 0
@@ -63,11 +69,13 @@ async function playDialogAudio(audioUrl: string, onStart: () => void): Promise<v
     const start = (): void => {
       if (settled || started) return
       started = true
+      speakingCount += 1
       onStart()
     }
     const done = (): void => {
       if (settled) return
       settled = true
+      if (started) speakingCount = Math.max(0, speakingCount - 1)
       if (cancelPlayback === cancel) cancelPlayback = null
       audio?.removeEventListener('playing', start)
       audio?.removeEventListener('ended', done)

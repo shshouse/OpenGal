@@ -4,6 +4,7 @@ import { resolveSlotConfig } from '@shared/llmSlot'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { isSpeaking } from './uiHandlers'
 import {
   createProactiveBudget,
   describeAction,
@@ -230,7 +231,7 @@ async function evaluate(): Promise<void> {
         displayName: cardNow?.displayName || cardNow?.name || '',
       },
       self: {
-        doing: 'idle',
+        doing: currentDoing(),
         ...(lastReplyAt ? { lastSpokeAt: lastReplyAt } : {}),
       },
       perception,
@@ -320,6 +321,12 @@ async function evaluate(): Promise<void> {
 }
 
 // DirectorDecision 定义在 ./directorContract
+
+function currentDoing(): string {
+  if (isSpeaking()) return 'speaking'
+  if (useChatStore.getState().isSending) return 'thinking'
+  return 'idle'
+}
 
 function describePerception(event: PerceptionEvent): string {
   switch (event.kind) {
@@ -480,7 +487,7 @@ export async function evaluateInitiative(idleMs: number): Promise<DirectorDecisi
       displayName: card?.displayName || card?.name || '',
     },
     self: {
-      doing: useChatStore.getState().isSending ? 'speaking' : 'idle',
+      doing: currentDoing(),
       ...(lastReplyAt ? { lastSpokeAt: lastReplyAt } : {}),
     },
     perception: [
