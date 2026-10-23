@@ -26,6 +26,7 @@ interface ChatState {
   messages: (PersistedAssistantMessage | PersistedUserMessage)[]
   isSending: boolean
   error: string | null
+  persistError: string | null
   streamingSegments: StreamingSegment[]
   appendUser: (message: string, images?: string[]) => void
   replaceError: (error: string | null) => void
@@ -67,6 +68,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isSending: false,
   error: null,
+  persistError: null,
   streamingSegments: [],
   appendUser: (message, images) => {
     const userMsg: PersistedUserMessage = {
@@ -109,8 +111,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const slice = messages.slice(offset, offset + count)
     const fromId = (slice[0] as ChatMessage & { dbId?: number }).dbId
     const toId = (slice[slice.length - 1] as ChatMessage & { dbId?: number }).dbId
-    if (typeof fromId === 'number' && typeof toId === 'number') {
-      await window.opengal.chatHistory.archiveRange(sessionId, fromId, toId).catch(() => {})
+    if (typeof fromId !== 'number' || typeof toId !== 'number') {
+      console.warn('[chatStore] 待归档消息缺少数据库 ID，取消归档')
+      return
+    }
+    const res = await window.opengal.chatHistory
+      .archiveRange(sessionId, fromId, toId)
+      .catch((err: Error) => {
+        console.warn(`[chatStore] 归档失败: ${err.message}`)
+        return null
+      })
+    if (!res?.success) {
+      console.warn(`[chatStore] 归档失败: ${res?.error ?? '未知错误'}`)
+      return
     }
     suppressPersist++
     set((state) => ({
@@ -118,7 +131,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
   clear: () => {
-    set({ messages: [], error: null, streamingSegments: [] })
+    set({ messages: [], error: null, persistError: null, streamingSegments: [] })
   },
   // 库侧已提交过归档，这里只做本地移除
   dropFront: (count, offset = 0) => {
@@ -188,19 +201,36 @@ useChatStore.subscribe((state, prev) => {
       void window.opengal.chatHistory
         .append(sessionId, refs)
         .then((res) => {
-          if (!res?.success || !Array.isArray(res.data) || res.data.length !== refs.length) return
+          if (!res?.success || !Array.isArray(res.data) || res.data.length !== refs.length) {
+            useChatStore.setState({
+              persistError: res?.error ?? '消息保存失败：返回值不完整',
+            })
+            return
+          }
           const ids = res.data
           suppressPersist++
           useChatStore.setState((state) => ({
+            persistError: null,
             messages: state.messages.map((m) => {
               const idx = refs.indexOf(m as ChatMessage)
               return idx >= 0 ? ({ ...m, dbId: ids[idx] } as typeof m) : m
             }),
           }))
         })
-        .catch(() => {})
+        .catch((err: Error) => {
+          useChatStore.setState({ persistError: `消息保存失败：${err.message}` })
+        })
     }
   } else {
-    void window.opengal.chatHistory.replaceAll(sessionId, messages as ChatMessage[]).catch(() => {})
+    void window.opengal.chatHistory
+      .replaceAll(sessionId, messages as ChatMessage[])
+      .then((res) => {
+        useChatStore.setState({
+          persistError: res?.success ? null : (res?.error ?? '历史保存失败'),
+        })
+      })
+      .catch((err: Error) => {
+        useChatStore.setState({ persistError: `历史保存失败：${err.message}` })
+      })
   }
 })
