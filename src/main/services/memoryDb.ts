@@ -137,9 +137,10 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
     if (check?.quick_check !== 'ok') {
       throw new Error(`memory.db 完整性检查失败: ${JSON.stringify(check)}`)
     }
+    checkpoint()
+    preUpgradeBackup()
     db.exec(SCHEMA)
     migrateFactsSchema()
-    preMigrationBackup()
     checkpoint()
     snapshotBackup()
     syncLegacyMemoryFromJson(dataRoot)
@@ -198,15 +199,33 @@ function migrateLegacyBackups(dataRoot: string): void {
   }
 }
 
-function preMigrationBackup(): void {
+// 复制后立刻校验，坏备份等于没有备份
+function copyVerified(from: string, to: string): boolean {
+  fs.copyFileSync(from, to)
+  const probe = new DatabaseSync(to, { readOnly: true })
   try {
-    if (getMeta('native_sqlite_migrated')) return
-    const target = path.join(backupRootDir, 'memory-pre-wal.db')
-    if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
-    setMeta('native_sqlite_migrated', new Date().toISOString())
-    logger.info('memory', `已创建迁移前备份: ${target}`)
+    const check = probe.prepare('PRAGMA quick_check').get() as { quick_check?: string } | undefined
+    if (check?.quick_check !== 'ok') {
+      fs.rmSync(to, { force: true })
+      logger.error('memory', `备份校验失败，已删除: ${to}`)
+      return false
+    }
+    return true
+  } finally {
+    probe.close()
+  }
+}
+
+// 在改表结构之前、checkpoint 之后备份，内容才是迁移前的完整状态
+function preUpgradeBackup(): void {
+  try {
+    const target = path.join(backupRootDir, 'memory-pre-upgrade.db')
+    if (fs.existsSync(target)) return
+    if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return
+    if (!copyVerified(dbFile, target)) return
+    logger.info('memory', `已创建升级前备份: ${target}`)
   } catch (err) {
-    logger.warn('memory', `迁移前备份失败（不影响主库）: ${(err as Error).message}`)
+    logger.error('memory', `升级前备份失败: ${(err as Error).message}`)
   }
 }
 
@@ -215,14 +234,16 @@ function snapshotBackup(): void {
     if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return
     const day = new Date().toISOString().slice(0, 10)
     const target = path.join(backupRootDir, `memory-${day}.db`)
-    if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
+    const tmp = `${target}.tmp`
+    if (!copyVerified(dbFile, tmp)) return
+    fs.renameSync(tmp, target)
     const all = fs
       .readdirSync(backupRootDir)
       .filter((f) => /^memory-\d{4}-\d{2}-\d{2}\.db$/.test(f))
       .sort()
     while (all.length > 7) fs.rmSync(path.join(backupRootDir, all.shift() as string), { force: true })
   } catch (err) {
-    logger.warn('memory', `备份失败（不影响主库）: ${(err as Error).message}`)
+    logger.error('memory', `备份失败: ${(err as Error).message}`)
   }
 }
 
@@ -262,7 +283,7 @@ function migrateFactsSchema(): void {
     if (!needValidUntil && !needFrozenAt && !needEmbedding) return
     if (!getMeta('facts_schema_migrated')) {
       const target = path.join(backupRootDir, 'memory-pre-schema.db')
-      if (!fs.existsSync(target)) fs.copyFileSync(dbFile, target)
+      if (!fs.existsSync(target) && fs.existsSync(dbFile)) copyVerified(dbFile, target)
       logger.info('memory', `已创建 schema 迁移前备份: ${target}`)
     }
     if (needValidUntil) {
@@ -279,7 +300,8 @@ function migrateFactsSchema(): void {
     }
     setMeta('facts_schema_migrated', new Date().toISOString())
   } catch (err) {
-    logger.warn('memory', `facts schema 迁移失败: ${(err as Error).message}`)
+    logger.error('memory', `facts schema 迁移失败: ${(err as Error).message}`)
+    throw err
   }
 }
 
