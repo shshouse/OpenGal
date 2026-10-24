@@ -30,6 +30,7 @@ export function GalgameChatPanel() {
   const messages = useChatStore((s) => s.messages)
   const isSending = useChatStore((s) => s.isSending)
   const error = useChatStore((s) => s.error)
+  const persistError = useChatStore((s) => s.persistError)
   const streamingSegments = useChatStore((s) => s.streamingSegments)
   const send = useChatPipeline()
   const [draft, setDraft] = React.useState('')
@@ -154,6 +155,11 @@ export function GalgameChatPanel() {
             {error && (
               <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
                 {error}
+              </div>
+            )}
+            {persistError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
+                聊天记录未保存：{persistError}
               </div>
             )}
           </div>

@@ -157,7 +157,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: restored.messages,
         streamingSegments: [],
         isSending: false,
-        error: null
+        error: null,
+        persistError: null
       }
     })
   },
