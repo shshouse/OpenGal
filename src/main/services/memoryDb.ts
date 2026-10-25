@@ -138,7 +138,9 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
       throw new Error(`memory.db 完整性检查失败: ${JSON.stringify(check)}`)
     }
     checkpoint()
-    preUpgradeBackup()
+    if (!preUpgradeBackup()) {
+      throw new Error('升级前备份失败，已中止记忆库初始化')
+    }
     db.exec(SCHEMA)
     migrateFactsSchema()
     checkpoint()
@@ -200,32 +202,63 @@ function migrateLegacyBackups(dataRoot: string): void {
 }
 
 // 复制后立刻校验，坏备份等于没有备份
-function copyVerified(from: string, to: string): boolean {
-  fs.copyFileSync(from, to)
-  const probe = new DatabaseSync(to, { readOnly: true })
+function verifyDbFile(file: string, requiredTable?: string): boolean {
   try {
-    const check = probe.prepare('PRAGMA quick_check').get() as { quick_check?: string } | undefined
-    if (check?.quick_check !== 'ok') {
-      fs.rmSync(to, { force: true })
-      logger.error('memory', `备份校验失败，已删除: ${to}`)
-      return false
+    const probe = new DatabaseSync(file, { readOnly: true })
+    try {
+      const check = probe.prepare('PRAGMA quick_check').get() as { quick_check?: string } | undefined
+      if (check?.quick_check !== 'ok') return false
+      if (!requiredTable) return true
+      const table = probe
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+        .get(requiredTable)
+      return !!table
+    } finally {
+      probe.close()
     }
-    return true
-  } finally {
-    probe.close()
+  } catch {
+    return false
   }
 }
 
-// 在改表结构之前、checkpoint 之后备份，内容才是迁移前的完整状态
-function preUpgradeBackup(): void {
+function hasTable(name: string): boolean {
+  return rows("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", [name]).length > 0
+}
+
+// WAL 模式下直接复制主库会漏掉未 checkpoint 的数据；用 SQLite 自己的快照保证一致
+function sqliteSnapshot(target: string, requiredTable?: string): boolean {
+  if (!db) return false
   try {
+    if (fs.existsSync(target)) fs.rmSync(target, { force: true })
+    db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`)
+    if (!verifyDbFile(target, requiredTable)) {
+      fs.rmSync(target, { force: true })
+      logger.error('memory', `备份校验失败，已删除: ${target}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    logger.error('memory', `备份生成失败: ${(err as Error).message}`)
+    fs.rmSync(target, { force: true })
+    return false
+  }
+}
+
+// 在改表结构之前做一致性备份；备份失败必须阻断后续迁移
+function preUpgradeBackup(): boolean {
+  try {
+    if (!hasTable('messages')) return true
     const target = path.join(backupRootDir, 'memory-pre-upgrade.db')
-    if (fs.existsSync(target)) return
-    if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return
-    if (!copyVerified(dbFile, target)) return
+    if (fs.existsSync(target)) {
+      if (verifyDbFile(target, 'messages')) return true
+      fs.rmSync(target, { force: true })
+    }
+    if (!sqliteSnapshot(target, 'messages')) return false
     logger.info('memory', `已创建升级前备份: ${target}`)
+    return true
   } catch (err) {
     logger.error('memory', `升级前备份失败: ${(err as Error).message}`)
+    return false
   }
 }
 
@@ -235,7 +268,8 @@ function snapshotBackup(): void {
     const day = new Date().toISOString().slice(0, 10)
     const target = path.join(backupRootDir, `memory-${day}.db`)
     const tmp = `${target}.tmp`
-    if (!copyVerified(dbFile, tmp)) return
+    if (!sqliteSnapshot(tmp)) return
+    fs.rmSync(target, { force: true })
     fs.renameSync(tmp, target)
     const all = fs
       .readdirSync(backupRootDir)
@@ -281,24 +315,34 @@ function migrateFactsSchema(): void {
     const needFrozenAt = !existing.includes('frozen_at')
     const needEmbedding = !existing.includes('embedding')
     if (!needValidUntil && !needFrozenAt && !needEmbedding) return
-    if (!getMeta('facts_schema_migrated')) {
-      const target = path.join(backupRootDir, 'memory-pre-schema.db')
-      if (!fs.existsSync(target) && fs.existsSync(dbFile)) copyVerified(dbFile, target)
-      logger.info('memory', `已创建 schema 迁移前备份: ${target}`)
+    const target = path.join(
+      backupRootDir,
+      `memory-pre-schema-${new Date().toISOString().replace(/[:.]/g, '-')}.db`,
+    )
+    if (!sqliteSnapshot(target, 'facts')) {
+      throw new Error('schema 迁移前备份失败，已中止迁移')
     }
-    if (needValidUntil) {
-      db!.exec('ALTER TABLE facts ADD COLUMN valid_until TEXT')
-      logger.info('memory', 'facts 表新增列: valid_until')
-    }
-    if (needFrozenAt) {
-      db!.exec('ALTER TABLE facts ADD COLUMN frozen_at TEXT')
-      logger.info('memory', 'facts 表新增列: frozen_at')
-    }
-    if (needEmbedding) {
-      db!.exec('ALTER TABLE facts ADD COLUMN embedding TEXT')
-      logger.info('memory', 'facts 表新增列: embedding')
-    }
-    setMeta('facts_schema_migrated', new Date().toISOString())
+    logger.info('memory', `已创建 schema 迁移前备份: ${target}`)
+    const all = fs
+      .readdirSync(backupRootDir)
+      .filter((f) => /^memory-pre-schema-/.test(f) && f.endsWith('.db'))
+      .sort()
+    while (all.length > 3) fs.rmSync(path.join(backupRootDir, all.shift() as string), { force: true })
+    withTx(() => {
+      if (needValidUntil) {
+        db!.exec('ALTER TABLE facts ADD COLUMN valid_until TEXT')
+        logger.info('memory', 'facts 表新增列: valid_until')
+      }
+      if (needFrozenAt) {
+        db!.exec('ALTER TABLE facts ADD COLUMN frozen_at TEXT')
+        logger.info('memory', 'facts 表新增列: frozen_at')
+      }
+      if (needEmbedding) {
+        db!.exec('ALTER TABLE facts ADD COLUMN embedding TEXT')
+        logger.info('memory', 'facts 表新增列: embedding')
+      }
+      setMeta('facts_schema_migrated', new Date().toISOString())
+    })
   } catch (err) {
     logger.error('memory', `facts schema 迁移失败: ${(err as Error).message}`)
     throw err
