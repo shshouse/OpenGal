@@ -404,6 +404,66 @@ export function appendMessage(item: Omit<MessageRow, 'id'>): void {
   })
 }
 
+// 旧会话导入只追加缺失项，不触碰现有消息；判重键与导入时生成的时间戳一致，重复导入幂等
+export function appendMissingMessages(
+  characterId: string,
+  items: Array<Omit<MessageRow, 'id'>>,
+): number {
+  let inserted = 0
+  withTx(() => {
+    const exists = db!.prepare(
+      'SELECT 1 FROM messages WHERE character_id = ? AND role = ? AND content = ? AND ts = ? LIMIT 1'
+    )
+    const insert = db!.prepare(
+      'INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?)'
+    )
+    for (const item of items) {
+      if (exists.get(characterId, item.role, item.content, item.ts)) continue
+      insert.run(characterId, item.role, item.content, item.ts, item.archived)
+      inserted++
+    }
+  })
+  return inserted
+}
+
+const MESSAGE_COLUMNS = 'id, character_id, role, content, ts, archived'
+
+function likePattern(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
+}
+
+// 中文按整句入索引时无法分词，这里按角色过滤后做子串匹配；命中含已归档消息，并补前后邻段避免断章取义
+export function searchMessageContext(
+  characterId: string,
+  query: string,
+  limit = 3,
+  radius = 1,
+): MessageRow[] {
+  const terms = query.trim().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return []
+  const where = terms.map(() => "content LIKE ? ESCAPE '\\'").join(' AND ')
+  const hits = rows(
+    `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ${where} ORDER BY ts DESC, id DESC LIMIT ?`,
+    [characterId, ...terms.map(likePattern), limit]
+  ) as unknown as MessageRow[]
+  const found = new Map<number, MessageRow>()
+  for (const hit of hits) {
+    const id = hit.id as number
+    found.set(id, hit)
+    if (radius <= 0) continue
+    const before = rows(
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id < ? ORDER BY id DESC LIMIT ?`,
+      [characterId, id, radius]
+    ) as unknown as MessageRow[]
+    const after = rows(
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+      [characterId, id, radius]
+    ) as unknown as MessageRow[]
+    for (const row of [...before, ...after]) found.set(row.id as number, row)
+  }
+  return [...found.values()].sort((a, b) => a.ts - b.ts || (a.id ?? 0) - (b.id ?? 0))
+}
+
 // 批量追加聊天消息（单事务），content 为完整消息对象 JSON
 export function saveChatMessages(characterId: string, items: Array<{ role: string }>): number[] {
   if (items.length === 0) return []
@@ -789,7 +849,7 @@ async function syncChatHistoryFromJson(dataRoot: string): Promise<void> {
         ts: Math.max(0, Math.round(mtimeMs - (msgs.length - 1 - i) * 1000)),
         archived: 0,
       }))
-      replaceUnarchivedMessages(characterId, items)
+      appendMissingMessages(characterId, items)
       setMeta(`chat_mtime:${safeName}`, mtime)
       logger.info('memory', `已同步会话历史到记忆库: ${characterId}（${items.length} 条）`)
     }

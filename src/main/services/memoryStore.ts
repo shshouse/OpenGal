@@ -21,6 +21,7 @@ import {
   setFactEmbeddingRow,
   deleteFactRow,
   setStoryStatusRow,
+  searchMessageContext,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
@@ -573,6 +574,57 @@ export function buildMemoryBlock(
     (s) => (context ? relevanceScore(s.text, context) : 0.5),
     0.5,
   )
+}
+
+function messageText(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed === 'string') return parsed
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ''
+    const content = (parsed as { content?: unknown }).content
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+      return content
+        .map((part) => {
+          if (part && typeof part === 'object' && 'text' in part) return String(part.text)
+          if (part && typeof part === 'object' && 'image_url' in part) return '[图片]'
+          return ''
+        })
+        .filter(Boolean)
+        .join(' ')
+    }
+    return ''
+  } catch {
+    return raw
+  }
+}
+
+function formatMessageTime(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// 原话召回：补充 facts/stories 覆盖不到的逐字历史，带时间戳，供模型区分"当年说的"和"刚说的"
+export async function recallVerbatim(
+  characterId: string,
+  query: string,
+  charCap = 1500,
+): Promise<string | null> {
+  if (!query.trim()) return null
+  await memoryDbReady()
+  const rows = searchMessageContext(characterId, query)
+  const lines: string[] = []
+  let used = 0
+  for (const row of rows) {
+    const text = messageText(row.content).trim()
+    if (!text) continue
+    const line = `[${formatMessageTime(row.ts)}] ${row.role}: ${text}`
+    if (used + line.length > charCap) break
+    lines.push(line)
+    used += line.length
+  }
+  return lines.length ? `相关历史原话（按时间排列）：\n${lines.join('\n')}` : null
 }
 
 export async function getMemoryBlock(

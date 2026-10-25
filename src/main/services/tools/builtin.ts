@@ -5,7 +5,7 @@ import type { ToolDefinition } from '@shared/types'
 import { registerTool } from './index'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
 import { readConfig } from '../configStore'
-import { getMemoryBlock } from '../memoryStore'
+import { getMemoryBlock, recallVerbatim } from '../memoryStore'
 import { logBus } from '../logBus'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
@@ -197,8 +197,12 @@ async function handleRecallMemory(args: Record<string, unknown>): Promise<string
   if (!query) throw new Error('query 不能为空')
   const characterId = readConfig().activeCharacterId
   if (!characterId) throw new Error('当前没有激活角色')
-  const block = await getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP)
-  return block ?? '没有找到相关的长期记忆'
+  const [block, verbatim] = await Promise.all([
+    getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP),
+    recallVerbatim(characterId, query),
+  ])
+  const parts = [block, verbatim].filter((part): part is string => Boolean(part))
+  return parts.length ? parts.join('\n\n') : '没有找到相关的长期记忆'
 }
 
 export function registerBuiltinTools(): void {
@@ -274,7 +278,7 @@ export function registerBuiltinTools(): void {
         function: {
           name: 'recall_memory',
           description:
-            '检索长期记忆（过去的事实、约定、偏好、共同经历）。用户提到"以前/上次/你还记得"、或你不确定自己是否记得某件事时使用。返回按相关度筛选的记忆片段。',
+            '检索长期记忆（过去的事实、约定、偏好、共同经历）和相关历史原话。用户提到"以前/上次/你还记得"、或问某句话具体怎么说的时使用。返回记忆片段，以及带时间戳和相邻对话的原话。',
           parameters: {
             type: 'object',
             properties: {
