@@ -3,7 +3,7 @@ import { app, safeStorage } from 'electron'
 import type { AppConfig } from '@shared/types'
 import { toModUrl, getDataRoot } from './paths'
 import { logBus } from './logBus'
-import { normalizeAsrEngine } from '../../shared/asrKinds'
+import { normalizeAsrEngine, normalizeAsrMode } from '../../shared/asrKinds'
 
 const defaultConfig: AppConfig = {
   uiLanguage: 'zh',
@@ -42,6 +42,7 @@ const defaultConfig: AppConfig = {
   asr: {
     enabled: false,
     engine: 'sherpa',
+    mode: 'offline',
     modelPath: '',
     language: 'zh',
     sampleRate: 16000,
@@ -159,6 +160,7 @@ export function readConfig(): AppConfig {
     startup: { ...defaultConfig.startup, ...(raw.startup ?? {}) }
   }
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
+  merged.asr.mode = normalizeAsrMode(merged.asr.mode as string)
   merged.systemLocale = app.getPreferredSystemLanguages()[0] || app.getLocale()
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
   merged.llmPresets = merged.llmPresets?.map((p) => ({ ...p, apiKey: decryptApiKey(p.apiKey) }))

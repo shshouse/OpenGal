@@ -31,7 +31,7 @@ vi.mock('../../src/main/services/logBus', () => ({
 }))
 vi.mock('../../src/main/services/configStore', () => ({
   readConfig: () => ({
-    asr: { engine: 'sherpa', modelPath: '/model', sampleRate: 16000, language: 'zh', vadSilenceMs: 600, hotwords: [] },
+    asr: { engine: 'sherpa', mode: 'offline', modelPath: '/model', sampleRate: 16000, language: 'zh', vadSilenceMs: 600, hotwords: [] },
   }),
 }))
 vi.mock('../../src/main/services/paths', () => ({

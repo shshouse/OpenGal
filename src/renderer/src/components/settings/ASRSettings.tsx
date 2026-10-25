@@ -12,7 +12,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { listAudioInputs } from '@/features/asr/micCapture'
-import { detectSherpaKind, normalizeAsrEngine } from '@shared/asrKinds'
+import { detectSherpaKind, normalizeAsrEngine, normalizeAsrMode } from '@shared/asrKinds'
 import type { AppConfig, ASRConfig } from '@shared/types'
 
 const LANG_OPTIONS: Array<{ value: ASRConfig['language']; label: string }> = [
@@ -25,7 +25,12 @@ const LANG_OPTIONS: Array<{ value: ASRConfig['language']; label: string }> = [
 ]
 
 const ENGINE_OPTIONS: Array<{ value: ASRConfig['engine']; label: string }> = [
-  { value: 'sherpa', label: 'sherpa-onnx（本地离线）' }
+  { value: 'sherpa', label: 'sherpa-onnx（本地）' }
+]
+
+const MODE_OPTIONS: Array<{ value: ASRConfig['mode']; label: string }> = [
+  { value: 'offline', label: '离线（准确优先，Qwen3/SenseVoice）' },
+  { value: 'streaming', label: '流式（低延迟，Zipformer 中文）' }
 ]
 
 interface ASRSettingsProps {
@@ -37,6 +42,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
   const [form, setForm] = React.useState<ASRConfig>({
     enabled: false,
     engine: 'sherpa',
+    mode: 'offline',
     modelPath: '',
     language: 'zh',
     sampleRate: 16000,
@@ -69,6 +75,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
       const next = {
         ...a,
         engine: normalizeAsrEngine(a.engine),
+        mode: normalizeAsrMode(a.mode),
         deviceId: a.deviceId ?? '',
         hotwords: a.hotwords ?? [],
         vadSilenceMs: a.vadSilenceMs ?? 600,
@@ -131,7 +138,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
     ready.current = false
     setStatus('等待应用…')
     if (timer.current) clearTimeout(timer.current)
-    const immediate = Object.entries(partial).some(([key, value]) => typeof value === 'boolean' || ['deviceId', 'language', 'engine'].includes(key))
+    const immediate = Object.entries(partial).some(([key, value]) => typeof value === 'boolean' || ['deviceId', 'language', 'engine', 'mode'].includes(key))
     timer.current = setTimeout(() => { ready.current = true; void applyPending() }, immediate ? 0 : 600)
   }
 
@@ -151,9 +158,9 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         <Mic className="size-4" /> 语音识别
       </div>
       <p className="text-xs text-muted-foreground">
-        {form.engine === 'sherpa'
-          ? 'sherpa-onnx 离线识别，支持 Qwen3-ASR、SenseVoice、FunASR-Nano 等模型（自带 ASRWorker2 或系统 Python + sherpa-onnx）'
-          : '自带 ASRWorker 离线识别引擎，无需安装 Python'}
+        {form.mode === 'streaming'
+          ? '流式 Zipformer：边说边出字，适合低延迟对话。需要系统 Python + sherpa-onnx，以及 sherpa-onnx-streaming-zipformer-zh-* 模型目录。'
+          : '离线识别：准确优先，支持 Qwen3-ASR、SenseVoice、FunASR-Nano 等模型（自带 ASRWorker2 或系统 Python + sherpa-onnx）。'}
       </p>
       <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
         {status || '修改自动应用：麦克风、语言和开关立即生效；文本参数停止输入后应用。运行中会按需自动重载。'}
@@ -204,14 +211,32 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
       </div>
 
       <div className="space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">识别模式</label>
+        <Select value={form.mode} onValueChange={(v) => patch({ mode: v as ASRConfig['mode'] })}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MODE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">模型目录路径</label>
         <Input
           value={form.modelPath}
           onChange={(e) => patch({ modelPath: e.target.value })}
-          placeholder='STT/models/（sherpa-onnx 发布的模型目录名）'
+          placeholder={form.mode === 'streaming'
+            ? 'resources/models/asr/sherpa-onnx-streaming-zipformer-zh-xlarge-int8-2025-06-30'
+            : 'STT/models/（sherpa-onnx 发布的模型目录名）'}
         />
         <p className="text-[11px] text-muted-foreground">
-          从 ModelScope/HuggingFace 下载对应引擎的模型并解压
+          {form.mode === 'streaming'
+            ? '流式模式只支持 sherpa-onnx-streaming-zipformer-* 中文模型；需要 encoder/decoder/joiner/tokens.txt'
+            : '从 ModelScope/HuggingFace 下载对应引擎的模型并解压'}
         </p>
       </div>
 
@@ -240,7 +265,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
 
       {form.engine === 'sherpa' && (
         <>
-          {(detectSherpaKind(form.modelPath)?.supportsHotwords ?? true) && (
+          {form.mode === 'offline' && (detectSherpaKind(form.modelPath)?.supportsHotwords ?? true) && (
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">热词</label>
               <Textarea
@@ -261,7 +286,9 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
               value={form.vadSilenceMs}
               onChange={(e) => patch({ vadSilenceMs: Number(e.target.value) || 600 })}
             />
-            <p className="text-[11px] text-muted-foreground">静音持续该时长后判定一句话结束，越小出字越快但易截断</p>
+            <p className="text-[11px] text-muted-foreground">
+              静音持续该时长后判定一句话结束，越小出字越快但易截断；流式模式下作为端点静音阈值
+            </p>
           </div>
         </>
       )}

@@ -70,6 +70,7 @@ export interface TTSConfig {
 export interface ASRConfig {
   enabled: boolean
   engine: 'sherpa'
+  mode: 'offline' | 'streaming'
   modelPath: string
   language: 'auto' | 'zh' | 'en' | 'ja' | 'ko' | 'yue'
   sampleRate: number

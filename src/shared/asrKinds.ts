@@ -7,8 +7,13 @@ export interface SherpaModelKindInfo {
 export const SHERPA_MODEL_KINDS: SherpaModelKindInfo[] = [
   { prefix: 'sherpa-onnx-qwen3-asr-', kind: 'qwen3', supportsHotwords: true },
   { prefix: 'sherpa-onnx-sense-voice-', kind: 'sensevoice', supportsHotwords: false },
-  { prefix: 'sherpa-onnx-funasr-nano-', kind: 'funasr_nano', supportsHotwords: false }
+  { prefix: 'sherpa-onnx-funasr-nano-', kind: 'funasr_nano', supportsHotwords: false },
+  { prefix: 'sherpa-onnx-streaming-zipformer-', kind: 'streaming_zipformer', supportsHotwords: false }
 ]
+
+export function normalizeAsrMode(mode: string | undefined): 'offline' | 'streaming' {
+  return mode === 'streaming' ? 'streaming' : 'offline'
+}
 
 export function detectSherpaKind(modelPath: string): SherpaModelKindInfo | null {
   const name = modelPath.split(/[\\/]/).filter(Boolean).pop()?.toLowerCase() ?? ''

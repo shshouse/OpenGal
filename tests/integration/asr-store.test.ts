@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
   config: {
     engine: 'sherpa',
+    mode: 'offline',
     enabled: true,
     modelPath: '/model',
     language: 'zh',

@@ -19,15 +19,20 @@ export function setResultCallback(cb: ASRResultCallback | null): void {
   resultCallback = cb
 }
 
-function resolveSherpaPython(): string[] {
-  const candidates: string[][] = [['python'], ['py', '-3.12'], ['py', '-3.11'], ['py', '-3.10']]
+export function resolveSherpaPython(): string[] {
+  const candidates: string[][] = [
+    ...(process.env.OPENGAL_ASR_PYTHON ? [[process.env.OPENGAL_ASR_PYTHON]] : []),
+    [path.join(app.getAppPath(), '.venv-asr', 'Scripts', 'python.exe')],
+    [path.join(app.getAppPath(), '.venv-asr312', 'Scripts', 'python.exe')],
+    ['python'], ['py', '-3.12'], ['py', '-3.11'], ['py', '-3.10']
+  ]
   for (const cmd of candidates) {
     try {
       execFileSync(cmd[0], [...cmd.slice(1), '-c', 'import sherpa_onnx'], { stdio: 'ignore', windowsHide: true })
       return cmd
     } catch { /* try next */ }
   }
-  throw new Error('未找到安装了 sherpa-onnx 的 Python。请执行: pip install sherpa-onnx numpy')
+  throw new Error('未找到安装了 sherpa-onnx 的 Python。请在项目内创建 .venv-asr 并执行: pip install sherpa-onnx numpy')
 }
 
 function portableWorkerExe(): string | null {
