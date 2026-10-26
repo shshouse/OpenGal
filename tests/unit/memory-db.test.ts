@@ -57,6 +57,7 @@ function fact(id: string, overrides: Partial<FactRow> = {}): FactRow {
     valid_until: null,
     frozen_at: null,
     embedding: null,
+    source_evidence: null,
     ...overrides,
   }
 }
@@ -73,6 +74,7 @@ function story(id: string, overrides: Partial<StoryRow> = {}): StoryRow {
     importance: 5,
     status: 'active',
     created_at: '2026-01-01T00:00:00.000Z',
+    source_evidence: null,
     ...overrides,
   }
 }

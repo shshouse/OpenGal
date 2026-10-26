@@ -4,10 +4,20 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { getModRoot, getGenieTTSRoot, getGeniePythonExe } from './paths'
 import { readConfig } from './configStore'
+import { getRoleCard, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
 import { clearTtsPortShift, getTtsPortShift, parseTtsPort, setTtsPortShift } from './ttsPort'
 
 const GPTSOVITS_DIR = path.join('TTS', 'GPT-SoVITS-v2pro-20250604')
+
+// 与合成侧一致：角色卡 voice 配置里的 baseURL 优先于全局设置，否则会出现
+// “服务起在全局端口、请求发往角色卡端口”的错位（ECONNREFUSED）
+function effectiveTtsBaseURL(): string {
+  const cfg = readConfig()
+  const card = cfg.activeCharacterId ? getRoleCard(cfg.activeCharacterId) : null
+  const cardURL = card ? readRoleVoiceConfig(card)?.baseURL : undefined
+  return typeof cardURL === 'string' && cardURL ? cardURL : cfg.tts.baseURL
+}
 
 export interface TTSServerStatus {
   running: boolean
@@ -53,7 +63,7 @@ function isPortFree(port: number): Promise<boolean> {
 
 export function getTTSServerStatus(): TTSServerStatus {
   const config = readConfig()
-  const configPort = parseTtsPort(config.tts.baseURL)
+  const configPort = parseTtsPort(effectiveTtsBaseURL())
   const port = getTtsPortShift()?.to ?? configPort
   const provider = config.tts.provider ?? 'gpt-sovits'
   if (reusedPort !== null) {
@@ -133,7 +143,7 @@ function genieSpec(): ServerSpec {
 }
 
 async function launchServer(spec: ServerSpec): Promise<TTSServerStatus> {
-  const configPort = parseTtsPort(readConfig().tts.baseURL)
+  const configPort = parseTtsPort(effectiveTtsBaseURL())
 
   if (await pingEndpoint(configPort, spec.pingPath, spec.pingTimeoutMs)) {
     reusedPort = configPort
@@ -223,7 +233,7 @@ export async function startTTSServer(): Promise<TTSServerStatus> {
     // 引擎切换后旧进程作废：杀掉等端口释放，按新引擎重拉
     if (activeProvider === provider) return getTTSServerStatus()
     await stopTTSServer()
-    await waitPortFree(parseTtsPort(readConfig().tts.baseURL))
+    await waitPortFree(parseTtsPort(effectiveTtsBaseURL()))
   } else if (reusedPort !== null && activeProvider === provider) {
     // 复用的服务必须和当前引擎一致：引擎切换后旧复用作废，重新探测拉起
     return getTTSServerStatus()

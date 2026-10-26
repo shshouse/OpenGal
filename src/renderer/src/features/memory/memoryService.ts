@@ -144,6 +144,10 @@ async function runExtract(force = false): Promise<void> {
         log('warn', `提取输出无法解析（${characterId}），语料保留：${(err as Error).message}`)
         continue
       }
+      candidates.evidence = {
+        fromTs: Math.min(...entries.map((e) => e.at)),
+        toTs: Math.max(...entries.map((e) => e.at)),
+      }
       const applied = await window.opengal.memory.apply(characterId, candidates)
       if (!applied.success || !applied.data) {
         log('warn', `记忆入库失败（${characterId}）：${applied.error ?? '未知错误'}，语料保留`)

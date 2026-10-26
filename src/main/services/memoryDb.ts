@@ -45,6 +45,7 @@ export interface FactRow {
   valid_until: string | null
   frozen_at: string | null
   embedding: string | null
+  source_evidence: string | null
 }
 
 export interface StoryRow {
@@ -58,6 +59,7 @@ export interface StoryRow {
   importance: number
   status: string
   created_at: string
+  source_evidence: string | null
 }
 
 const SCHEMA = `
@@ -89,7 +91,8 @@ CREATE TABLE IF NOT EXISTS facts (
   protected_ INTEGER NOT NULL DEFAULT 0,
   valid_until TEXT,
   frozen_at TEXT,
-  embedding TEXT
+  embedding TEXT,
+  source_evidence TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_facts_char ON facts(character_id, status);
 
@@ -103,7 +106,8 @@ CREATE TABLE IF NOT EXISTS stories (
   fulfilled INTEGER NOT NULL DEFAULT 0,
   importance INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  source_evidence TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_stories_char ON stories(character_id, status);
 
@@ -314,7 +318,10 @@ function migrateFactsSchema(): void {
     const needValidUntil = !existing.includes('valid_until')
     const needFrozenAt = !existing.includes('frozen_at')
     const needEmbedding = !existing.includes('embedding')
-    if (!needValidUntil && !needFrozenAt && !needEmbedding) return
+    const needEvidence = !existing.includes('source_evidence')
+    const storyColumns = rows('PRAGMA table_info(stories)', []).map((r) => String(r.name))
+    const needStoryEvidence = !storyColumns.includes('source_evidence')
+    if (!needValidUntil && !needFrozenAt && !needEmbedding && !needEvidence && !needStoryEvidence) return
     const target = path.join(
       backupRootDir,
       `memory-pre-schema-${new Date().toISOString().replace(/[:.]/g, '-')}.db`,
@@ -340,6 +347,14 @@ function migrateFactsSchema(): void {
       if (needEmbedding) {
         db!.exec('ALTER TABLE facts ADD COLUMN embedding TEXT')
         logger.info('memory', 'facts 表新增列: embedding')
+      }
+      if (needEvidence) {
+        db!.exec('ALTER TABLE facts ADD COLUMN source_evidence TEXT')
+        logger.info('memory', 'facts 表新增列: source_evidence')
+      }
+      if (needStoryEvidence) {
+        db!.exec('ALTER TABLE stories ADD COLUMN source_evidence TEXT')
+        logger.info('memory', 'stories 表新增列: source_evidence')
       }
       setMeta('facts_schema_migrated', new Date().toISOString())
     })
@@ -439,12 +454,38 @@ export function searchMessageContext(
   limit = 3,
   radius = 1,
 ): MessageRow[] {
+  return searchMessagesInternal(characterId, query, limit, radius)
+}
+
+// 限定时间范围检索，供回溯"某段时间说过什么"
+export function searchMessagesInRange(
+  characterId: string,
+  query: string,
+  fromTs: number,
+  toTs: number,
+  limit = 3,
+  radius = 1,
+): MessageRow[] {
+  return searchMessagesInternal(characterId, query, limit, radius, fromTs, toTs)
+}
+
+function searchMessagesInternal(
+  characterId: string,
+  query: string,
+  limit: number,
+  radius: number,
+  fromTs?: number,
+  toTs?: number,
+): MessageRow[] {
   const terms = query.trim().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return []
   const where = terms.map(() => "content LIKE ? ESCAPE '\\'").join(' AND ')
+  const range = fromTs !== undefined && toTs !== undefined ? ' AND ts >= ? AND ts <= ?' : ''
+  const params: SQLInputValue[] = [characterId, ...terms.map(likePattern)]
+  if (range) params.push(fromTs as number, toTs as number)
   const hits = rows(
-    `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ${where} ORDER BY ts DESC, id DESC LIMIT ?`,
-    [characterId, ...terms.map(likePattern), limit]
+    `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ${where}${range} ORDER BY ts DESC, id DESC LIMIT ?`,
+    [...params, limit]
   ) as unknown as MessageRow[]
   const found = new Map<number, MessageRow>()
   for (const hit of hits) {
@@ -452,16 +493,24 @@ export function searchMessageContext(
     found.set(id, hit)
     if (radius <= 0) continue
     const before = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id < ? ORDER BY id DESC LIMIT ?`,
-      [characterId, id, radius]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id < ?${range} ORDER BY id DESC LIMIT ?`,
+      [characterId, id, ...(range ? [fromTs as number, toTs as number] : []), radius]
     ) as unknown as MessageRow[]
     const after = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
-      [characterId, id, radius]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id > ?${range} ORDER BY id ASC LIMIT ?`,
+      [characterId, id, ...(range ? [fromTs as number, toTs as number] : []), radius]
     ) as unknown as MessageRow[]
     for (const row of [...before, ...after]) found.set(row.id as number, row)
   }
   return [...found.values()].sort((a, b) => a.ts - b.ts || (a.id ?? 0) - (b.id ?? 0))
+}
+
+// 按时间范围取原话，用于从记忆回溯到当天的对话
+export function messagesInRange(characterId: string, fromTs: number, toTs: number): MessageRow[] {
+  return rows(
+    `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ts >= ? AND ts <= ? ORDER BY ts, id`,
+    [characterId, fromTs, toTs]
+  ) as unknown as MessageRow[]
 }
 
 // 批量追加聊天消息（单事务），content 为完整消息对象 JSON
@@ -591,8 +640,8 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
 export function insertFactRow(characterId: string, f: FactRow): void {
   withTx(() => {
     run(
-      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, source_evidence)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         f.id,
         characterId,
@@ -610,6 +659,7 @@ export function insertFactRow(characterId: string, f: FactRow): void {
         f.valid_until,
         f.frozen_at,
         f.embedding,
+        f.source_evidence,
       ]
     )
   })
@@ -684,9 +734,9 @@ export function saveStories(characterId: string, items: StoryRow[]): void {
 export function insertStoryRow(characterId: string, s: StoryRow): void {
   withTx(() => {
     run(
-      `INSERT OR REPLACE INTO stories(id, character_id, kind, text, occurred_at, due_at, fulfilled, importance, status, created_at)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [s.id, characterId, s.kind, s.text, s.occurred_at, s.due_at, s.fulfilled, s.importance, s.status, s.created_at]
+      `INSERT OR REPLACE INTO stories(id, character_id, kind, text, occurred_at, due_at, fulfilled, importance, status, created_at, source_evidence)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [s.id, characterId, s.kind, s.text, s.occurred_at, s.due_at, s.fulfilled, s.importance, s.status, s.created_at, s.source_evidence]
     )
   })
 }

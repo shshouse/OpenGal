@@ -197,9 +197,12 @@ async function handleRecallMemory(args: Record<string, unknown>): Promise<string
   if (!query) throw new Error('query 不能为空')
   const characterId = readConfig().activeCharacterId
   if (!characterId) throw new Error('当前没有激活角色')
+  const fromTs = typeof args.from === 'string' ? Date.parse(args.from) : NaN
+  const toTs = typeof args.to === 'string' ? Date.parse(args.to) : NaN
+  const range = Number.isFinite(fromTs) && Number.isFinite(toTs) ? { fromTs, toTs } : undefined
   const [block, verbatim] = await Promise.all([
     getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP),
-    recallVerbatim(characterId, query),
+    recallVerbatim(characterId, query, 1500, range),
   ])
   const parts = [block, verbatim].filter((part): part is string => Boolean(part))
   return parts.length ? parts.join('\n\n') : '没有找到相关的长期记忆'
@@ -278,11 +281,13 @@ export function registerBuiltinTools(): void {
         function: {
           name: 'recall_memory',
           description:
-            '检索长期记忆（过去的事实、约定、偏好、共同经历）和相关历史原话。用户提到"以前/上次/你还记得"、或问某句话具体怎么说的时使用。返回记忆片段，以及带时间戳和相邻对话的原话。',
+            '检索长期记忆（过去的事实、约定、偏好、共同经历）和相关历史原话。用户提到"以前/上次/你还记得"、或问某句话具体怎么说的时使用。返回记忆片段，以及带时间戳和相邻对话的原话；用户限定时间段时用 from/to 传入日期。',
           parameters: {
             type: 'object',
             properties: {
               query: { type: 'string', description: '要回忆的主题或关键词' },
+              from: { type: 'string', description: '可选，起始日期（YYYY-MM-DD），用于只回溯某段时间' },
+              to: { type: 'string', description: '可选，结束日期（YYYY-MM-DD）' },
             },
             required: ['query'],
           },

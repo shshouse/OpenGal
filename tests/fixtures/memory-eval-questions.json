@@ -1,0 +1,22 @@
+[
+  {
+    "_note": "模板：character 填本地角色 id，query 填关键词，expect 填期望命中的原文片段；from/to 可选，用于限定时间段",
+    "id": "template-verbatim",
+    "character": "neuro",
+    "query": "年糕",
+    "expect": "年糕"
+  },
+  {
+    "id": "template-time",
+    "character": "neuro",
+    "query": "南京",
+    "from": "2024-07-01",
+    "to": "2024-07-31",
+    "expect": "南京"
+  },
+  {
+    "id": "template-miss",
+    "character": "neuro",
+    "query": "量子力学"
+  }
+]

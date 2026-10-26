@@ -63,6 +63,68 @@ describe('原话检索', () => {
     const other = await recallVerbatim!('c-missing', '年糕')
     expect(other).toBeNull()
   })
+  it('按时间范围检索原话，范围外不返回', () => {
+    const searchRange = (memoryDb as unknown as {
+      searchMessagesInRange?: (
+        characterId: string,
+        query: string,
+        fromTs: number,
+        toTs: number,
+      ) => memoryDb.MessageRow[]
+    }).searchMessagesInRange
+    expect(searchRange).toBeTypeOf('function')
+
+    const from = Date.UTC(2024, 2, 12, 6, 19)
+    const to = Date.UTC(2024, 2, 12, 6, 22)
+    const hits = searchRange!('c-old', '猫', from, to)
+    expect(hits.some((row) => row.content.includes('一只猫'))).toBe(true)
+    expect(searchRange!('c-old', '猫', from - 10 * 60_000, to - 10 * 60_000)).toHaveLength(0)
+  })
+
+  it('写入记忆时记录来源时间范围，并能回查原话', async () => {
+    const applyCandidates = (memoryStore as unknown as {
+      applyCandidates?: (
+        characterId: string,
+        payload: unknown,
+      ) => Promise<unknown>
+    }).applyCandidates
+    const messagesInRange = (memoryDb as unknown as {
+      messagesInRange?: (characterId: string, fromTs: number, toTs: number) => memoryDb.MessageRow[]
+    }).messagesInRange
+    expect(applyCandidates).toBeTypeOf('function')
+    expect(messagesInRange).toBeTypeOf('function')
+
+    memoryDb.appendMessage({
+      character_id: 'c-ev',
+      role: 'user',
+      content: JSON.stringify({ role: 'user', content: '我下周要去南京出差' }),
+      ts: 1000,
+      archived: 1,
+    })
+    memoryDb.appendMessage({
+      character_id: 'c-ev',
+      role: 'assistant',
+      content: JSON.stringify({ role: 'assistant', content: '南京这时候很热吧' }),
+      ts: 2000,
+      archived: 1,
+    })
+    await applyCandidates!('c-ev', {
+      facts: [
+        { text: '用户下周去南京出差', entity: 'user', importance: 8, confidence: 1, reason: '用户明说' },
+      ],
+      stories: [],
+      evidence: { fromTs: 900, toTs: 2100 },
+    })
+
+    const fact = memoryDb.listFacts('c-ev')[0] as unknown as { source_evidence?: string | null }
+    expect(fact.source_evidence).toBeTruthy()
+    expect(JSON.parse(fact.source_evidence!)).toEqual({ fromTs: 900, toTs: 2100 })
+
+    const rows = messagesInRange!('c-ev', 900, 2100)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].content).toContain('南京')
+  })
+
   it('只追加缺失消息，不删除已有消息，也不重复插入', () => {
     expect(appendMissingMessages).toBeTypeOf('function')
     const items = [

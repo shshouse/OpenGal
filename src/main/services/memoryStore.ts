@@ -22,6 +22,7 @@ import {
   deleteFactRow,
   setStoryStatusRow,
   searchMessageContext,
+  searchMessagesInRange,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
@@ -67,7 +68,7 @@ function rowToFact(r: FactRow): MemoryFact {
   }
 }
 
-function factToRow(f: MemoryFact): FactRow {
+function factToRow(f: MemoryFact, sourceEvidence: string | null = null): FactRow {
   return {
     id: f.id,
     character_id: '',
@@ -85,6 +86,7 @@ function factToRow(f: MemoryFact): FactRow {
     valid_until: f.valid_until,
     frozen_at: f.frozen_at,
     embedding: f.embedding ? JSON.stringify(f.embedding) : null,
+    source_evidence: sourceEvidence,
   }
 }
 
@@ -102,7 +104,7 @@ function rowToStory(r: StoryRow): MemoryStory {
   }
 }
 
-function storyToRow(s: MemoryStory): StoryRow {
+function storyToRow(s: MemoryStory, sourceEvidence: string | null = null): StoryRow {
   return {
     id: s.id,
     character_id: '',
@@ -114,6 +116,7 @@ function storyToRow(s: MemoryStory): StoryRow {
     importance: s.importance,
     status: s.status,
     created_at: s.created_at,
+    source_evidence: sourceEvidence,
   }
 }
 
@@ -284,6 +287,7 @@ export async function applyCandidates(
     budgetRejected: 0,
   }
   const ts = nowIso()
+  const sourceEvidence = payload.evidence ? JSON.stringify(payload.evidence) : null
 
   for (const cand of payload.facts ?? []) {
     if (!cand.text?.trim()) continue
@@ -342,7 +346,7 @@ export async function applyCandidates(
             embedding: null,
           }
           facts.push(entry)
-          insertFactRow(characterId, factToRow(entry))
+          insertFactRow(characterId, factToRow(entry, sourceEvidence))
           result.insertedFacts++
         }
       } catch {
@@ -372,7 +376,7 @@ export async function applyCandidates(
       continue
     }
     facts.push(entry)
-    insertFactRow(characterId, factToRow(entry))
+    insertFactRow(characterId, factToRow(entry, sourceEvidence))
     result.insertedFacts++
   }
 
@@ -396,7 +400,7 @@ export async function applyCandidates(
       continue
     }
     stories.push(entry)
-    insertStoryRow(characterId, storyToRow(entry))
+    insertStoryRow(characterId, storyToRow(entry, sourceEvidence))
     result.insertedStories++
   }
 
@@ -426,7 +430,7 @@ export async function manualAddFact(
     embedding: null,
   }
   await memoryDbReady()
-  insertFactRow(characterId, factToRow(entry))
+  insertFactRow(characterId, factToRow(entry, null))
   return entry
 }
 
@@ -610,10 +614,13 @@ export async function recallVerbatim(
   characterId: string,
   query: string,
   charCap = 1500,
+  range?: { fromTs: number; toTs: number },
 ): Promise<string | null> {
   if (!query.trim()) return null
   await memoryDbReady()
-  const rows = searchMessageContext(characterId, query)
+  const rows = range
+    ? searchMessagesInRange(characterId, query, range.fromTs, range.toTs)
+    : searchMessageContext(characterId, query)
   const lines: string[] = []
   let used = 0
   for (const row of rows) {

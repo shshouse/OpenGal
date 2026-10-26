@@ -163,7 +163,10 @@ export function readConfig(): AppConfig {
   merged.asr.mode = normalizeAsrMode(merged.asr.mode as string)
   merged.systemLocale = app.getPreferredSystemLanguages()[0] || app.getLocale()
   merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
-  merged.llmPresets = merged.llmPresets?.map((p) => ({ ...p, apiKey: decryptApiKey(p.apiKey) }))
+  // 缺键时不要制造 undefined 属性：writeConfig 是整对象写回，conf 见到顶层 undefined 会抛错
+  if (merged.llmPresets) {
+    merged.llmPresets = merged.llmPresets.map((p) => ({ ...p, apiKey: decryptApiKey(p.apiKey) }))
+  }
   if (merged.model && !merged.model.modelUrl && merged.model.modelPath) {
     merged.model.modelUrl = toModUrl(merged.model.modelPath)
   }
@@ -197,12 +200,18 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
     gameMode: { ...current.gameMode, ...(patch.gameMode ?? {}) },
     model: patch.model === undefined ? current.model : patch.model
   }
-  const persisted: AppConfig = {
+  const persisted: Record<string, unknown> = {
     ...next,
-    llm: { ...next.llm, apiKey: encryptApiKey(next.llm.apiKey) },
-    llmPresets: next.llmPresets?.map((p) => ({ ...p, apiKey: encryptApiKey(p.apiKey) }))
+    llm: { ...next.llm, apiKey: encryptApiKey(next.llm.apiKey) }
   }
-  getStore().set(persisted as unknown as Record<string, unknown>)
+  if (next.llmPresets) {
+    persisted.llmPresets = next.llmPresets.map((p) => ({ ...p, apiKey: encryptApiKey(p.apiKey) }))
+  }
+  // conf 的 set(object) 逐键写入，顶层 undefined 会抛 TypeError（JSON 不支持 undefined）
+  for (const key of Object.keys(persisted)) {
+    if (persisted[key] === undefined) delete persisted[key]
+  }
+  getStore().set(persisted)
   logBus.info('config', `配置更新: ${summarizePatch(patch)}`)
   return next
 }

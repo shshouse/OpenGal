@@ -166,11 +166,12 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
 
   const formPort = React.useMemo(() => {
     try {
-      return Number(new URL(form.baseURL).port) || 39880
+      // 与服务端一致：角色卡 baseURL 优先，避免拿全局值误报端口不一致
+      return Number(new URL(String(effective('baseURL') || form.baseURL)).port) || 39880
     } catch {
       return null
     }
-  }, [form.baseURL])
+  }, [effective, form.baseURL])
   const portMismatch =
     serverRunning && serverPort !== null && formPort !== null && formPort !== serverPort
 

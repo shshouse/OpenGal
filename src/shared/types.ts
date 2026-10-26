@@ -249,6 +249,8 @@ export interface MemoryCandidateStory {
 export interface MemoryApplyPayload {
   facts: MemoryCandidateFact[]
   stories: MemoryCandidateStory[]
+  // 这批候选来自哪段对话；写入时记录为来源证据，用于回查原话
+  evidence?: { fromTs: number; toTs: number }
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'
