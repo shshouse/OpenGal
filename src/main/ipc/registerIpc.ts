@@ -25,8 +25,7 @@ import { runBootSequence, recheckTts } from '../services/bootService'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
-import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, freezeFact, unfreezeFact, deleteFact } from '../services/memoryStore'
-import { parseVerdict, type MemoryVerdict } from '../services/memoryArbitration'
+import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, freezeFact, unfreezeFact, deleteFact, pendingFromArchive, advanceCursor, rebuildMemory } from '../services/memoryStore'
 import {
   setMemoryDbLogger,
   memoryDbReady,
@@ -42,19 +41,6 @@ import {
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryFact } from '@shared/types'
 import type { WindowManager } from '../windows/windowManager'
 
-const JUDGE_SYSTEM_PROMPT = `你是长期记忆的一致性裁判。逐条判断「新信息」相对「旧记忆」的关系，只能选一种：
-duplicate：同一件事的重复陈述，没有新增内容。
-refines：新信息更具体或补充细节，旧记忆仍然成立。
-contradicts：新信息让旧记忆不再成立（偏好改变、数值/日期/地点/身份变化、否定、关系变化）。
-unrelated：两者不是同一件事，互不影响。
-
-判定要点：
-- 出现否定、反义、数值/日期/地点/身份不同，一律 contradicts，不能判 duplicate。
-- 「更喜欢/不太喜欢/不再/改成」这类程度或时间变化也算 contradicts。
-- 拿不准就判 unrelated：宁可多存一条，也不要错误覆盖旧记忆。
-
-只输出 JSON：{"verdicts":[{"i":0,"verdict":"contradicts"}]}，每个编号都要有一条，不要输出其他文字。`
-
 function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
   return Promise.resolve()
     .then(run)
@@ -68,33 +54,6 @@ export function registerIpc(windows: WindowManager): void {
   initMemoryStore(getDataRoot(), readConfig().memory, getBackupRoot())
   startEnvMonitor()
   windows.setSelfExclusion(readConfig().screen?.excludeSelf ?? true)
-
-  async function judgeFacts(
-    pairs: Array<{ index: number, target: MemoryFact, candidate: MemoryCandidateFact }>,
-  ): Promise<Array<{ index: number, verdict: MemoryVerdict }>> {
-    if (pairs.length === 0) return []
-    const body = pairs
-      .map((pair) => {
-        const slot = pair.target.attribute
-          ? `（槽位：${pair.target.subject ?? '—'} / ${pair.target.attribute}）`
-          : ''
-        return `#${pair.index}\n旧记忆：${pair.target.text}${slot}\n新信息：${pair.candidate.text}`
-      })
-      .join('\n\n')
-    const res = await callLLM({
-      slot: 'sub',
-      messages: [
-        { role: 'system', content: JUDGE_SYSTEM_PROMPT },
-        { role: 'user', content: body },
-      ]
-    })
-    const m = res.content.match(/\{[\s\S]*\}/)
-    if (!m) throw new Error('裁判输出无法解析')
-    const parsed = JSON.parse(m[0]) as { verdicts?: Array<{ i?: number, verdict?: string }> }
-    return (parsed.verdicts ?? []).flatMap((item) =>
-      typeof item.i === 'number' ? [{ index: item.i, verdict: parseVerdict(item.verdict) }] : []
-    )
-  }
 
   ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
 
@@ -453,12 +412,34 @@ export function registerIpc(windows: WindowManager): void {
     }))
   )
   ipcMain.handle(IpcChannels.memory.apply, (_, characterId: string, payload: MemoryApplyPayload) =>
-    wrap(() => applyCandidates(characterId, payload, judgeFacts))
+    wrap(() => applyCandidates(characterId, payload))
   )
   ipcMain.handle(IpcChannels.memory.manualAdd, (_, characterId: string, text: string, entity?: MemoryFact['entity']) =>
     wrap(() => manualAddFact(characterId, text, entity))
   )
   ipcMain.handle(IpcChannels.memory.clear, (_, characterId: string) => wrap(() => clearMemory(characterId)))
+  ipcMain.handle(IpcChannels.memory.pending, (_, characterId: string, limit?: number) =>
+    wrap(() => pendingFromArchive(characterId, limit))
+  )
+  ipcMain.handle(IpcChannels.memory.advanceCursor, (_, characterId: string, ts: number) =>
+    wrap(() => advanceCursor(characterId, ts))
+  )
+  ipcMain.handle(IpcChannels.memory.rebuild, (event, characterId: string, confirm: string) =>
+    wrap(async () => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const { response } = await dialog.showMessageBox(win!, {
+        type: 'warning',
+        title: '从原文重建记忆',
+        message: '将清空已提取的事实和经历，从最早的对话重新提取。',
+        detail: '聊天原文不受影响。重建会重新调用模型，可能较慢并产生费用；建议先备份 data 目录。',
+        buttons: ['重建', '取消'],
+        defaultId: 1,
+        cancelId: 1,
+      })
+      if (response !== 0) throw new Error('已取消重建')
+      return rebuildMemory(characterId, confirm)
+    })
+  )
   ipcMain.handle(IpcChannels.memory.freezeFact, (_, characterId: string, factId: string) =>
     wrap(() => freezeFact(characterId, factId))
   )

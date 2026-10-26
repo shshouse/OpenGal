@@ -34,7 +34,6 @@ import {
   memoryDbReady,
   saveChatMessages,
 } from '../../src/main/services/memoryDb'
-import { pickTarget } from '../../src/main/services/memoryArbitration'
 
 describe('memory text and adjudication', () => {
   it('归一化与相似度', () => {
@@ -64,42 +63,6 @@ describe('memory text and adjudication', () => {
     expect(Number.isFinite(retentionScore({ ...base, last_confirmed_at: new Date().toISOString() }))).toBe(true)
   })
 
-  it('相同与近似事实的裁决', () => {
-    const active = [
-      {
-        id: 'f1',
-        text: '用户的生日是6月12日',
-        entity: 'user' as const,
-        subject: '用户',
-        attribute: '生日',
-        importance: 10,
-        confidence: 1,
-        source: 'user_statement' as const,
-        created_at: '',
-        last_confirmed_at: '',
-        status: 'active' as const,
-        evidence: { reinforce: 0, negate: 0 },
-        valid_until: null,
-        frozen_at: null,
-        embedding: null,
-      },
-    ]
-    // 重复陈述不再自动强化，只负责找到候选，交给语义裁判
-    expect(pickTarget(
-      { text: '用户的生日是6月12日', entity: 'user', importance: 10, confidence: 1, reason: 'r' },
-      active,
-    )).not.toBeNull()
-    // 无关事实不产生候选
-    expect(pickTarget(
-      { text: '用户在准备CP考试', entity: 'user', importance: 6, confidence: 0.5, reason: 'r' },
-      active,
-    )).toBeNull()
-    // 槽位命中优先于字面相似：改日期也能找到旧值
-    expect(pickTarget(
-      { text: '用户的生日改到7月1日', entity: 'user', subject: '用户', attribute: '生日' },
-      active,
-    )?.via).toBe('slot')
-  })
 })
 
 describe('memory persistence pipeline', () => {
@@ -279,28 +242,16 @@ describe('memory persistence pipeline', () => {
 
       initMemoryStore(root)
       const manual = await manualAddFact('c3', '用户养了一只猫')
-      assert.ok(pickTarget(
-        { text: '用户家里养了只猫', entity: 'user', importance: 9, confidence: 1, reason: 'r' },
-        [manual],
-      ))
-      const r4 = await applyCandidates(
-        'c3',
-        {
-          facts: [
-            { text: '用户家里养了只猫', entity: 'user', importance: 9, confidence: 1, reason: 'a' },
-            { text: '用户喜欢骑摩托车兜风', entity: 'user', importance: 8, confidence: 1, reason: 'b' },
-          ],
-          stories: [],
-        },
-        async () => [{ index: 0, verdict: 'contradicts' as const }],
-      )
+      const r4 = await applyCandidates('c3', {
+        facts: [
+          { text: '用户养了一只橘猫，叫年糕', entity: 'user', subject: '用户', attribute: '宠物', object: '年糕', importance: 9, confidence: 1, reason: 'a' },
+          { text: '用户喜欢骑摩托车兜风', entity: 'user', importance: 8, confidence: 1, reason: 'b' },
+        ],
+        stories: [],
+      })
       const facts4 = await loadFacts('c3')
       assert.strictEqual(r4.insertedFacts, 2)
-      assert.strictEqual(r4.supersededFacts, 1)
-      const manualAfter = facts4.find((f) => f.id === manual.id)
-      assert.ok(manualAfter && manualAfter.status === 'superseded')
-      assert.ok(manualAfter?.invalid_at)
-      assert.ok(facts4.some((f) => f.text === '用户家里养了只猫' && f.status === 'active'))
+      assert.ok(facts4.some((f) => f.id === manual.id))
 
       const c4 = 'c4'
       await clearMemory(c4)

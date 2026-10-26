@@ -118,7 +118,14 @@ describe('原话检索', () => {
 
     const fact = memoryDb.listFacts('c-ev')[0] as unknown as { source_evidence?: string | null }
     expect(fact.source_evidence).toBeTruthy()
-    expect(JSON.parse(fact.source_evidence!)).toEqual({ fromTs: 900, toTs: 2100 })
+    const evidence = JSON.parse(fact.source_evidence!) as {
+      fromTs: number
+      toTs: number
+      messageIds: number[]
+    }
+    expect(evidence.fromTs).toBe(900)
+    expect(evidence.toTs).toBe(2100)
+    expect(evidence.messageIds.length).toBeGreaterThan(0)
 
     const rows = messagesInRange!('c-ev', 900, 2100)
     expect(rows).toHaveLength(2)

@@ -53,6 +53,8 @@ export interface FactRow {
   superseded_by?: string | null
   subject?: string | null
   attribute?: string | null
+  object?: string | null
+  polarity?: number | null
 }
 
 export interface StoryRow {
@@ -89,6 +91,8 @@ CREATE TABLE IF NOT EXISTS facts (
   entity TEXT NOT NULL,
   subject TEXT,
   attribute TEXT,
+  object TEXT,
+  polarity INTEGER NOT NULL DEFAULT 1,
   importance INTEGER NOT NULL,
   confidence REAL NOT NULL,
   source TEXT NOT NULL,
@@ -335,6 +339,8 @@ function migrateFactsSchema(): void {
       ['source_evidence', 'TEXT'],
       ['subject', 'TEXT'],
       ['attribute', 'TEXT'],
+      ['object', 'TEXT'],
+      ['polarity', 'INTEGER NOT NULL DEFAULT 1'],
       ['valid_from', 'TEXT'],
       ['invalid_at', 'TEXT'],
       ['superseded_by', 'TEXT'],
@@ -618,8 +624,8 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
     run('DELETE FROM facts WHERE character_id = ?', [characterId])
     for (const f of items) {
       run(
-        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, valid_from, invalid_at, superseded_by)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, object, polarity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, valid_from, invalid_at, superseded_by)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           f.id,
           characterId,
@@ -627,6 +633,8 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
           f.entity,
           f.subject ?? null,
           f.attribute ?? null,
+          f.object ?? null,
+          f.polarity ?? 1,
           f.importance,
           f.confidence,
           f.source,
@@ -653,8 +661,8 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
 export function insertFactRow(characterId: string, f: FactRow): void {
   withTx(() => {
     run(
-      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, source_evidence, valid_from, invalid_at, superseded_by)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, object, polarity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, source_evidence, valid_from, invalid_at, superseded_by)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         f.id,
         characterId,
@@ -662,6 +670,8 @@ export function insertFactRow(characterId: string, f: FactRow): void {
         f.entity,
         f.subject ?? null,
         f.attribute ?? null,
+        f.object ?? null,
+        f.polarity ?? 1,
         f.importance,
         f.confidence,
         f.source,
@@ -699,14 +709,6 @@ export function negateFactRow(id: string): number {
   return withTx(() => Number(
     db!.prepare("UPDATE facts SET status = 'archived', evidence_negate = evidence_negate + 1 WHERE id = ?")
       .run(id).changes
-  ))
-}
-
-// 旧事实不删除，只标记失效时间与被谁替代；历史仍可按时间回查
-export function supersedeFactRow(id: string, invalidAt: string, byId: string): number {
-  return withTx(() => Number(
-    db!.prepare("UPDATE facts SET status = 'superseded', invalid_at = ?, superseded_by = ?, evidence_negate = evidence_negate + 1 WHERE id = ?")
-      .run(invalidAt, byId, id).changes
   ))
 }
 
@@ -778,6 +780,59 @@ export function clearCharacterMemory(characterId: string): void {
     run('DELETE FROM facts WHERE character_id = ?', [characterId])
     run('DELETE FROM stories WHERE character_id = ?', [characterId])
   })
+}
+
+// ---- 提取游标与来源追踪 ----
+
+// 游标 = 已经提取过的最后一条消息时间。原文在库，游标在库，重启才能续上
+export function getMemoryCursor(characterId: string): number {
+  const raw = getMeta(`memory.cursor.${characterId}`)
+  const parsed = raw ? Number(raw) : 0
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0
+}
+
+export function setMemoryCursor(characterId: string, ts: number): void {
+  setMeta(`memory.cursor.${characterId}`, String(Math.max(0, Math.floor(ts))))
+}
+
+// 第一次使用游标时不要回放整段历史：只回溯最近 N 条，避免升级后一次性重拉所有对话
+export function isCursorInitialized(characterId: string): boolean {
+  return getMeta(`memory.cursor.init.${characterId}`) === '1'
+}
+
+export function markCursorInitialized(characterId: string): void {
+  setMeta(`memory.cursor.init.${characterId}`, '1')
+}
+
+export function bootstrapCursor(characterId: string, lookback: number): number {
+  const found = rows(
+    'SELECT ts FROM messages WHERE character_id = ? ORDER BY ts DESC LIMIT 1 OFFSET ?',
+    [characterId, Math.max(0, lookback)],
+  )
+  return found.length > 0 ? Number(found[0].ts) : 0
+}
+
+// 一批记忆对应的原文消息 id：用于回查“这条记忆是从哪句话来的”
+export function listMessageIdsInRange(characterId: string, fromTs: number, toTs: number): number[] {
+  return rows(
+    'SELECT id FROM messages WHERE character_id = ? AND ts >= ? AND ts <= ? ORDER BY ts, id',
+    [characterId, fromTs, toTs],
+  ).map((row) => Number(row.id))
+}
+
+export function listMessagesAfter(characterId: string, afterTs: number, limit: number): MessageRow[] {
+  return rows(
+    'SELECT id, character_id, role, content, ts, archived FROM messages WHERE character_id = ? AND ts > ? ORDER BY ts, id LIMIT ?',
+    [characterId, afterTs, Math.max(1, limit)],
+  ) as unknown as MessageRow[]
+}
+
+// 重建前清空抽取层；原文、聊天记录、摘要都不动（摘要由压缩链路单独维护）
+export function resetDerived(characterId: string): { facts: number, stories: number } {
+  return withTx(() => ({
+    facts: Number(db!.prepare('DELETE FROM facts WHERE character_id = ?').run(characterId).changes),
+    stories: Number(db!.prepare('DELETE FROM stories WHERE character_id = ?').run(characterId).changes),
+  }))
 }
 
 // ---- 旧 JSON 记忆一次性迁移（JSON 原地保留，只读） ----

@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { Brain, Lock, LockOpen, Trash2, Plus, RefreshCw, Search } from 'lucide-react'
+import { Brain, Lock, LockOpen, Trash2, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCharacterStore } from '@/features/character/characterStore'
+import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
 import type { MemoryFact, MemoryStory } from '@shared/types'
 
@@ -16,6 +17,7 @@ export function MemorySettings() {
   const [search, setSearch] = React.useState('')
   const [newFactText, setNewFactText] = React.useState('')
   const [adding, setAdding] = React.useState(false)
+  const [rebuilding, setRebuilding] = React.useState(false)
 
   const activeChar = characters.find((c) => c.id === activeId)
   const charName = activeChar?.displayName ?? activeChar?.name ?? '未选择角色'
@@ -83,6 +85,17 @@ export function MemorySettings() {
     }
   }
 
+  async function handleRebuild(): Promise<void> {
+    if (!activeId) return
+    setRebuilding(true)
+    try {
+      await rebuildMemoryIndex(activeId)
+      await load()
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
   function retentionPercent(f: MemoryFact): number {
     if (f.frozen_at) return 100
     if (f.valid_until && new Date(f.valid_until).getTime() < Date.now()) return 0
@@ -102,10 +115,16 @@ export function MemorySettings() {
           <Brain className="size-4" /> 记忆管理
           <span className="text-xs font-normal text-muted-foreground">({charName})</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
-          <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
-          刷新
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => void handleRebuild()} disabled={loading || rebuilding}>
+            <RotateCcw className={cn('size-3.5', rebuilding && 'animate-spin')} />
+            从原文重建
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+            刷新
+          </Button>
+        </div>
       </div>
 
       {error && (

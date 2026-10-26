@@ -19,164 +19,92 @@ afterAll(() => {
   fs.rmSync(root, { recursive: true, force: true })
 })
 
+function factInput(over: Record<string, unknown>) {
+  return {
+    text: '',
+    entity: 'user' as const,
+    subject: '用户',
+    importance: 8,
+    confidence: 1,
+    reason: '明确陈述',
+    ...over,
+  }
+}
+
 describe('memory history and correction', () => {
-  it('改城市：旧值标记失效并记录被谁替代，只有问过去才召回', async () => {
+  it('改城市：新值生效，旧值不再默认注入，问过去才出现', async () => {
     await applyCandidates('h1', {
-      facts: [{
-        text: '用户住在北京',
-        entity: 'user',
-        subject: '用户',
-        attribute: '居住城市',
-        attributed_to: 'user',
-        importance: 8,
-        confidence: 1,
-        reason: '明确陈述',
-      }],
+      facts: [factInput({ text: '用户住在北京', attribute: '居住城市', object: '北京' })],
       stories: [],
     })
+    const result = await applyCandidates('h1', {
+      facts: [factInput({ text: '用户住在上海', attribute: '居住城市', object: '上海' })],
+      stories: [],
+    })
+    expect(result.insertedFacts).toBe(1)
 
-    const result = await applyCandidates(
-      'h1',
-      {
-        facts: [{
-          text: '用户住在上海',
-          entity: 'user',
-          subject: '用户',
-          attribute: '居住城市',
-          attributed_to: 'user',
-          importance: 8,
-          confidence: 1,
-          reason: '明确陈述',
-        }],
-        stories: [],
-      },
-      async () => [{ index: 0, verdict: 'contradicts' }],
-    )
-
-    expect(result.supersededFacts).toBe(1)
     const facts = await loadFacts('h1')
-    const old = facts.find((f) => f.text === '用户住在北京')!
-    const fresh = facts.find((f) => f.text === '用户住在上海')!
-    expect(old.status).toBe('superseded')
-    expect(old.invalid_at).toBeTruthy()
-    expect(old.superseded_by).toBe(fresh.id)
-    expect(fresh.status).toBe('active')
+    expect(facts).toHaveLength(2)
+    expect(facts.every((f) => f.status === 'active')).toBe(true)
 
     expect(buildMemoryBlock(facts, [], 900, '今天吃什么') ?? '').not.toContain('北京')
+    expect(buildMemoryBlock(facts, [], 900, '今天吃什么') ?? '').toContain('上海')
     expect(buildMemoryBlock(facts, [], 900, '你还记得我以前住哪吗') ?? '').toContain('北京')
   })
 
-  it('裁判不可用时按新信息写入，绝不强化旧记忆', async () => {
-    await applyCandidates('h2', {
-      facts: [{
-        text: '用户喜欢咖啡',
-        entity: 'user',
-        subject: '用户',
-        attribute: '喜欢的饮料',
-        attributed_to: 'user',
-        importance: 6,
-        confidence: 1,
-        reason: '明确陈述',
-      }],
+  it('同一句话又说一遍只确认，不再新增', async () => {
+    const payload = {
+      facts: [factInput({ text: '用户喜欢咖啡', attribute: '喜欢的饮料', object: '咖啡' })],
       stories: [],
-    })
-
-    const result = await applyCandidates('h2', {
-      facts: [{
-        text: '用户喜欢咖啡',
-        entity: 'user',
-        subject: '用户',
-        attribute: '喜欢的饮料',
-        attributed_to: 'user',
-        importance: 6,
-        confidence: 1,
-        reason: '明确陈述',
-      }],
-      stories: [],
-    })
-
-    expect(result.refreshedFacts).toBe(0)
-    expect(result.insertedFacts).toBe(1)
+    }
+    await applyCandidates('h2', payload)
+    const again = await applyCandidates('h2', payload)
+    expect(again.insertedFacts).toBe(0)
+    expect(again.refreshedFacts).toBe(1)
+    expect(await loadFacts('h2')).toHaveLength(1)
   })
 
-  it('用户钉住的记忆不被改写，新信息并存但不进提示词', async () => {
-    await applyCandidates('h4', {
-      facts: [{
-        text: '用户的生日是3月15日',
-        entity: 'user',
-        subject: '用户',
-        attribute: '生日',
-        attributed_to: 'user',
-        importance: 10,
-        confidence: 1,
-        reason: '用户要求记住',
-        frozen: true,
-      }],
+  it('多值谓词：两种喜好可以并存', async () => {
+    await applyCandidates('h3', {
+      facts: [factInput({ text: '用户喜欢咖啡', attribute: '喜欢的饮料', object: '咖啡', importance: 6 })],
       stories: [],
     })
+    await applyCandidates('h3', {
+      facts: [factInput({ text: '用户喜欢茶', attribute: '喜欢的饮料', object: '茶', importance: 6 })],
+      stories: [],
+    })
+    const facts = await loadFacts('h3')
+    const block = buildMemoryBlock(facts, [], 900, '你记得我喜欢喝什么吗') ?? ''
+    expect(block).toContain('咖啡')
+    expect(block).toContain('茶')
+  })
 
-    const result = await applyCandidates(
-      'h4',
-      {
-        facts: [{
-          text: '用户的生日是3月16日',
-          entity: 'user',
-          subject: '用户',
-          attribute: '生日',
-          attributed_to: 'user',
-          importance: 10,
-          confidence: 1,
-          reason: '新的说法',
-        }],
-        stories: [],
-      },
-      async () => [{ index: 0, verdict: 'contradicts' }],
-    )
-
-    expect(result.supersededFacts).toBe(0)
-    expect(result.insertedFacts).toBe(1)
+  it('否定之后只留下否定，历史里能查到原来喜欢的', async () => {
+    await applyCandidates('h4', {
+      facts: [factInput({ text: '用户喜欢咖啡', attribute: '喜欢的饮料', object: '咖啡' })],
+      stories: [],
+    })
+    await applyCandidates('h4', {
+      facts: [factInput({ text: '用户不喜欢咖啡了', attribute: '喜欢的饮料', object: '咖啡', polarity: false })],
+      stories: [],
+    })
     const facts = await loadFacts('h4')
-    expect(facts.find((f) => f.text === '用户的生日是3月15日')?.status).toBe('active')
-    expect(facts.find((f) => f.text === '用户的生日是3月16日')?.status).toBe('active')
+    expect(buildMemoryBlock(facts, [], 900, '我喜欢喝什么') ?? '').not.toContain('喜欢咖啡')
+    expect(buildMemoryBlock(facts, [], 900, '我以前喜欢喝什么') ?? '').toContain('喜欢咖啡')
+  })
 
+  it('用户钉住的记忆不会被后来的说法覆盖', async () => {
+    await applyCandidates('h5', {
+      facts: [factInput({ text: '用户的生日是3月15日', attribute: '生日', object: '3月15日', frozen: true, importance: 10 })],
+      stories: [],
+    })
+    await applyCandidates('h5', {
+      facts: [factInput({ text: '用户的生日是3月16日', attribute: '生日', object: '3月16日', importance: 10 })],
+      stories: [],
+    })
+    const facts = await loadFacts('h5')
     const block = buildMemoryBlock(facts, [], 900, '我的生日是哪天') ?? ''
     expect(block).toContain('3月15日')
     expect(block).not.toContain('3月16日')
-  })
-
-  it('同槽位并存多条时，只把分数最高的一条注入提示词', async () => {
-    await applyCandidates('h3', {
-      facts: [{
-        text: '用户住在北京',
-        entity: 'user',
-        subject: '用户',
-        attribute: '居住城市',
-        attributed_to: 'user',
-        importance: 4,
-        confidence: 1,
-        reason: '明确陈述',
-      }],
-      stories: [],
-    })
-    await applyCandidates('h3', {
-      facts: [{
-        text: '用户住在上海',
-        entity: 'user',
-        subject: '用户',
-        attribute: '居住城市',
-        attributed_to: 'user',
-        importance: 9,
-        confidence: 1,
-        reason: '明确陈述',
-      }],
-      stories: [],
-    })
-
-    const facts = await loadFacts('h3')
-    expect(facts.filter((f) => f.status === 'active' && f.attribute === '居住城市')).toHaveLength(2)
-
-    const block = buildMemoryBlock(facts, [], 900, '你现在住哪') ?? ''
-    expect(block).toContain('上海')
-    expect(block).not.toContain('北京')
   })
 })

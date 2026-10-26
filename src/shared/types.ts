@@ -204,6 +204,9 @@ export interface MemoryFact {
   // 主语 + 属性构成槽位：同一槽位的新值会替代旧值，而不是并列
   subject?: string | null
   attribute?: string | null
+  object?: string | null
+  // true=肯定陈述，false=否定陈述（“不喜欢咖啡”）
+  polarity?: boolean
   importance: number
   confidence: number
   source: 'user_statement' | 'character_statement' | 'llm_inferred' | 'manual'
@@ -237,6 +240,8 @@ export interface MemoryCandidateFact {
   entity: MemoryFact['entity']
   subject?: string | null
   attribute?: string | null
+  object?: string | null
+  polarity?: boolean
   // 这条信息是谁说的：决定它的可信级别，推断不能覆盖用户原话
   attributed_to?: 'user' | 'character' | 'inferred'
   importance: number

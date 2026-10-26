@@ -1,31 +1,33 @@
-export type MemoryVerdict = 'duplicate' | 'refines' | 'contradicts' | 'unrelated'
-
 export interface FactLike {
   id: string
   text: string
   entity: string
   subject?: string | null
   attribute?: string | null
+  object?: string | null
+  polarity?: number | boolean
   status?: string
   source?: string
   importance?: number
   confidence?: number
   created_at?: string
   last_confirmed_at?: string
+  valid_from?: string | null
   valid_until?: string | null
   frozen_at?: string | null
   evidence?: { reinforce: number, negate: number }
 }
 
-export interface CandidateLike {
-  text: string
-  entity: string
-  subject?: string | null
-  attribute?: string | null
-}
+export type Cardinality = 'single' | 'multi'
 
-// 相似度只负责把候选找出来，不参与裁决；阈值放宽，宁可多问一次裁判
-export const SIMILARITY_FLOOR = 0.4
+// 只认单值的谓词：换成别的词一律按多值处理。默认多值是安全方向——最坏留下过期偏好，不会丢真实信息
+const SINGLE_PREDICATES = new Set([
+  '居住城市', '城市', '所在地', '现居地', '家乡',
+  '生日', '出生日期', '年龄', '星座', '血型', '性别',
+  '名字', '姓名', '全名', '昵称', '称呼',
+  '职业', '工作', '公司', '学校', '专业', '年级',
+  '身高', '体重', '手机号', '手机', '邮箱', '住址',
+])
 
 const PUNCT = /[\s，。？！、,.?!;；:：""''「」『』（）()[\]【】\-—~～]/g
 const HISTORY_HINTS = /以前|之前|曾经|上次|上回|那时候|当时|去年|前年|小时候|过去|原来|还记得|记得.*吗|说过/
@@ -53,65 +55,103 @@ export function similarity(a: string, b: string): number {
   return (2 * overlap) / (ba.size + bb.size)
 }
 
-// 槽位 = 实体 + 主语 + 属性，例如 user|用户|居住城市；缺任一项视为无槽位
-export function slotKey(input: { entity: string, subject?: string | null, attribute?: string | null }): string | null {
-  const subject = input.subject ? normalizeText(input.subject) : ''
-  const attribute = input.attribute ? normalizeText(input.attribute) : ''
-  if (!subject || !attribute) return null
-  return `${input.entity}|${subject}|${attribute}`
+export function cardinalityOf(predicate?: string | null): Cardinality {
+  const key = normalizeText(predicate ?? '')
+  return SINGLE_PREDICATES.has(key) ? 'single' : 'multi'
 }
 
-function confirmedAt(fact: FactLike): number {
-  const stamp = fact.last_confirmed_at || fact.created_at || ''
-  const parsed = Date.parse(stamp)
-  return Number.isNaN(parsed) ? 0 : parsed
+// 槽位 = 实体 + 主语 + 谓词；缺主语或谓词的老数据各自成槽，不互相合并
+export function slotOf(fact: { id: string, entity: string, subject?: string | null, attribute?: string | null }): string {
+  const subject = normalizeText(fact.subject ?? '')
+  const attribute = normalizeText(fact.attribute ?? '')
+  if (!subject || !attribute) return `legacy:${fact.id}`
+  return `${fact.entity}|${subject}|${attribute}`
 }
 
-/**
- * 找出新事实可能取代/补充的那条旧事实。
- * 槽位相同直接命中；否则退回相似度召回，交给语义裁判决定怎么办。
- */
-export function pickTarget(
-  candidate: CandidateLike,
-  facts: FactLike[],
-): { target: FactLike, via: 'slot' | 'similarity' } | null {
-  const key = slotKey(candidate)
-  if (key) {
-    const sameSlot = facts.filter(fact => fact.entity === candidate.entity && slotKey(fact) === key)
-    if (sameSlot.length > 0) {
-      const target = sameSlot.reduce((best, fact) => (confirmedAt(fact) > confirmedAt(best) ? fact : best))
-      return { target, via: 'slot' }
-    }
-  }
-
-  let best: FactLike | null = null
-  let bestSimilarity = 0
-  for (const fact of facts) {
-    if (fact.entity !== candidate.entity) continue
-    const score = similarity(candidate.text, fact.text)
-    if (score > bestSimilarity) {
-      bestSimilarity = score
-      best = fact
-    }
-  }
-  if (best && bestSimilarity >= SIMILARITY_FLOOR) return { target: best, via: 'similarity' }
-  return null
-}
-
-export function decide(verdict: MemoryVerdict): 'reinforce' | 'supersede' | 'insert' {
-  if (verdict === 'duplicate') return 'reinforce'
-  if (verdict === 'contradicts') return 'supersede'
-  return 'insert'
-}
-
-export function parseVerdict(raw: unknown): MemoryVerdict {
-  return raw === 'duplicate' || raw === 'refines' || raw === 'contradicts' ? raw : 'unrelated'
+export function isPositive(fact: FactLike): boolean {
+  return fact.polarity === undefined || fact.polarity === null ? true : Boolean(fact.polarity)
 }
 
 export function authorityOf(source?: string): number {
   if (source === 'user_statement' || source === 'manual') return 1
   if (source === 'character_statement') return 0.75
   return 0.5
+}
+
+function atOf(fact: FactLike): number {
+  const stamp = fact.valid_from || fact.created_at || ''
+  const parsed = Date.parse(stamp)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+// 取最新观测；权威更低的后来者（推断）不能覆盖用户原话
+function pickLatest<T extends FactLike>(sorted: T[]): T | undefined {
+  const frozen = sorted.filter((fact) => fact.frozen_at)
+  const pool = frozen.length > 0 ? frozen : sorted
+  let best: T | undefined
+  for (const fact of pool) {
+    if (!best) {
+      best = fact
+      continue
+    }
+    if (authorityOf(fact.source) >= authorityOf(best.source)) best = fact
+  }
+  return best
+}
+
+export interface SlotState<T extends FactLike> {
+  slot: string
+  attribute: string
+  cardinality: Cardinality
+  current: T[]
+  history: T[]
+}
+
+/**
+ * 从全部观测里算出「现在成立什么」。
+ * 单值谓词只留一条；多值谓词按宾语分组各留一条；被否定的宾语不算成立。
+ */
+export function resolveCurrent<T extends FactLike>(facts: T[]): SlotState<T>[] {
+  const buckets = new Map<string, T[]>()
+  for (const fact of facts) {
+    const slot = slotOf(fact)
+    const list = buckets.get(slot)
+    if (list) list.push(fact)
+    else buckets.set(slot, [fact])
+  }
+
+  const states: SlotState<T>[] = []
+  for (const [slot, rows] of buckets) {
+    const attribute = rows[0].attribute ?? ''
+    const cardinality: Cardinality = slot.startsWith('legacy:') ? 'multi' : cardinalityOf(attribute)
+    const sorted = [...rows].sort((a, b) => atOf(a) - atOf(b))
+    const current: T[] = []
+    const history: T[] = []
+
+    if (cardinality === 'single') {
+      const winner = pickLatest(sorted)
+      if (winner && isPositive(winner)) current.push(winner)
+    } else {
+      const byObject = new Map<string, T[]>()
+      for (const row of sorted) {
+        const key = normalizeText(row.object ?? row.text)
+        const list = byObject.get(key)
+        if (list) list.push(row)
+        else byObject.set(key, [row])
+      }
+      for (const list of byObject.values()) {
+        const winner = pickLatest(list)
+        if (winner && isPositive(winner)) current.push(winner)
+      }
+    }
+
+    // 未被采纳的观测都进历史：包括被否定的当前值
+    const currentIds = new Set(current.map((row) => row.id))
+    history.push(...sorted.filter((row) => !currentIds.has(row.id)))
+
+    states.push({ slot, attribute, cardinality, current, history })
+  }
+  return states
 }
 
 export function retentionOf(fact: FactLike, now = Date.now()): number {
@@ -128,11 +168,11 @@ export function retentionOf(fact: FactLike, now = Date.now()): number {
   return Math.max(0, Math.min(1, Math.exp(-days / stability)))
 }
 
+// 只用于“注入名额”排序：重要度、来源权威、时效、被确认次数。置信度是模型自报的，不参与
 export function scoreOf(fact: FactLike, now = Date.now()): number {
   const reinforce = fact.evidence?.reinforce ?? 0
   const evidenceBoost = 1 + Math.min(0.6, 0.15 * Math.log1p(reinforce))
   return (fact.importance ?? 5)
-    * (fact.confidence ?? 0.5)
     * authorityOf(fact.source)
     * retentionOf(fact, now)
     * evidenceBoost
@@ -140,25 +180,4 @@ export function scoreOf(fact: FactLike, now = Date.now()): number {
 
 export function wantsHistory(text?: string | null): boolean {
   return !!text && HISTORY_HINTS.test(text)
-}
-
-// 同一槽位只保留一条进入提示词：冻结的优先，其次分数高的
-export function sameSlotDedupe<T extends FactLike>(facts: T[], now = Date.now()): T[] {
-  const chosen = new Map<string, T>()
-  for (const fact of facts) {
-    const key = slotKey(fact)
-    if (!key) continue
-    const current = chosen.get(key)
-    if (!current) {
-      chosen.set(key, fact)
-      continue
-    }
-    if (!!fact.frozen_at !== !!current.frozen_at) {
-      if (fact.frozen_at) chosen.set(key, fact)
-      continue
-    }
-    if (scoreOf(fact, now) > scoreOf(current, now)) chosen.set(key, fact)
-  }
-  const kept = new Set(chosen.values())
-  return facts.filter(fact => !slotKey(fact) || kept.has(fact))
 }

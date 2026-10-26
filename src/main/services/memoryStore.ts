@@ -13,34 +13,33 @@ import {
   clearCharacterMemory,
   insertFactRow,
   insertStoryRow,
-  getFactRow,
   reinforceFactRow,
-  supersedeFactRow,
   setFactFrozenRow,
   setFactEmbeddingRow,
   deleteFactRow,
   searchMessageContext,
   searchMessagesInRange,
+  getMemoryCursor,
+  setMemoryCursor,
+  listMessagesAfter,
+  listMessageIdsInRange,
+  isCursorInitialized,
+  markCursorInitialized,
+  bootstrapCursor,
+  resetDerived,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
 import { computeEmbeddingAsync, searchSimilarAsync } from './vectorSearch.ts'
 import {
-  decide,
   normalizeText,
-  parseVerdict,
-  pickTarget,
+  resolveCurrent,
   retentionOf,
-  sameSlotDedupe,
   scoreOf,
   similarity,
+  slotOf,
   wantsHistory,
-  type MemoryVerdict,
 } from './memoryArbitration.ts'
-
-export type FactJudge = (
-  pairs: Array<{ index: number, target: MemoryFact, candidate: MemoryCandidateFact }>,
-) => Promise<Array<{ index: number, verdict: MemoryVerdict }>>
 
 let config: MemoryConfig = {
   injectCharCap: 900,
@@ -63,6 +62,8 @@ function rowToFact(r: FactRow): MemoryFact {
     entity: r.entity as MemoryFact['entity'],
     subject: r.subject ?? null,
     attribute: r.attribute ?? null,
+    object: r.object ?? null,
+    polarity: r.polarity === 0 ? false : true,
     importance: r.importance,
     confidence: r.confidence,
     source: r.source as MemoryFact['source'],
@@ -88,6 +89,8 @@ function factToRow(f: MemoryFact, sourceEvidence: string | null = null): FactRow
     entity: f.entity,
     subject: f.subject ?? null,
     attribute: f.attribute ?? null,
+    object: f.object ?? null,
+    polarity: f.polarity === false ? 0 : 1,
     importance: f.importance,
     confidence: f.confidence,
     source: f.source,
@@ -170,11 +173,6 @@ function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 }
 
-function isFactExpired(f: MemoryFact): boolean {
-  if (!f.valid_until) return false
-  return new Date(f.valid_until).getTime() < Date.now()
-}
-
 export function retentionScore(f: MemoryFact): number {
   return retentionOf(f)
 }
@@ -188,19 +186,21 @@ export function storyScore(s: MemoryStory): number {
   return s.importance * kindWeight
 }
 
-function activeFacts(facts: MemoryFact[]): MemoryFact[] {
-  return facts.filter((f) => f.status === 'active' && !isFactExpired(f))
-}
-
 function activeStories(stories: MemoryStory[]): MemoryStory[] {
   return stories.filter((s) => s.status === 'active')
 }
 
-// 失效但未删除的记忆：可被“以前/上次”这类问法召回，不再默认注入
-function historyFacts(facts: MemoryFact[]): MemoryFact[] {
-  return facts
-    .filter((f) => f.status === 'superseded' || f.status === 'archived')
-    .sort((a, b) => (b.invalid_at ?? b.created_at).localeCompare(a.invalid_at ?? a.created_at))
+// 现在成立什么，不存状态，读的时候算
+function currentFactsFrom(facts: MemoryFact[]): { current: MemoryFact[], history: MemoryFact[] } {
+  const states = resolveCurrent(facts)
+  return {
+    current: states.flatMap((state) => state.current),
+    history: states.flatMap((state) => state.history),
+  }
+}
+
+function isSamePolarity(a: MemoryFact, b: MemoryFact): boolean {
+  return (a.polarity ?? true) === (b.polarity ?? true)
 }
 
 function buildFactFromCandidate(cand: MemoryCandidateFact, ts: string): MemoryFact {
@@ -220,6 +220,8 @@ function buildFactFromCandidate(cand: MemoryCandidateFact, ts: string): MemoryFa
     entity: cand.entity,
     subject: cand.subject?.trim() || null,
     attribute: cand.attribute?.trim() || null,
+    object: cand.object?.trim() || null,
+    polarity: cand.polarity !== false,
     importance: Math.min(10, Math.max(1, Math.round(cand.importance))),
     confidence,
     source,
@@ -240,102 +242,44 @@ function buildFactFromCandidate(cand: MemoryCandidateFact, ts: string): MemoryFa
 export interface ApplyResult {
   insertedFacts: number
   refreshedFacts: number
-  supersededFacts: number
-  judgedAway: number
   insertedStories: number
 }
 
 export async function applyCandidates(
   characterId: string,
   payload: MemoryApplyPayload,
-  judge?: FactJudge,
 ): Promise<ApplyResult> {
   const facts = await loadFactsTyped(characterId)
   const stories = await loadStoriesTyped(characterId)
-  const result: ApplyResult = {
-    insertedFacts: 0,
-    refreshedFacts: 0,
-    supersededFacts: 0,
-    judgedAway: 0,
-    insertedStories: 0,
-  }
+  const result: ApplyResult = { insertedFacts: 0, refreshedFacts: 0, insertedStories: 0 }
   const ts = nowIso()
-  const sourceEvidence = payload.evidence ? JSON.stringify(payload.evidence) : null
-  const candidates = (payload.facts ?? []).filter((cand) => cand.text?.trim())
+  const sourceEvidence = payload.evidence
+    ? JSON.stringify({
+        ...payload.evidence,
+        messageIds: listMessageIdsInRange(characterId, payload.evidence.fromTs, payload.evidence.toTs),
+      })
+    : null
 
-  // 一个批次只调一次裁判：先按槽位/相似度找出可能相关的旧记忆
-  const targets = new Map<number, MemoryFact>()
-  const pairs: Array<{ index: number, target: MemoryFact, candidate: MemoryCandidateFact }> = []
-  candidates.forEach((candidate, index) => {
-    const hit = pickTarget(candidate, activeFacts(facts))
-    if (!hit) return
-    targets.set(index, hit.target)
-    pairs.push({ index, target: hit.target, candidate })
-  })
-
-  const verdicts = new Map<number, MemoryVerdict>()
-  if (pairs.length > 0) {
-    try {
-      const answered = judge ? await judge(pairs) : []
-      for (const item of answered) verdicts.set(item.index, parseVerdict(item.verdict))
-    } catch {
-      // 裁判不可用：全部按新信息写入。宁可有重复，也不默认强化旧记忆
-    }
-  }
-
-  for (let index = 0; index < candidates.length; index++) {
-    const candidate = candidates[index]
-    const target = targets.get(index)
-    const action = target ? decide(verdicts.get(index) ?? 'unrelated') : 'insert'
-
-    if (!target || action === 'insert') {
-      const entry = buildFactFromCandidate(candidate, ts)
-      facts.push(entry)
-      insertFactRow(characterId, factToRow(entry, sourceEvidence))
-      result.insertedFacts++
-      continue
-    }
-
-    // 裁判 await 期间用户可能已删除或冻结这条记忆，以库里的最新状态为准
-    const freshRow = getFactRow(target.id)
-    if (!freshRow) {
-      result.judgedAway++
-      continue
-    }
-    const fresh = rowToFact(freshRow)
-    if (action === 'reinforce') {
-      reinforceFactRow(fresh.id, ts)
-      const local = facts.find((item) => item.id === fresh.id)
-      if (local) {
-        local.last_confirmed_at = ts
-        local.evidence.reinforce += 1
-      }
+  for (const cand of (payload.facts ?? []).filter((item) => item.text?.trim())) {
+    const entry = buildFactFromCandidate(cand, ts)
+    const slot = slotOf(entry)
+    // 只处理“同一件事又说了一遍”：同槽位、同极性、几乎同一句话。其余一律追加
+    const repeated = facts.find((fact) =>
+      slotOf(fact) === slot
+      && isSamePolarity(fact, entry)
+      && similarity(fact.text, entry.text) >= 0.9
+    )
+    if (repeated) {
+      await memoryDbReady()
+      reinforceFactRow(repeated.id, ts)
+      repeated.last_confirmed_at = ts
+      repeated.evidence.reinforce += 1
       result.refreshedFacts++
       continue
-    }
-
-    // 用户明确要求「记住」的记忆不被改写，但新信息也不丢：并存，注入时钉住的优先
-    if (fresh.frozen_at) {
-      const pinned = buildFactFromCandidate(candidate, ts)
-      facts.push(pinned)
-      insertFactRow(characterId, factToRow(pinned, sourceEvidence))
-      result.insertedFacts++
-      continue
-    }
-
-    const entry = buildFactFromCandidate(candidate, ts)
-    supersedeFactRow(fresh.id, ts, entry.id)
-    const local = facts.find((item) => item.id === fresh.id)
-    if (local) {
-      local.status = 'superseded'
-      local.invalid_at = ts
-      local.superseded_by = entry.id
-      local.evidence.negate += 1
     }
     facts.push(entry)
     insertFactRow(characterId, factToRow(entry, sourceEvidence))
     result.insertedFacts++
-    result.supersededFacts++
   }
 
   for (const cand of payload.stories ?? []) {
@@ -447,6 +391,18 @@ function dueProximity(dueAt: string | null, now: number): number {
   return clamp01(1 - Math.max(0, days) / DUE_WINDOW_DAYS)
 }
 
+function uniqueHistory(facts: MemoryFact[]): MemoryFact[] {
+  const seen = new Set<string>()
+  return [...facts]
+    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+    .filter((fact) => {
+      const key = normalizeText(fact.text)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
 // 记忆块装配核心：槽位去重→分组→打分→预算截断；失效记忆只在问及过去时出现
 function assembleMemoryBlock(
   actives: MemoryFact[],
@@ -458,7 +414,7 @@ function assembleMemoryBlock(
   relOfStory: (s: MemoryStory) => number,
   factScoreScale: number,
 ): string | null {
-  const past = wantHistory ? historic.slice(0, 5) : []
+  const past = wantHistory ? uniqueHistory(historic).slice(0, 5) : []
   if (actives.length === 0 && activeStoriesList.length === 0 && past.length === 0) return null
 
   const now = Date.now()
@@ -469,7 +425,7 @@ function assembleMemoryBlock(
     character: [],
     relationship: [],
   }
-  for (const f of sameSlotDedupe(actives)) {
+  for (const f of actives) {
     const rel = wSim * relOfFact(f) + wValue * valueNormFact(f) + wDue * dueProximity(f.valid_until ?? null, now)
     const score = factScore(f) * (factScoreScale + rel)
     groups[f.entity].push({ text: f.text.slice(0, 60), score })
@@ -540,10 +496,11 @@ export function buildMemoryBlock(
   charCap = config.injectCharCap,
   context?: string,
 ): string | null {
+  const { current, history } = currentFactsFrom(facts)
   return assembleMemoryBlock(
-    activeFacts(facts),
+    current,
     activeStories(stories),
-    historyFacts(facts),
+    history,
     wantsHistory(context),
     charCap,
     (f) => (context ? relevanceScore(f.text, context) : 0.5),
@@ -573,6 +530,55 @@ function messageText(raw: string): string {
   } catch {
     return raw
   }
+}
+
+const BOOTSTRAP_LOOKBACK = 200
+
+export interface PendingEntry {
+  role: 'user' | 'assistant'
+  text: string
+  at: number
+}
+
+// 启动时把库里还没提取的原文带回内存缓冲：崩溃/退出的会话也能补记
+export async function pendingFromArchive(
+  characterId: string,
+  limit = 200,
+): Promise<{ cursor: number, entries: PendingEntry[] }> {
+  await memoryDbReady()
+  let cursor = getMemoryCursor(characterId)
+  if (!isCursorInitialized(characterId)) {
+    cursor = bootstrapCursor(characterId, BOOTSTRAP_LOOKBACK)
+    setMemoryCursor(characterId, cursor)
+    markCursorInitialized(characterId)
+  }
+  const entries: PendingEntry[] = []
+  for (const row of listMessagesAfter(characterId, cursor, limit)) {
+    const text = messageText(row.content).trim()
+    if (!text) continue
+    const role: PendingEntry['role'] = row.role === 'user' ? 'user' : 'assistant'
+    entries.push({ role, text: text.slice(0, role === 'user' ? 500 : 300), at: row.ts })
+  }
+  return { cursor, entries }
+}
+
+export async function advanceCursor(characterId: string, ts: number): Promise<void> {
+  await memoryDbReady()
+  if (ts > getMemoryCursor(characterId)) setMemoryCursor(characterId, ts)
+  markCursorInitialized(characterId)
+}
+
+// 清空派生数据并从零重放；原文与聊天记录一条不动。必须显式传确认标记
+export async function rebuildMemory(
+  characterId: string,
+  confirm: string,
+): Promise<{ facts: number, stories: number }> {
+  if (confirm !== `rebuild:${characterId}`) throw new Error(`重建需要确认标记 rebuild:${characterId}`)
+  await memoryDbReady()
+  const removed = resetDerived(characterId)
+  setMemoryCursor(characterId, 0)
+  markCursorInitialized(characterId)
+  return removed
 }
 
 function formatMessageTime(ts: number): string {
@@ -629,7 +635,7 @@ export async function buildMemoryBlockVector(
   context: string,
   charCap: number,
 ): Promise<string | null> {
-  const actives = activeFacts(facts)
+  const { current: actives, history } = currentFactsFrom(facts)
   let vectorHits: Array<{ fact: MemoryFact; similarity: number }> = []
   try {
     const needEmbedding = actives.filter((f) => !f.embedding)
@@ -649,7 +655,7 @@ export async function buildMemoryBlockVector(
   return assembleMemoryBlock(
     actives,
     activeStories(stories),
-    historyFacts(facts),
+    history,
     wantsHistory(context),
     charCap,
     (f) => hitMap.get(f.id) ?? relevanceScore(f.text, context),

@@ -90,13 +90,24 @@ const api = {
       invoke<{
         insertedFacts: number
         refreshedFacts: number
-        supersededFacts: number
-        judgedAway: number
         insertedStories: number
       }>(IpcChannels.memory.apply, characterId, payload),
     manualAdd: (characterId: string, text: string, entity?: MemoryFact['entity']) =>
       invoke<MemoryFact>(IpcChannels.memory.manualAdd, characterId, text, entity),
     clear: (characterId: string) => invoke<void>(IpcChannels.memory.clear, characterId),
+    pending: (characterId: string, limit?: number) =>
+      invoke<{
+        cursor: number
+        entries: Array<{ role: 'user' | 'assistant'; text: string; at: number }>
+      }>(IpcChannels.memory.pending, characterId, limit),
+    advanceCursor: (characterId: string, ts: number) =>
+      invoke<void>(IpcChannels.memory.advanceCursor, characterId, ts),
+    rebuild: (characterId: string) =>
+      invoke<{ facts: number; stories: number }>(
+        IpcChannels.memory.rebuild,
+        characterId,
+        `rebuild:${characterId}`
+      ),
     freezeFact: (characterId: string, factId: string) =>
       invoke<boolean>(IpcChannels.memory.freezeFact, characterId, factId),
     unfreezeFact: (characterId: string, factId: string) =>
