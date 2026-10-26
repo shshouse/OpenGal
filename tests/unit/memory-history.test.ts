@@ -99,6 +99,51 @@ describe('memory history and correction', () => {
     expect(result.insertedFacts).toBe(1)
   })
 
+  it('用户钉住的记忆不被改写，新信息并存但不进提示词', async () => {
+    await applyCandidates('h4', {
+      facts: [{
+        text: '用户的生日是3月15日',
+        entity: 'user',
+        subject: '用户',
+        attribute: '生日',
+        attributed_to: 'user',
+        importance: 10,
+        confidence: 1,
+        reason: '用户要求记住',
+        frozen: true,
+      }],
+      stories: [],
+    })
+
+    const result = await applyCandidates(
+      'h4',
+      {
+        facts: [{
+          text: '用户的生日是3月16日',
+          entity: 'user',
+          subject: '用户',
+          attribute: '生日',
+          attributed_to: 'user',
+          importance: 10,
+          confidence: 1,
+          reason: '新的说法',
+        }],
+        stories: [],
+      },
+      async () => [{ index: 0, verdict: 'contradicts' }],
+    )
+
+    expect(result.supersededFacts).toBe(0)
+    expect(result.insertedFacts).toBe(1)
+    const facts = await loadFacts('h4')
+    expect(facts.find((f) => f.text === '用户的生日是3月15日')?.status).toBe('active')
+    expect(facts.find((f) => f.text === '用户的生日是3月16日')?.status).toBe('active')
+
+    const block = buildMemoryBlock(facts, [], 900, '我的生日是哪天') ?? ''
+    expect(block).toContain('3月15日')
+    expect(block).not.toContain('3月16日')
+  })
+
   it('同槽位并存多条时，只把分数最高的一条注入提示词', async () => {
     await applyCandidates('h3', {
       facts: [{

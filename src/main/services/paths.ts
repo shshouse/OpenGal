@@ -150,7 +150,19 @@ export function getGenieTTSRoot(): string {
 }
 
 export function getGeniePythonExe(): string {
-  return path.join(getGenieTTSRoot(), 'runtime', 'python.exe')
+  const root = getGenieTTSRoot()
+  // 模组可用 runtime.json 声明解释器（{"python": "D:/PythonMain/python.exe"}）；
+  // 打包版则直接放 runtime/python.exe
+  const manifest = path.join(root, 'runtime.json')
+  try {
+    if (fs.existsSync(manifest)) {
+      const raw = JSON.parse(fs.readFileSync(manifest, 'utf-8')) as { python?: string }
+      if (raw.python && fs.existsSync(raw.python)) return raw.python
+    }
+  } catch {
+    // 配置损坏时退回默认路径，由启动流程报错
+  }
+  return path.join(root, 'runtime', 'python.exe')
 }
 
 export { CUSTOM_SCHEME, MOD_HOST }

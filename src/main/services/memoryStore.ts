@@ -303,8 +303,7 @@ export async function applyCandidates(
       continue
     }
     const fresh = rowToFact(freshRow)
-    // 只有用户明确要求「记住」的记忆才拒绝被改写；手动添加只是高可信，仍可更新
-    if (action === 'reinforce' || fresh.frozen_at) {
+    if (action === 'reinforce') {
       reinforceFactRow(fresh.id, ts)
       const local = facts.find((item) => item.id === fresh.id)
       if (local) {
@@ -312,6 +311,15 @@ export async function applyCandidates(
         local.evidence.reinforce += 1
       }
       result.refreshedFacts++
+      continue
+    }
+
+    // 用户明确要求「记住」的记忆不被改写，但新信息也不丢：并存，注入时钉住的优先
+    if (fresh.frozen_at) {
+      const pinned = buildFactFromCandidate(candidate, ts)
+      facts.push(pinned)
+      insertFactRow(characterId, factToRow(pinned, sourceEvidence))
+      result.insertedFacts++
       continue
     }
 
@@ -518,7 +526,7 @@ function assembleMemoryBlock(
       total += text.length
       pastLines.push(text)
     }
-    if (pastLines.length > 0) kept.push(`以前（已不再成立）：${pastLines.join('；')}`)
+    if (pastLines.length > 0) kept.push(`以前记下的（可能已过时）：${pastLines.join('；')}`)
   }
   lines.push(...kept)
   if (lines.length === 0) return null
