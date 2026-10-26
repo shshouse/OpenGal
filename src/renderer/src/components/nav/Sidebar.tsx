@@ -14,6 +14,7 @@ interface Props {
   showLive2D: boolean
   onToggleLive2D: () => void
   onOpenLogs: () => void
+  logsActive: boolean
 }
 
 function RailButton({
@@ -56,7 +57,8 @@ export function Sidebar({
   onTogglePet,
   showLive2D,
   onToggleLive2D,
-  onOpenLogs
+  onOpenLogs,
+  logsActive
 }: Props) {
   return (
     <nav className="flex w-16 shrink-0 flex-col items-center gap-1 border-r bg-card/60 px-1.5 py-2">
@@ -69,7 +71,7 @@ export function Sidebar({
       <RailButton label="设置" title="设置" onClick={onOpenSettings}>
         <Settings className="size-5" />
       </RailButton>
-      <RailButton label="日志" title="运行日志" onClick={onOpenLogs}>
+      <RailButton label="日志" title="运行日志" active={logsActive} onClick={onOpenLogs}>
         <Terminal className="size-5" />
       </RailButton>
 

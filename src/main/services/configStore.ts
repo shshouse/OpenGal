@@ -17,8 +17,6 @@ const defaultConfig: AppConfig = {
     contextWindow: 1048576
   },
   memory: {
-    factBudgetChars: 40000,
-    storyBudgetChars: 30000,
     injectCharCap: 8000,
     batchTurns: 8,
     idleMinutes: 5,
@@ -88,19 +86,9 @@ function getStore(): Store<Record<string, unknown>> {
       cwd: getDataRoot(),
       defaults: { ...defaultConfig } as unknown as Record<string, unknown>
     })
-    // 一次性把旧版默认记忆预算提升到 1M 上下文档位。
-    // 仅当三项仍等于旧默认（900/4000/3000）时改写，用户自定义过的值不动。
     if (store.get('migrations.memoryGenerousDefaults') !== true) {
       const mem = (store.get('memory') ?? {}) as Record<string, unknown>
-      if (mem.injectCharCap === 900 && mem.factBudgetChars === 4000 && mem.storyBudgetChars === 3000) {
-        store.set('memory', {
-          ...mem,
-          injectCharCap: 8000,
-          factBudgetChars: 40000,
-          storyBudgetChars: 30000
-        })
-        logBus.info('config', '记忆预算已升级到 1M 上下文档位（注入 8000 字符，事实 40000，故事 30000）')
-      }
+      if (mem.injectCharCap === 900) store.set('memory', { ...mem, injectCharCap: 8000 })
       store.set('migrations.memoryGenerousDefaults', true)
     }
     const storedLlm = (store.store as Record<string, unknown>).llm as Record<string, unknown> | undefined

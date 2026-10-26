@@ -33,6 +33,8 @@ export interface FactRow {
   character_id: string
   text: string
   entity: string
+  subject: string | null
+  attribute: string | null
   importance: number
   confidence: number
   source: string
@@ -46,6 +48,11 @@ export interface FactRow {
   frozen_at: string | null
   embedding: string | null
   source_evidence: string | null
+  valid_from?: string | null
+  invalid_at?: string | null
+  superseded_by?: string | null
+  subject?: string | null
+  attribute?: string | null
 }
 
 export interface StoryRow {
@@ -80,6 +87,8 @@ CREATE TABLE IF NOT EXISTS facts (
   character_id TEXT NOT NULL,
   text TEXT NOT NULL,
   entity TEXT NOT NULL,
+  subject TEXT,
+  attribute TEXT,
   importance INTEGER NOT NULL,
   confidence REAL NOT NULL,
   source TEXT NOT NULL,
@@ -92,7 +101,10 @@ CREATE TABLE IF NOT EXISTS facts (
   valid_until TEXT,
   frozen_at TEXT,
   embedding TEXT,
-  source_evidence TEXT
+  source_evidence TEXT,
+  valid_from TEXT,
+  invalid_at TEXT,
+  superseded_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_facts_char ON facts(character_id, status);
 
@@ -314,14 +326,22 @@ function run(query: string, params: SQLInputValue[] = []): void {
 
 function migrateFactsSchema(): void {
   try {
-    const existing = rows("PRAGMA table_info(facts)", []).map((r) => String(r.name))
-    const needValidUntil = !existing.includes('valid_until')
-    const needFrozenAt = !existing.includes('frozen_at')
-    const needEmbedding = !existing.includes('embedding')
-    const needEvidence = !existing.includes('source_evidence')
+    const factColumns = rows('PRAGMA table_info(facts)', []).map((r) => String(r.name))
     const storyColumns = rows('PRAGMA table_info(stories)', []).map((r) => String(r.name))
+    const additions: Array<[string, string]> = [
+      ['valid_until', 'TEXT'],
+      ['frozen_at', 'TEXT'],
+      ['embedding', 'TEXT'],
+      ['source_evidence', 'TEXT'],
+      ['subject', 'TEXT'],
+      ['attribute', 'TEXT'],
+      ['valid_from', 'TEXT'],
+      ['invalid_at', 'TEXT'],
+      ['superseded_by', 'TEXT'],
+    ]
+    const missing = additions.filter(([name]) => !factColumns.includes(name))
     const needStoryEvidence = !storyColumns.includes('source_evidence')
-    if (!needValidUntil && !needFrozenAt && !needEmbedding && !needEvidence && !needStoryEvidence) return
+    if (missing.length === 0 && !needStoryEvidence) return
     const target = path.join(
       backupRootDir,
       `memory-pre-schema-${new Date().toISOString().replace(/[:.]/g, '-')}.db`,
@@ -336,21 +356,9 @@ function migrateFactsSchema(): void {
       .sort()
     while (all.length > 3) fs.rmSync(path.join(backupRootDir, all.shift() as string), { force: true })
     withTx(() => {
-      if (needValidUntil) {
-        db!.exec('ALTER TABLE facts ADD COLUMN valid_until TEXT')
-        logger.info('memory', 'facts 表新增列: valid_until')
-      }
-      if (needFrozenAt) {
-        db!.exec('ALTER TABLE facts ADD COLUMN frozen_at TEXT')
-        logger.info('memory', 'facts 表新增列: frozen_at')
-      }
-      if (needEmbedding) {
-        db!.exec('ALTER TABLE facts ADD COLUMN embedding TEXT')
-        logger.info('memory', 'facts 表新增列: embedding')
-      }
-      if (needEvidence) {
-        db!.exec('ALTER TABLE facts ADD COLUMN source_evidence TEXT')
-        logger.info('memory', 'facts 表新增列: source_evidence')
+      for (const [name, type] of missing) {
+        db!.exec(`ALTER TABLE facts ADD COLUMN ${name} ${type}`)
+        logger.info('memory', `facts 表新增列: ${name}`)
       }
       if (needStoryEvidence) {
         db!.exec('ALTER TABLE stories ADD COLUMN source_evidence TEXT')
@@ -610,13 +618,15 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
     run('DELETE FROM facts WHERE character_id = ?', [characterId])
     for (const f of items) {
       run(
-        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, valid_from, invalid_at, superseded_by)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           f.id,
           characterId,
           f.text,
           f.entity,
+          f.subject ?? null,
+          f.attribute ?? null,
           f.importance,
           f.confidence,
           f.source,
@@ -629,6 +639,9 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
           f.valid_until,
           f.frozen_at,
           f.embedding,
+          f.valid_from ?? null,
+          f.invalid_at ?? null,
+          f.superseded_by ?? null,
         ]
       )
     }
@@ -640,13 +653,15 @@ export function saveFacts(characterId: string, items: FactRow[]): void {
 export function insertFactRow(characterId: string, f: FactRow): void {
   withTx(() => {
     run(
-      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, source_evidence)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, source_evidence, valid_from, invalid_at, superseded_by)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         f.id,
         characterId,
         f.text,
         f.entity,
+        f.subject ?? null,
+        f.attribute ?? null,
         f.importance,
         f.confidence,
         f.source,
@@ -660,6 +675,9 @@ export function insertFactRow(characterId: string, f: FactRow): void {
         f.frozen_at,
         f.embedding,
         f.source_evidence,
+        f.valid_from ?? null,
+        f.invalid_at ?? null,
+        f.superseded_by ?? null,
       ]
     )
   })
@@ -681,6 +699,14 @@ export function negateFactRow(id: string): number {
   return withTx(() => Number(
     db!.prepare("UPDATE facts SET status = 'archived', evidence_negate = evidence_negate + 1 WHERE id = ?")
       .run(id).changes
+  ))
+}
+
+// 旧事实不删除，只标记失效时间与被谁替代；历史仍可按时间回查
+export function supersedeFactRow(id: string, invalidAt: string, byId: string): number {
+  return withTx(() => Number(
+    db!.prepare("UPDATE facts SET status = 'superseded', invalid_at = ?, superseded_by = ?, evidence_negate = evidence_negate + 1 WHERE id = ?")
+      .run(invalidAt, byId, id).changes
   ))
 }
 

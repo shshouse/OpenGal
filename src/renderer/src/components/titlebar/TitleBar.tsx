@@ -4,8 +4,6 @@ import { useLogsStore } from '@/features/logs/logsStore'
 
 export function TitleBar() {
   const [maximized, setMaximized] = React.useState(false)
-  const togglePanel = useLogsStore((s) => s.setPanelOpen)
-  const panelOpen = useLogsStore((s) => s.panelOpen)
   const errorCount = useLogsStore((s) =>
     s.entries.reduce((n, e) => (e.level === 'error' || e.level === 'warn' ? n + 1 : n), 0),
   )
@@ -37,7 +35,7 @@ export function TitleBar() {
         style={{ WebkitAppRegion: 'no-drag' as const } as React.CSSProperties}
       >
         <button
-          onClick={() => togglePanel(!panelOpen)}
+          onClick={() => window.dispatchEvent(new Event('opengal:open-logs'))}
           className="relative flex w-11 items-center justify-center transition-colors hover:bg-muted"
           aria-label="日志"
           title="运行日志"

@@ -7,10 +7,9 @@ export default defineConfig({
       '@': path.resolve(process.cwd(), 'src/renderer/src'),
       '@shared': path.resolve(process.cwd(), 'src/shared'),
       'node:sqlite': path.resolve(process.cwd(), 'tests/support/sqlite.ts'),
+      // Vite 会把 node: 前缀剥掉再解析，裸 sqlite 也要指向替身，否则测试无法启动
+      sqlite: path.resolve(process.cwd(), 'tests/support/sqlite.ts'),
     },
-  },
-  ssr: {
-    external: ['node:sqlite'],
   },
   test: {
     environment: 'node',

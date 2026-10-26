@@ -18,8 +18,6 @@ let root = ''
 beforeAll(async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'opengal-vitest-memory-'))
   initMemoryStore(root, {
-    factBudgetChars: 40000,
-    storyBudgetChars: 30000,
     injectCharCap: 8000,
     batchTurns: 8,
     idleMinutes: 5,

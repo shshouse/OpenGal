@@ -30,7 +30,6 @@ export const IpcChannels = {
     apply: 'memory:apply',
     manualAdd: 'memory:manualAdd',
     clear: 'memory:clear',
-    decaySweep: 'memory:decaySweep',
     freezeFact: 'memory:freezeFact',
     unfreezeFact: 'memory:unfreezeFact',
     deleteFact: 'memory:deleteFact',
@@ -110,6 +109,8 @@ export const IpcChannels = {
     list: 'logs:list',
     clear: 'logs:clear',
     entry: 'logs:entry',
-    append: 'logs:append'
+    append: 'logs:append',
+    export: 'logs:export',
+    reveal: 'logs:reveal'
   }
 } as const

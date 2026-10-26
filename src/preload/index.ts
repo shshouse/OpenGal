@@ -90,15 +90,13 @@ const api = {
       invoke<{
         insertedFacts: number
         refreshedFacts: number
+        supersededFacts: number
         judgedAway: number
         insertedStories: number
-        budgetRejected: number
       }>(IpcChannels.memory.apply, characterId, payload),
     manualAdd: (characterId: string, text: string, entity?: MemoryFact['entity']) =>
       invoke<MemoryFact>(IpcChannels.memory.manualAdd, characterId, text, entity),
     clear: (characterId: string) => invoke<void>(IpcChannels.memory.clear, characterId),
-    decaySweep: (characterId: string) =>
-      invoke<{ archived: number }>(IpcChannels.memory.decaySweep, characterId),
     freezeFact: (characterId: string, factId: string) =>
       invoke<boolean>(IpcChannels.memory.freezeFact, characterId, factId),
     unfreezeFact: (characterId: string, factId: string) =>
@@ -248,6 +246,8 @@ const api = {
   logs: {
     list: () => invoke<LogEntry[]>(IpcChannels.logs.list),
     clear: () => invoke(IpcChannels.logs.clear),
+    export: (text: string) => invoke<string | null>(IpcChannels.logs.export, text),
+    reveal: () => invoke<boolean>(IpcChannels.logs.reveal),
     append: (level: string, source: string, message: string, details?: string) => {
       ipcRenderer.send(IpcChannels.logs.append, level, source, message, details)
     },

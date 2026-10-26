@@ -5,14 +5,10 @@ const MAX_ENTRIES = 2000
 
 interface LogsState {
   entries: LogEntry[]
-  panelOpen: boolean
-  hydrated: boolean
   append: (entry: LogEntry) => void
   appendLocal: (level: LogLevel, source: string, message: string, details?: string) => void
-  setEntries: (list: LogEntry[]) => void
+  hydrate: () => Promise<void>
   clear: () => void
-  setHydrated: (v: boolean) => void
-  setPanelOpen: (v: boolean) => void
 }
 
 let seq = 0
@@ -28,10 +24,7 @@ function trim(list: LogEntry[]): LogEntry[] {
 
 export const useLogsStore = create<LogsState>((set) => ({
   entries: [],
-  panelOpen: false,
-  hydrated: false,
-  append: (entry) =>
-    set((s) => ({ entries: trim([...s.entries, entry]) })),
+  append: (entry) => set((s) => ({ entries: trim([...s.entries, entry]) })),
   appendLocal: (level, source, message, details) =>
     set((s) => ({
       entries: trim([
@@ -39,25 +32,24 @@ export const useLogsStore = create<LogsState>((set) => ({
         { id: localId(), timestamp: Date.now(), level, source, message, details },
       ]),
     })),
-  setEntries: (list) => set({ entries: trim(list.slice()) }),
+  // 主进程缓冲是唯一真源：保留只在渲染进程产生的条目（r- 前缀），其余以主进程为准，
+  // 这样主进程清空后不会被旧数据「复活」。
+  hydrate: async () => {
+    const res = await window.opengal.logs.list()
+    const remote = res.success && Array.isArray(res.data) ? res.data : []
+    set((s) => {
+      const known = new Set(remote.map((e) => e.id))
+      const localOnly = s.entries.filter((e) => e.id.startsWith('r-') && !known.has(e.id))
+      return { entries: trim([...remote, ...localOnly]) }
+    })
+  },
   clear: () => set({ entries: [] }),
-  setHydrated: (v) => set({ hydrated: v }),
-  setPanelOpen: (v) => set({ panelOpen: v }),
 }))
 
 export function startLogsBridge(): () => void {
   const off = window.opengal.logs.onEntry((entry) => {
     useLogsStore.getState().append(entry)
   })
-  void window.opengal.logs.list().then((res) => {
-    const store = useLogsStore.getState()
-    if (res.success && Array.isArray(res.data)) {
-      const seen = new Set(store.entries.map((e) => e.id))
-      const merged = res.data.slice()
-      for (const e of store.entries) if (!seen.has(e.id)) merged.push(e)
-      store.setEntries(merged)
-    }
-    store.setHydrated(true)
-  })
+  void useLogsStore.getState().hydrate()
   return off
 }

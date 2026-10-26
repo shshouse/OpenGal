@@ -15,27 +15,34 @@ import {
   insertStoryRow,
   getFactRow,
   reinforceFactRow,
-  negateFactRow,
-  setFactStatusRow,
+  supersedeFactRow,
   setFactFrozenRow,
   setFactEmbeddingRow,
   deleteFactRow,
-  setStoryStatusRow,
   searchMessageContext,
   searchMessagesInRange,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
 import { computeEmbeddingAsync, searchSimilarAsync } from './vectorSearch.ts'
+import {
+  decide,
+  normalizeText,
+  parseVerdict,
+  pickTarget,
+  retentionOf,
+  sameSlotDedupe,
+  scoreOf,
+  similarity,
+  wantsHistory,
+  type MemoryVerdict,
+} from './memoryArbitration.ts'
 
 export type FactJudge = (
-  existing: MemoryFact,
-  candidate: MemoryCandidateFact,
-) => Promise<'reinforces' | 'negates'>
+  pairs: Array<{ index: number, target: MemoryFact, candidate: MemoryCandidateFact }>,
+) => Promise<Array<{ index: number, verdict: MemoryVerdict }>>
 
 let config: MemoryConfig = {
-  factBudgetChars: 4000,
-  storyBudgetChars: 3000,
   injectCharCap: 900,
   batchTurns: 8,
   idleMinutes: 5,
@@ -54,12 +61,17 @@ function rowToFact(r: FactRow): MemoryFact {
     id: r.id,
     text: r.text,
     entity: r.entity as MemoryFact['entity'],
+    subject: r.subject ?? null,
+    attribute: r.attribute ?? null,
     importance: r.importance,
     confidence: r.confidence,
     source: r.source as MemoryFact['source'],
     created_at: r.created_at,
     last_confirmed_at: r.last_confirmed_at,
     status: r.status as MemoryFact['status'],
+    valid_from: r.valid_from ?? null,
+    invalid_at: r.invalid_at ?? null,
+    superseded_by: r.superseded_by ?? null,
     evidence: { reinforce: r.evidence_reinforce, negate: r.evidence_negate },
     protected: r.protected_ === 1,
     valid_until: r.valid_until ?? null,
@@ -74,6 +86,8 @@ function factToRow(f: MemoryFact, sourceEvidence: string | null = null): FactRow
     character_id: '',
     text: f.text,
     entity: f.entity,
+    subject: f.subject ?? null,
+    attribute: f.attribute ?? null,
     importance: f.importance,
     confidence: f.confidence,
     source: f.source,
@@ -87,6 +101,9 @@ function factToRow(f: MemoryFact, sourceEvidence: string | null = null): FactRow
     frozen_at: f.frozen_at,
     embedding: f.embedding ? JSON.stringify(f.embedding) : null,
     source_evidence: sourceEvidence,
+    valid_from: f.valid_from ?? null,
+    invalid_at: f.invalid_at ?? null,
+    superseded_by: f.superseded_by ?? null,
   }
 }
 
@@ -143,56 +160,7 @@ export async function clearMemory(characterId: string): Promise<void> {
   clearCharacterMemory(characterId)
 }
 
-export function normalizeText(s: string): string {
-  return s.replace(/[\s，。？！、,.?!;；:：""''「」（）()\-—~～]/g, '')
-}
-
-export function textSimilarity(a: string, b: string): number {
-  const na = normalizeText(a)
-  const nb = normalizeText(b)
-  if (!na || !nb) return 0
-  if (na.includes(nb) || nb.includes(na)) return 1
-  const bigrams = (s: string): Set<string> => {
-    const set = new Set<string>()
-    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2))
-    return set
-  }
-  const ba = bigrams(na)
-  const bb = bigrams(nb)
-  if (ba.size === 0 || bb.size === 0) return 0
-  let inter = 0
-  for (const g of ba) if (bb.has(g)) inter++
-  return (2 * inter) / (ba.size + bb.size)
-}
-
-const HIGH_SIMILARITY = 0.6
-const MID_SIMILARITY = 0.35
-
-export type Adjudication =
-  | { action: 'insert' }
-  | { action: 'refresh'; target: MemoryFact }
-  | { action: 'judge'; target: MemoryFact }
-
-export function adjudicateFact(
-  candidate: MemoryCandidateFact,
-  active: MemoryFact[],
-): Adjudication {
-  let best: MemoryFact | null = null
-  let bestSim = 0
-  for (const f of active) {
-    if (f.entity !== candidate.entity) continue
-    const sim = textSimilarity(candidate.text, f.text)
-    if (sim > bestSim) {
-      bestSim = sim
-      best = f
-    }
-  }
-  if (best && bestSim >= HIGH_SIMILARITY) return { action: 'refresh', target: best }
-  if (best && bestSim >= MID_SIMILARITY && best.entity === candidate.entity) {
-    return { action: 'judge', target: best }
-  }
-  return { action: 'insert' }
-}
+export { normalizeText, similarity as textSimilarity }
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -207,23 +175,12 @@ function isFactExpired(f: MemoryFact): boolean {
   return new Date(f.valid_until).getTime() < Date.now()
 }
 
-function isFactFrozen(f: MemoryFact): boolean {
-  return f.frozen_at !== null
-}
-
 export function retentionScore(f: MemoryFact): number {
-  if (isFactFrozen(f)) return 1
-  if (isFactExpired(f)) return 0
-  const stamp = f.last_confirmed_at || f.created_at
-  const confirmed = new Date(stamp).getTime()
-  if (Number.isNaN(confirmed)) return 1
-  const days = (Date.now() - confirmed) / 86400000
-  const stability = Math.max(1, f.importance * 7)
-  return Math.max(0, Math.min(1, Math.exp(-Math.max(0, days) / stability)))
+  return retentionOf(f)
 }
 
 export function factScore(f: MemoryFact): number {
-  return f.importance * f.confidence * retentionScore(f)
+  return scoreOf(f)
 }
 
 export function storyScore(s: MemoryStory): number {
@@ -239,37 +196,53 @@ function activeStories(stories: MemoryStory[]): MemoryStory[] {
   return stories.filter((s) => s.status === 'active')
 }
 
-function charsOf(list: { text: string }[]): number {
-  return list.reduce((sum, x) => sum + x.text.length, 0)
+// 失效但未删除的记忆：可被“以前/上次”这类问法召回，不再默认注入
+function historyFacts(facts: MemoryFact[]): MemoryFact[] {
+  return facts
+    .filter((f) => f.status === 'superseded' || f.status === 'archived')
+    .sort((a, b) => (b.invalid_at ?? b.created_at).localeCompare(a.invalid_at ?? a.created_at))
 }
 
-function fitBudget<T extends { id: string; text: string; status: 'active' | 'archived'; protected?: boolean; frozen_at?: string | null }>(
-  all: T[],
-  incoming: T,
-  budget: number,
-  scoreOf: (x: T) => number,
-): { accepted: T | null; archivedIds: string[] } {
-  const archivedIds: string[] = []
-  if (incoming.text.length > budget) return { accepted: null, archivedIds }
-  const activeChars = (): number => charsOf(all.filter((x) => x.status === 'active'))
-  if (activeChars() + incoming.text.length <= budget) return { accepted: incoming, archivedIds }
-  const ordered = all
-    .filter((x) => x.status === 'active' && !x.protected && !x.frozen_at)
-    .sort((a, b) => scoreOf(a) - scoreOf(b))
-  for (const item of ordered) {
-    item.status = 'archived'
-    archivedIds.push(item.id)
-    if (activeChars() + incoming.text.length <= budget) return { accepted: incoming, archivedIds }
+function buildFactFromCandidate(cand: MemoryCandidateFact, ts: string): MemoryFact {
+  const source: MemoryFact['source'] = cand.attributed_to === 'user'
+    ? 'user_statement'
+    : cand.attributed_to === 'character'
+      ? 'character_statement'
+      : cand.attributed_to === 'inferred'
+        ? 'llm_inferred'
+        : cand.confidence >= 1 ? 'user_statement' : 'llm_inferred'
+  const raw = Math.min(1, Math.max(0.1, cand.confidence))
+  // 推断不能和用户原话同级：压到 0.6 以下，排序时自然让位
+  const confidence = source === 'llm_inferred' ? Math.min(raw, 0.6) : raw
+  return {
+    id: newId('f'),
+    text: cand.text.trim(),
+    entity: cand.entity,
+    subject: cand.subject?.trim() || null,
+    attribute: cand.attribute?.trim() || null,
+    importance: Math.min(10, Math.max(1, Math.round(cand.importance))),
+    confidence,
+    source,
+    created_at: ts,
+    last_confirmed_at: ts,
+    status: 'active',
+    valid_from: ts,
+    invalid_at: null,
+    superseded_by: null,
+    evidence: { reinforce: 0, negate: 0 },
+    protected: false,
+    valid_until: cand.valid_until ?? null,
+    frozen_at: cand.frozen ? ts : null,
+    embedding: null,
   }
-  return { accepted: null, archivedIds }
 }
 
 export interface ApplyResult {
   insertedFacts: number
   refreshedFacts: number
+  supersededFacts: number
   judgedAway: number
   insertedStories: number
-  budgetRejected: number
 }
 
 export async function applyCandidates(
@@ -282,102 +255,79 @@ export async function applyCandidates(
   const result: ApplyResult = {
     insertedFacts: 0,
     refreshedFacts: 0,
+    supersededFacts: 0,
     judgedAway: 0,
     insertedStories: 0,
-    budgetRejected: 0,
   }
   const ts = nowIso()
   const sourceEvidence = payload.evidence ? JSON.stringify(payload.evidence) : null
+  const candidates = (payload.facts ?? []).filter((cand) => cand.text?.trim())
 
-  for (const cand of payload.facts ?? []) {
-    if (!cand.text?.trim()) continue
-    const source = cand.confidence >= 1 ? 'user_statement' : 'llm_inferred'
-    const adjudication = adjudicateFact(cand, activeFacts(facts))
-    if (adjudication.action === 'refresh') {
-      adjudication.target.last_confirmed_at = ts
-      adjudication.target.evidence.reinforce += 1
-      await memoryDbReady()
-      reinforceFactRow(adjudication.target.id, ts)
+  // 一个批次只调一次裁判：先按槽位/相似度找出可能相关的旧记忆
+  const targets = new Map<number, MemoryFact>()
+  const pairs: Array<{ index: number, target: MemoryFact, candidate: MemoryCandidateFact }> = []
+  candidates.forEach((candidate, index) => {
+    const hit = pickTarget(candidate, activeFacts(facts))
+    if (!hit) return
+    targets.set(index, hit.target)
+    pairs.push({ index, target: hit.target, candidate })
+  })
+
+  const verdicts = new Map<number, MemoryVerdict>()
+  if (pairs.length > 0) {
+    try {
+      const answered = judge ? await judge(pairs) : []
+      for (const item of answered) verdicts.set(item.index, parseVerdict(item.verdict))
+    } catch {
+      // 裁判不可用：全部按新信息写入。宁可有重复，也不默认强化旧记忆
+    }
+  }
+
+  for (let index = 0; index < candidates.length; index++) {
+    const candidate = candidates[index]
+    const target = targets.get(index)
+    const action = target ? decide(verdicts.get(index) ?? 'unrelated') : 'insert'
+
+    if (!target || action === 'insert') {
+      const entry = buildFactFromCandidate(candidate, ts)
+      facts.push(entry)
+      insertFactRow(characterId, factToRow(entry, sourceEvidence))
+      result.insertedFacts++
+      continue
+    }
+
+    // 裁判 await 期间用户可能已删除或冻结这条记忆，以库里的最新状态为准
+    const freshRow = getFactRow(target.id)
+    if (!freshRow) {
+      result.judgedAway++
+      continue
+    }
+    const fresh = rowToFact(freshRow)
+    // 只有用户明确要求「记住」的记忆才拒绝被改写；手动添加只是高可信，仍可更新
+    if (action === 'reinforce' || fresh.frozen_at) {
+      reinforceFactRow(fresh.id, ts)
+      const local = facts.find((item) => item.id === fresh.id)
+      if (local) {
+        local.last_confirmed_at = ts
+        local.evidence.reinforce += 1
+      }
       result.refreshedFacts++
       continue
     }
-    if (adjudication.action === 'judge') {
-      if (!judge) {
-        result.judgedAway++
-        continue
-      }
-      try {
-        const verdict = await judge(adjudication.target, cand)
-        // 关键：await 期间目标可能被用户删除或冻结，以用户操作为准，不用旧快照覆盖
-        const freshRow = getFactRow(adjudication.target.id)
-        if (!freshRow) {
-          result.judgedAway++
-          continue
-        }
-        const fresh = rowToFact(freshRow)
-        const local = facts.find((f) => f.id === fresh.id)
-        if (verdict === 'reinforces' || fresh.protected || fresh.frozen_at) {
-          reinforceFactRow(fresh.id, ts)
-          if (local) {
-            local.last_confirmed_at = ts
-            local.evidence.reinforce += 1
-            local.frozen_at = fresh.frozen_at
-          }
-          result.refreshedFacts++
-        } else {
-          negateFactRow(fresh.id)
-          if (local) {
-            local.status = 'archived'
-            local.evidence.negate += 1
-          }
-          const entry: MemoryFact = {
-            id: newId('f'),
-            text: cand.text,
-            entity: cand.entity,
-            importance: Math.min(10, Math.max(1, Math.round(cand.importance))),
-            confidence: Math.min(1, Math.max(0.1, cand.confidence)),
-            source,
-            created_at: ts,
-            last_confirmed_at: ts,
-            status: 'active',
-            evidence: { reinforce: 0, negate: 0 },
-            valid_until: cand.valid_until ?? null,
-            frozen_at: null,
-            embedding: null,
-          }
-          facts.push(entry)
-          insertFactRow(characterId, factToRow(entry, sourceEvidence))
-          result.insertedFacts++
-        }
-      } catch {
-        result.judgedAway++
-      }
-      continue
-    }
-    const entry: MemoryFact = {
-      id: newId('f'),
-      text: cand.text,
-      entity: cand.entity,
-      importance: Math.min(10, Math.max(1, Math.round(cand.importance))),
-      confidence: Math.min(1, Math.max(0.1, cand.confidence)),
-      source,
-      created_at: ts,
-      last_confirmed_at: ts,
-      status: 'active',
-      evidence: { reinforce: 0, negate: 0 },
-      valid_until: cand.valid_until ?? null,
-      frozen_at: cand.frozen ? ts : null,
-      embedding: null, // 延迟计算：写入时先不 embedding，首次检索时批量算
-    }
-    const fit = fitBudget(facts, entry, config.factBudgetChars, factScore)
-    for (const id of fit.archivedIds) setFactStatusRow(id, 'archived')
-    if (!fit.accepted) {
-      result.budgetRejected++
-      continue
+
+    const entry = buildFactFromCandidate(candidate, ts)
+    supersedeFactRow(fresh.id, ts, entry.id)
+    const local = facts.find((item) => item.id === fresh.id)
+    if (local) {
+      local.status = 'superseded'
+      local.invalid_at = ts
+      local.superseded_by = entry.id
+      local.evidence.negate += 1
     }
     facts.push(entry)
     insertFactRow(characterId, factToRow(entry, sourceEvidence))
     result.insertedFacts++
+    result.supersededFacts++
   }
 
   for (const cand of payload.stories ?? []) {
@@ -392,12 +342,6 @@ export async function applyCandidates(
       importance: Math.min(10, Math.max(1, Math.round(cand.importance))),
       status: 'active',
       created_at: ts,
-    }
-    const fit = fitBudget(stories, entry, config.storyBudgetChars, storyScore)
-    for (const id of fit.archivedIds) setStoryStatusRow(id, 'archived')
-    if (!fit.accepted) {
-      result.budgetRejected++
-      continue
     }
     stories.push(entry)
     insertStoryRow(characterId, storyToRow(entry, sourceEvidence))
@@ -423,10 +367,13 @@ export async function manualAddFact(
     created_at: ts,
     last_confirmed_at: ts,
     status: 'active',
+    valid_from: ts,
+    invalid_at: null,
+    superseded_by: null,
     evidence: { reinforce: 0, negate: 0 },
     protected: true,
     valid_until: null,
-    frozen_at: ts,
+    frozen_at: null,
     embedding: null,
   }
   await memoryDbReady()
@@ -492,16 +439,19 @@ function dueProximity(dueAt: string | null, now: number): number {
   return clamp01(1 - Math.max(0, days) / DUE_WINDOW_DAYS)
 }
 
-// 记忆块装配核心：分组→打分→预算截断，相关度来源由调用方注入（关键词 / 向量）
+// 记忆块装配核心：槽位去重→分组→打分→预算截断；失效记忆只在问及过去时出现
 function assembleMemoryBlock(
   actives: MemoryFact[],
   activeStoriesList: MemoryStory[],
+  historic: MemoryFact[],
+  wantHistory: boolean,
   charCap: number,
   relOfFact: (f: MemoryFact) => number,
   relOfStory: (s: MemoryStory) => number,
   factScoreScale: number,
 ): string | null {
-  if (actives.length === 0 && activeStoriesList.length === 0) return null
+  const past = wantHistory ? historic.slice(0, 5) : []
+  if (actives.length === 0 && activeStoriesList.length === 0 && past.length === 0) return null
 
   const now = Date.now()
   const { wSim, wValue, wDue } = RECALL_WEIGHTS
@@ -511,7 +461,7 @@ function assembleMemoryBlock(
     character: [],
     relationship: [],
   }
-  for (const f of actives) {
+  for (const f of sameSlotDedupe(actives)) {
     const rel = wSim * relOfFact(f) + wValue * valueNormFact(f) + wDue * dueProximity(f.valid_until ?? null, now)
     const score = factScore(f) * (factScoreScale + rel)
     groups[f.entity].push({ text: f.text.slice(0, 60), score })
@@ -541,6 +491,8 @@ function assembleMemoryBlock(
     })
   }
 
+  relationshipItems.push(...groups.relationship)
+
   let total = 0
   const kept: string[] = []
   const emit: Array<[string, Item[]]> = [
@@ -558,6 +510,16 @@ function assembleMemoryBlock(
     }
     if (groupLines.length > 0) kept.push(`${label}：${groupLines.join('；')}`)
   }
+  if (past.length > 0) {
+    const pastLines: string[] = []
+    for (const fact of past) {
+      const text = fact.text.slice(0, 60)
+      if (total + text.length > charCap) break
+      total += text.length
+      pastLines.push(text)
+    }
+    if (pastLines.length > 0) kept.push(`以前（已不再成立）：${pastLines.join('；')}`)
+  }
   lines.push(...kept)
   if (lines.length === 0) return null
   lines.push('（以上是过往记忆，可能过时，以对方现在说的为准）')
@@ -573,6 +535,8 @@ export function buildMemoryBlock(
   return assembleMemoryBlock(
     activeFacts(facts),
     activeStories(stories),
+    historyFacts(facts),
+    wantsHistory(context),
     charCap,
     (f) => (context ? relevanceScore(f.text, context) : 0.5),
     (s) => (context ? relevanceScore(s.text, context) : 0.5),
@@ -677,25 +641,13 @@ export async function buildMemoryBlockVector(
   return assembleMemoryBlock(
     actives,
     activeStories(stories),
+    historyFacts(facts),
+    wantsHistory(context),
     charCap,
     (f) => hitMap.get(f.id) ?? relevanceScore(f.text, context),
     (s) => relevanceScore(s.text, context),
     0.3,
   )
-}
-
-// 遗忘曲线清理：retention < 0.1 且未冻结/未保护的记忆自动归档
-export async function decaySweep(characterId: string): Promise<{ archived: number }> {
-  const facts = await loadFactsTyped(characterId)
-  let archived = 0
-  for (const f of facts) {
-    if (f.status !== 'active') continue
-    if (f.protected || isFactFrozen(f)) continue
-    if (retentionScore(f) < 0.1) {
-      if (setFactStatusRow(f.id, 'archived') > 0) archived++
-    }
-  }
-  return { archived }
 }
 
 export async function freezeFact(_characterId: string, factId: string): Promise<boolean> {

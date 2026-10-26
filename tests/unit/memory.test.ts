@@ -4,12 +4,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  adjudicateFact,
   applyCandidates,
   buildMemoryBlock,
   buildMemoryBlockVector,
   clearMemory,
-  decaySweep,
   deleteFact,
   freezeFact,
   initMemoryStore,
@@ -36,6 +34,7 @@ import {
   memoryDbReady,
   saveChatMessages,
 } from '../../src/main/services/memoryDb'
+import { pickTarget } from '../../src/main/services/memoryArbitration'
 
 describe('memory text and adjudication', () => {
   it('归一化与相似度', () => {
@@ -71,6 +70,8 @@ describe('memory text and adjudication', () => {
         id: 'f1',
         text: '用户的生日是6月12日',
         entity: 'user' as const,
+        subject: '用户',
+        attribute: '生日',
         importance: 10,
         confidence: 1,
         source: 'user_statement' as const,
@@ -83,18 +84,21 @@ describe('memory text and adjudication', () => {
         embedding: null,
       },
     ]
-    expect(
-      adjudicateFact(
-        { text: '用户的生日是6月12日，记得提醒', entity: 'user', importance: 10, confidence: 1, reason: 'r' },
-        active,
-      ).action,
-    ).toBe('refresh')
-    expect(
-      adjudicateFact(
-        { text: '用户在准备CP考试', entity: 'user', importance: 6, confidence: 0.5, reason: 'r' },
-        active,
-      ).action,
-    ).toBe('insert')
+    // 重复陈述不再自动强化，只负责找到候选，交给语义裁判
+    expect(pickTarget(
+      { text: '用户的生日是6月12日', entity: 'user', importance: 10, confidence: 1, reason: 'r' },
+      active,
+    )).not.toBeNull()
+    // 无关事实不产生候选
+    expect(pickTarget(
+      { text: '用户在准备CP考试', entity: 'user', importance: 6, confidence: 0.5, reason: 'r' },
+      active,
+    )).toBeNull()
+    // 槽位命中优先于字面相似：改日期也能找到旧值
+    expect(pickTarget(
+      { text: '用户的生日改到7月1日', entity: 'user', subject: '用户', attribute: '生日' },
+      active,
+    )?.via).toBe('slot')
   })
 })
 
@@ -153,8 +157,6 @@ describe('memory persistence pipeline', () => {
       )
 
       initMemoryStore(root, {
-        factBudgetChars: 4000,
-        storyBudgetChars: 3000,
         injectCharCap: 900,
         batchTurns: 8,
         idleMinutes: 5,
@@ -252,7 +254,7 @@ describe('memory persistence pipeline', () => {
       clearCharacterMessages('m1')
       assert.strictEqual(listUnarchivedMessages('m1').length, 0)
 
-      initMemoryStore(root, { factBudgetChars: 30 })
+      initMemoryStore(root)
       await clearMemory('c2')
       const r2 = await applyCandidates('c2', {
         facts: [
@@ -263,29 +265,24 @@ describe('memory persistence pipeline', () => {
         stories: [],
       })
       assert.strictEqual(r2.insertedFacts, 3)
-      assert.strictEqual(r2.budgetRejected, 0)
       const facts2 = await loadFacts('c2')
-      assert.strictEqual(facts2.filter((f) => f.status === 'active').length, 2)
-      assert.strictEqual(facts2.filter((f) => f.status === 'archived').length, 1)
-      assert.ok(facts2.find((f) => f.status === 'archived')?.text.includes('香菜'))
+      assert.strictEqual(facts2.filter((f) => f.status === 'active').length, 3)
+      assert.strictEqual(facts2.filter((f) => f.status === 'archived').length, 0)
 
       const r3 = await applyCandidates('c2', {
         facts: [{ text: '这一条记忆内容写得非常非常长，长到单独一条就超过了整个心记簿的预算上限，所以无论如何腾位都不可能被接受入库', entity: 'user', importance: 9, confidence: 1, reason: 'c' }],
         stories: [],
       })
-      assert.strictEqual(r3.budgetRejected, 1)
+      assert.strictEqual(r3.insertedFacts, 1)
       await clearMemory('c2')
       assert.strictEqual((await loadFacts('c2')).length, 0)
 
-      initMemoryStore(root, { factBudgetChars: 30 })
+      initMemoryStore(root)
       const manual = await manualAddFact('c3', '用户养了一只猫')
-      assert.strictEqual(
-        adjudicateFact(
-          { text: '用户家里养了只猫', entity: 'user', importance: 9, confidence: 1, reason: 'r' },
-          [manual],
-        ).action,
-        'judge',
-      )
+      assert.ok(pickTarget(
+        { text: '用户家里养了只猫', entity: 'user', importance: 9, confidence: 1, reason: 'r' },
+        [manual],
+      ))
       const r4 = await applyCandidates(
         'c3',
         {
@@ -295,14 +292,15 @@ describe('memory persistence pipeline', () => {
           ],
           stories: [],
         },
-        async () => 'negates',
+        async () => [{ index: 0, verdict: 'contradicts' as const }],
       )
       const facts4 = await loadFacts('c3')
-      assert.strictEqual(r4.refreshedFacts, 1)
-      assert.strictEqual(r4.insertedFacts, 1)
+      assert.strictEqual(r4.insertedFacts, 2)
+      assert.strictEqual(r4.supersededFacts, 1)
       const manualAfter = facts4.find((f) => f.id === manual.id)
-      assert.ok(manualAfter && manualAfter.status === 'active')
-      assert.ok(!facts4.some((f) => f.text === '用户家里养了只猫'))
+      assert.ok(manualAfter && manualAfter.status === 'superseded')
+      assert.ok(manualAfter?.invalid_at)
+      assert.ok(facts4.some((f) => f.text === '用户家里养了只猫' && f.status === 'active'))
 
       const c4 = 'c4'
       await clearMemory(c4)
@@ -322,9 +320,8 @@ describe('memory persistence pipeline', () => {
       })))
       const frozenFact = await manualAddFact(c4, '用户的生日是3月15日')
       await freezeFact(c4, frozenFact.id)
-      assert.strictEqual((await decaySweep(c4)).archived, 1)
       const factsAfterDecay = await loadFacts(c4)
-      assert.strictEqual(factsAfterDecay.find((f) => f.id === oldFact.id)?.status, 'archived')
+      assert.strictEqual(factsAfterDecay.find((f) => f.id === oldFact.id)?.status, 'active')
       assert.strictEqual(factsAfterDecay.find((f) => f.id === frozenFact.id)?.status, 'active')
       await unfreezeFact(c4, frozenFact.id)
       assert.strictEqual((await loadFacts(c4)).find((f) => f.id === frozenFact.id)?.frozen_at, null)

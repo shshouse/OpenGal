@@ -42,9 +42,14 @@ export default function App() {
   }, [view])
 
   React.useEffect(() => {
-    const handler = () => setView('settings')
-    window.addEventListener('opengal:open-settings', handler)
-    return () => window.removeEventListener('opengal:open-settings', handler)
+    const toSettings = () => setView('settings')
+    const toLogs = () => setView('logs')
+    window.addEventListener('opengal:open-settings', toSettings)
+    window.addEventListener('opengal:open-logs', toLogs)
+    return () => {
+      window.removeEventListener('opengal:open-settings', toSettings)
+      window.removeEventListener('opengal:open-logs', toLogs)
+    }
   }, [])
 
   React.useEffect(() => {
@@ -166,6 +171,7 @@ export default function App() {
         showLive2D={config?.showLive2D ?? true}
         onToggleLive2D={() => void toggleLive2D()}
         onOpenLogs={() => setView('logs')}
+        logsActive={view === 'logs'}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <TitleBar />
@@ -198,11 +204,7 @@ export default function App() {
             </div>
           )}
 
-          {view === 'logs' && (
-            <div className="h-full bg-background">
-              <LogsPanel forceOpen />
-            </div>
-          )}
+          {view === 'logs' && <LogsPanel onClose={() => setView('chat')} />}
         </main>
       </div>
     </div>

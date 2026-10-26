@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, desktopCapturer, dialog } from 'electron'
+import { ipcMain, BrowserWindow, desktopCapturer, dialog, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
@@ -25,7 +25,8 @@ import { runBootSequence, recheckTts } from '../services/bootService'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
-import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, decaySweep, freezeFact, unfreezeFact, deleteFact } from '../services/memoryStore'
+import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, freezeFact, unfreezeFact, deleteFact } from '../services/memoryStore'
+import { parseVerdict, type MemoryVerdict } from '../services/memoryArbitration'
 import {
   setMemoryDbLogger,
   memoryDbReady,
@@ -41,6 +42,19 @@ import {
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryFact } from '@shared/types'
 import type { WindowManager } from '../windows/windowManager'
 
+const JUDGE_SYSTEM_PROMPT = `你是长期记忆的一致性裁判。逐条判断「新信息」相对「旧记忆」的关系，只能选一种：
+duplicate：同一件事的重复陈述，没有新增内容。
+refines：新信息更具体或补充细节，旧记忆仍然成立。
+contradicts：新信息让旧记忆不再成立（偏好改变、数值/日期/地点/身份变化、否定、关系变化）。
+unrelated：两者不是同一件事，互不影响。
+
+判定要点：
+- 出现否定、反义、数值/日期/地点/身份不同，一律 contradicts，不能判 duplicate。
+- 「更喜欢/不太喜欢/不再/改成」这类程度或时间变化也算 contradicts。
+- 拿不准就判 unrelated：宁可多存一条，也不要错误覆盖旧记忆。
+
+只输出 JSON：{"verdicts":[{"i":0,"verdict":"contradicts"}]}，每个编号都要有一条，不要输出其他文字。`
+
 function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
   return Promise.resolve()
     .then(run)
@@ -55,24 +69,31 @@ export function registerIpc(windows: WindowManager): void {
   startEnvMonitor()
   windows.setSelfExclusion(readConfig().screen?.excludeSelf ?? true)
 
-  async function judgeFact(existing: MemoryFact, cand: MemoryCandidateFact): Promise<'reinforces' | 'negates'> {
+  async function judgeFacts(
+    pairs: Array<{ index: number, target: MemoryFact, candidate: MemoryCandidateFact }>,
+  ): Promise<Array<{ index: number, verdict: MemoryVerdict }>> {
+    if (pairs.length === 0) return []
+    const body = pairs
+      .map((pair) => {
+        const slot = pair.target.attribute
+          ? `（槽位：${pair.target.subject ?? '—'} / ${pair.target.attribute}）`
+          : ''
+        return `#${pair.index}\n旧记忆：${pair.target.text}${slot}\n新信息：${pair.candidate.text}`
+      })
+      .join('\n\n')
     const res = await callLLM({
       slot: 'sub',
       messages: [
-        {
-          role: 'system',
-          content:
-            '你是记忆一致性裁判。只输出 JSON：{"verdict":"reinforces"} 或 {"verdict":"negates"}。reinforces=新信息确认或补充旧记忆；negates=新信息与旧记忆矛盾。'
-        },
-        {
-          role: 'user',
-          content: `旧记忆：${existing.text}\n新信息：${cand.text}\n判断新信息与旧记忆的关系。`
-        }
+        { role: 'system', content: JUDGE_SYSTEM_PROMPT },
+        { role: 'user', content: body },
       ]
     })
     const m = res.content.match(/\{[\s\S]*\}/)
-    const parsed = m ? (JSON.parse(m[0]) as { verdict?: string }) : {}
-    return parsed.verdict === 'negates' ? 'negates' : 'reinforces'
+    if (!m) throw new Error('裁判输出无法解析')
+    const parsed = JSON.parse(m[0]) as { verdicts?: Array<{ i?: number, verdict?: string }> }
+    return (parsed.verdicts ?? []).flatMap((item) =>
+      typeof item.i === 'number' ? [{ index: item.i, verdict: parseVerdict(item.verdict) }] : []
+    )
   }
 
   ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
@@ -354,6 +375,38 @@ export function registerIpc(windows: WindowManager): void {
     logBus.info('logs', '日志已清空')
     return { success: true }
   })
+  ipcMain.handle(IpcChannels.logs.reveal, () =>
+    wrap(async () => {
+      const dir = path.join(getDataRoot(), 'logs')
+      await fs.promises.mkdir(dir, { recursive: true })
+      const failure = await shell.openPath(dir)
+      if (failure) throw new Error(failure)
+      return true
+    })
+  )
+  ipcMain.handle(IpcChannels.logs.export, (event, text: string) =>
+    wrap(async () => {
+      if (typeof text !== 'string' || text.length === 0) throw new Error('没有可导出的内容')
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const now = new Date()
+      const pad = (n: number): string => String(n).padStart(2, '0')
+      const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+      const options = {
+        title: '导出运行日志',
+        defaultPath: `opengal-log-${stamp}.log`,
+        filters: [
+          { name: '日志文件', extensions: ['log', 'txt'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      }
+      const result = win
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) return null
+      await fs.promises.writeFile(result.filePath, text, 'utf-8')
+      return result.filePath
+    })
+  )
   ipcMain.on(IpcChannels.logs.append, (_, level: string, source: string, message: string, details?: string) => {
     const lv = level === 'warn' || level === 'error' || level === 'debug' ? level : 'info'
     logBus[lv](source || 'renderer', message, details)
@@ -400,15 +453,12 @@ export function registerIpc(windows: WindowManager): void {
     }))
   )
   ipcMain.handle(IpcChannels.memory.apply, (_, characterId: string, payload: MemoryApplyPayload) =>
-    wrap(() => applyCandidates(characterId, payload, judgeFact))
+    wrap(() => applyCandidates(characterId, payload, judgeFacts))
   )
   ipcMain.handle(IpcChannels.memory.manualAdd, (_, characterId: string, text: string, entity?: MemoryFact['entity']) =>
     wrap(() => manualAddFact(characterId, text, entity))
   )
   ipcMain.handle(IpcChannels.memory.clear, (_, characterId: string) => wrap(() => clearMemory(characterId)))
-  ipcMain.handle(IpcChannels.memory.decaySweep, (_, characterId: string) =>
-    wrap(() => decaySweep(characterId))
-  )
   ipcMain.handle(IpcChannels.memory.freezeFact, (_, characterId: string, factId: string) =>
     wrap(() => freezeFact(characterId, factId))
   )
