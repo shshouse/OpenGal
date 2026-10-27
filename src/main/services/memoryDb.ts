@@ -26,6 +26,87 @@ export interface MessageRow {
   content: string
   ts: number
   archived: number
+  kind?: string
+}
+
+export interface MemoryRow {
+  id: string
+  character_id: string
+  kind: string
+  text: string
+  subject?: string | null
+  attribute?: string | null
+  object?: string | null
+  polarity?: number | null
+  entity?: string
+  confidence?: number
+  source?: string
+  state: string
+  importance: number
+  happened_at: number | null
+  created_at: number
+  confirmed_at?: number | null
+  source_from: number | null
+  source_to: number | null
+  supersedes: string | null
+  pinned: number
+  embedding: string | null
+  valid_from?: string | null
+  invalid_at?: string | null
+  due_at?: string | null
+  frozen_at?: string | null
+  evidence?: string | null
+}
+
+const CJK_RE = /[㐀-鿿豈-﫿]/
+
+/** 中文按相邻双字切词、英文与数字按整词；写入与查询必须使用同一套规则。 */
+export function searchTokens(text: string): string[] {
+  const parts = text.match(/[㐀-鿿豈-﫿]+|[A-Za-z0-9]+/g) ?? []
+  const tokens: string[] = []
+  for (const part of parts) {
+    if (CJK_RE.test(part)) {
+      if (part.length === 1) tokens.push(part)
+      for (let i = 0; i + 1 < part.length; i++) tokens.push(part.slice(i, i + 2))
+    } else {
+      tokens.push(part.toLowerCase())
+    }
+  }
+  return [...new Set(tokens)]
+}
+
+/** 消息 content 可能是完整消息 JSON，也可能是不带 JSON 的旧裸文本。 */
+export function visibleMessageText(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed === 'string') return parsed
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return raw
+    const content = (parsed as { content?: unknown }).content
+    if (typeof content === 'string') return content
+    if (Array.isArray(content)) {
+      return content
+        .map((part) => {
+          if (!part || typeof part !== 'object') return ''
+          if ('text' in part) return String(part.text)
+          if ('image_url' in part) return '[图片]'
+          return ''
+        })
+        .filter(Boolean)
+        .join(' ')
+    }
+    return raw
+  } catch {
+    return raw
+  }
+}
+
+function indexMessage(id: number, content: string): void {
+  run('DELETE FROM messages_fts WHERE rowid = ?', [id])
+  run('INSERT INTO messages_fts(rowid, message_id, tokens) VALUES(?, ?, ?)', [
+    id,
+    id,
+    searchTokens(visibleMessageText(content)).join(' '),
+  ])
 }
 
 export interface FactRow {
@@ -51,8 +132,6 @@ export interface FactRow {
   valid_from?: string | null
   invalid_at?: string | null
   superseded_by?: string | null
-  subject?: string | null
-  attribute?: string | null
   object?: string | null
   polarity?: number | null
 }
@@ -80,9 +159,49 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   ts INTEGER NOT NULL,
-  archived INTEGER NOT NULL DEFAULT 0
+  archived INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'chat'
 );
 CREATE INDEX IF NOT EXISTS idx_msg_char ON messages(character_id, archived, ts);
+
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY,
+  character_id TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'fact',
+  text TEXT NOT NULL,
+  entity TEXT NOT NULL DEFAULT 'user',
+  subject TEXT,
+  attribute TEXT,
+  object TEXT,
+  polarity INTEGER,
+  confidence REAL NOT NULL DEFAULT 0.8,
+  source TEXT NOT NULL DEFAULT 'llm_inferred',
+  state TEXT NOT NULL DEFAULT 'active',
+  importance INTEGER NOT NULL DEFAULT 3,
+  happened_at INTEGER,
+  created_at INTEGER NOT NULL,
+  confirmed_at INTEGER,
+  source_from INTEGER,
+  source_to INTEGER,
+  supersedes TEXT,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  embedding TEXT,
+  valid_from TEXT,
+  invalid_at TEXT,
+  due_at TEXT,
+  frozen_at TEXT,
+  evidence TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_mem_char_state ON memories(character_id, state, kind);
+CREATE INDEX IF NOT EXISTS idx_mem_char_time ON memories(character_id, created_at);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  message_id UNINDEXED,
+  tokens
+);
+CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+  DELETE FROM messages_fts WHERE rowid = old.id;
+END;
 
 CREATE TABLE IF NOT EXISTS facts (
   id TEXT PRIMARY KEY,
@@ -162,6 +281,7 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
       throw new Error('升级前备份失败，已中止记忆库初始化')
     }
     db.exec(SCHEMA)
+    migrateMessagesSchema()
     migrateFactsSchema()
     checkpoint()
     snapshotBackup()
@@ -328,6 +448,85 @@ function run(query: string, params: SQLInputValue[] = []): void {
   db.prepare(query).run(...params)
 }
 
+function ensureColumns(table: string, columns: Array<[string, string]>): void {
+  const existing = rows(`PRAGMA table_info(${table})`, []).map((r) => String(r.name))
+  for (const [name, ddl] of columns) {
+    if (!existing.includes(name)) {
+      db!.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`)
+      logger.info('memory', `${table} 表新增列: ${name}`)
+    }
+  }
+}
+
+function migrateMessagesSchema(): void {
+  try {
+    const columns = rows('PRAGMA table_info(messages)', []).map((r) => String(r.name))
+    if (!columns.includes('kind')) {
+      db!.exec("ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'")
+      logger.info('memory', 'messages 表新增列: kind')
+    }
+    ensureColumns('memories', [
+      ['entity', "TEXT NOT NULL DEFAULT 'user'"],
+      ['confidence', 'REAL NOT NULL DEFAULT 0.8'],
+      ['source', "TEXT NOT NULL DEFAULT 'llm_inferred'"],
+      ['due_at', 'TEXT'],
+      ['frozen_at', 'TEXT'],
+      ['evidence', 'TEXT'],
+      ['subject', 'TEXT'],
+      ['attribute', 'TEXT'],
+      ['object', 'TEXT'],
+      ['polarity', 'INTEGER'],
+      ['confirmed_at', 'INTEGER'],
+      ['valid_from', 'TEXT'],
+      ['invalid_at', 'TEXT'],
+    ])
+    const indexed = new Set(rows('SELECT rowid FROM messages_fts', []).map((r) => Number(r.rowid)))
+    const pending = rows('SELECT id, content FROM messages', []).filter((r) => !indexed.has(Number(r.id)))
+    if (pending.length > 0) {
+      withTx(() => {
+        for (const row of pending) indexMessage(Number(row.id), String(row.content))
+      })
+      logger.info('memory', `已补建全文索引: ${pending.length} 条消息`)
+    }
+  } catch (err) {
+    logger.error('memory', `messages schema 迁移失败: ${(err as Error).message}`)
+    throw err
+  }
+}
+
+function migrateLegacyMemoryTables(): void {
+  try {
+    const existing = Number(rows('SELECT COUNT(*) AS c FROM memories', [])[0]?.c ?? 0)
+    if (existing > 0) return
+    const hasTable = (name: string) =>
+      rows("SELECT name FROM sqlite_master WHERE type='table' AND name=?", [name]).length > 0
+    let migrated = 0
+    withTx(() => {
+      if (hasTable('facts')) {
+        for (const row of rows('SELECT * FROM facts', [])) {
+          const fact = row as unknown as FactRow
+          insertMemoryRowRaw(characterIdOf(fact), factRowToMemory(characterIdOf(fact), fact))
+          migrated++
+        }
+      }
+      if (hasTable('stories')) {
+        for (const row of rows('SELECT * FROM stories', [])) {
+          const story = row as unknown as StoryRow
+          insertMemoryRowRaw(characterIdOf(story), storyRowToMemory(characterIdOf(story), story))
+          migrated++
+        }
+      }
+    })
+    if (migrated > 0) logger.info('memory', `旧 facts/stories 已迁移到 memories: ${migrated} 条`)
+  } catch (err) {
+    logger.warn('memory', `旧记忆表迁移失败（原表保留，不影响启动）: ${(err as Error).message}`)
+  }
+}
+
+function characterIdOf(row: { character_id: string }): string {
+  return row.character_id
+}
+
 function migrateFactsSchema(): void {
   try {
     const factColumns = rows('PRAGMA table_info(facts)', []).map((r) => String(r.name))
@@ -352,6 +551,7 @@ function migrateFactsSchema(): void {
       backupRootDir,
       `memory-pre-schema-${new Date().toISOString().replace(/[:.]/g, '-')}.db`,
     )
+    migrateLegacyMemoryTables()
     if (!sqliteSnapshot(target, 'facts')) {
       throw new Error('schema 迁移前备份失败，已中止迁移')
     }
@@ -405,17 +605,15 @@ export function replaceUnarchivedMessages(
     for (const item of items) {
       if (typeof item.id === 'number') {
         run(
-          'INSERT OR REPLACE INTO messages(id, character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?, ?)',
-          [item.id, characterId, item.role, item.content, item.ts, item.archived]
+          'INSERT OR REPLACE INTO messages(id, character_id, role, content, ts, archived, kind) VALUES(?, ?, ?, ?, ?, ?, ?)',
+          [item.id, characterId, item.role, item.content, item.ts, item.archived, item.kind ?? 'chat']
         )
+        indexMessage(item.id, item.content)
       } else {
-        run('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?)', [
-          characterId,
-          item.role,
-          item.content,
-          item.ts,
-          item.archived,
-        ])
+        const info = db!
+          .prepare('INSERT INTO messages(character_id, role, content, ts, archived, kind) VALUES(?, ?, ?, ?, ?, ?)')
+          .run(characterId, item.role, item.content, item.ts, item.archived, item.kind ?? 'chat')
+        indexMessage(Number(info.lastInsertRowid), item.content)
       }
     }
   })
@@ -423,13 +621,10 @@ export function replaceUnarchivedMessages(
 
 export function appendMessage(item: Omit<MessageRow, 'id'>): void {
   withTx(() => {
-    run('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?)', [
-      item.character_id,
-      item.role,
-      item.content,
-      item.ts,
-      item.archived,
-    ])
+    const info = db!
+      .prepare('INSERT INTO messages(character_id, role, content, ts, archived, kind) VALUES(?, ?, ?, ?, ?, ?)')
+      .run(item.character_id, item.role, item.content, item.ts, item.archived, item.kind ?? 'chat')
+    indexMessage(Number(info.lastInsertRowid), item.content)
   })
 }
 
@@ -444,18 +639,19 @@ export function appendMissingMessages(
       'SELECT 1 FROM messages WHERE character_id = ? AND role = ? AND content = ? AND ts = ? LIMIT 1'
     )
     const insert = db!.prepare(
-      'INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, ?)'
+      'INSERT INTO messages(character_id, role, content, ts, archived, kind) VALUES(?, ?, ?, ?, ?, ?)'
     )
     for (const item of items) {
       if (exists.get(characterId, item.role, item.content, item.ts)) continue
-      insert.run(characterId, item.role, item.content, item.ts, item.archived)
+      const info = insert.run(characterId, item.role, item.content, item.ts, item.archived, item.kind ?? 'chat')
+      indexMessage(Number(info.lastInsertRowid), item.content)
       inserted++
     }
   })
   return inserted
 }
 
-const MESSAGE_COLUMNS = 'id, character_id, role, content, ts, archived'
+const MESSAGE_COLUMNS = 'id, character_id, role, content, ts, archived, kind'
 
 function likePattern(term: string): string {
   return `%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
@@ -493,30 +689,168 @@ function searchMessagesInternal(
 ): MessageRow[] {
   const terms = query.trim().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return []
-  const where = terms.map(() => "content LIKE ? ESCAPE '\\'").join(' AND ')
-  const range = fromTs !== undefined && toTs !== undefined ? ' AND ts >= ? AND ts <= ?' : ''
-  const params: SQLInputValue[] = [characterId, ...terms.map(likePattern)]
-  if (range) params.push(fromTs as number, toTs as number)
-  const hits = rows(
-    `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ${where}${range} ORDER BY ts DESC, id DESC LIMIT ?`,
-    [...params, limit]
-  ) as unknown as MessageRow[]
+  const range = fromTs !== undefined && toTs !== undefined
+  const rangeParams = range ? [fromTs as number, toTs as number] : []
+  const hits: MessageRow[] = []
+
+  const tokens = searchTokens(query)
+  if (tokens.length > 0) {
+    const match = tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ')
+    const found = rows(
+      `SELECT m.id, m.character_id, m.role, m.content, m.ts, m.archived, m.kind
+       FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid
+       WHERE messages_fts MATCH ? AND m.character_id = ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
+       ORDER BY bm25(messages_fts) LIMIT ?`,
+      [match, characterId, ...rangeParams, limit]
+    ) as unknown as MessageRow[]
+    for (const row of found) {
+      if (terms.every((term) => visibleMessageText(String(row.content)).includes(term))) hits.push(row)
+    }
+  }
+
+  // 单字与短词不会被相邻双字索引覆盖，用子串兜底
+  if (hits.length === 0) {
+    const where = terms.map(() => "content LIKE ? ESCAPE '\\'").join(' AND ')
+    const fallback = rows(
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ${where}${range ? ' AND ts >= ? AND ts <= ?' : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
+      [characterId, ...terms.map(likePattern), ...rangeParams, limit]
+    ) as unknown as MessageRow[]
+    hits.push(...fallback)
+  }
+
+  return expandNeighbors(characterId, hits, radius, fromTs, toTs)
+}
+
+function expandNeighbors(
+  characterId: string,
+  hits: MessageRow[],
+  radius: number,
+  fromTs?: number,
+  toTs?: number,
+): MessageRow[] {
+  const range = fromTs !== undefined && toTs !== undefined
+  const rangeSql = range ? ' AND ts >= ? AND ts <= ?' : ''
+  const rangeParams = range ? [fromTs as number, toTs as number] : []
   const found = new Map<number, MessageRow>()
   for (const hit of hits) {
     const id = hit.id as number
     found.set(id, hit)
     if (radius <= 0) continue
     const before = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id < ?${range} ORDER BY id DESC LIMIT ?`,
-      [characterId, id, ...(range ? [fromTs as number, toTs as number] : []), radius]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
+      [characterId, id, ...rangeParams, radius]
     ) as unknown as MessageRow[]
     const after = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id > ?${range} ORDER BY id ASC LIMIT ?`,
-      [characterId, id, ...(range ? [fromTs as number, toTs as number] : []), radius]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
+      [characterId, id, ...rangeParams, radius]
     ) as unknown as MessageRow[]
     for (const row of [...before, ...after]) found.set(row.id as number, row)
   }
   return [...found.values()].sort((a, b) => a.ts - b.ts || (a.id ?? 0) - (b.id ?? 0))
+}
+
+export interface MessageSearchOptions {
+  fromTs?: number
+  toTs?: number
+  limit?: number
+  radius?: number
+}
+
+/** 中文原文检索：先走相邻双字索引，未命中再退回子串；结果含相邻上下文。 */
+export function searchMessages(
+  characterId: string,
+  query: string,
+  opts: MessageSearchOptions = {},
+): MessageRow[] {
+  return searchMessagesInternal(characterId, query, opts.limit ?? 3, opts.radius ?? 1, opts.fromTs, opts.toTs)
+}
+
+// ---- memories：长期记忆单表 ----
+
+function insertMemoryRowRaw(characterId: string, row: MemoryRow): void {
+  run(
+      `INSERT OR REPLACE INTO memories(id, character_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        row.id,
+        characterId,
+        row.kind,
+        row.text,
+        row.entity ?? 'user',
+        row.subject ?? null,
+        row.attribute ?? null,
+        row.object ?? null,
+        row.polarity ?? null,
+        row.confidence ?? 0.8,
+        row.source ?? 'llm_inferred',
+        row.state,
+        row.importance,
+        row.happened_at,
+        row.created_at,
+        row.confirmed_at ?? null,
+        row.source_from,
+        row.source_to,
+        row.supersedes,
+        row.pinned,
+        row.embedding,
+        row.valid_from ?? null,
+        row.invalid_at ?? null,
+        row.due_at ?? null,
+        row.frozen_at ?? null,
+        row.evidence ?? null,
+      ]
+    )
+}
+
+export function insertMemoryRow(characterId: string, row: MemoryRow): void {
+  withTx(() => insertMemoryRowRaw(characterId, row))
+}
+
+export function listMemoryRows(
+  characterId: string,
+  opts: { includeInactive?: boolean } = {},
+): MemoryRow[] {
+  const filter = opts.includeInactive ? '' : " AND state = 'active'"
+  return rows(
+    `SELECT * FROM memories WHERE character_id = ?${filter} ORDER BY created_at DESC, id`,
+    [characterId]
+  ) as unknown as MemoryRow[]
+}
+
+export function setMemoryStateRow(id: string, state: string): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE memories SET state = ? WHERE id = ?').run(state, id).changes
+  ))
+}
+
+export function setMemoryPinnedRow(id: string, pinned: boolean): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE memories SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, id).changes
+  ))
+}
+
+export function setMemoryEmbeddingRow(id: string, embedding: string): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE memories SET embedding = ? WHERE id = ?').run(embedding, id).changes
+  ))
+}
+
+export function confirmMemoryRow(id: string, ts: number): number {
+  return withTx(() => Number(
+    db!.prepare('UPDATE memories SET confirmed_at = ? WHERE id = ?').run(ts, id).changes
+  ))
+}
+
+export function deleteMemoryRow(id: string): number {
+  return withTx(() => Number(
+    db!.prepare('DELETE FROM memories WHERE id = ?').run(id).changes
+  ))
+}
+
+export function clearCharacterMemories(characterId: string): void {
+  withTx(() => {
+    run('DELETE FROM memories WHERE character_id = ?', [characterId])
+  })
 }
 
 // 按时间范围取原话，用于从记忆回溯到当天的对话
@@ -535,9 +869,10 @@ export function saveChatMessages(characterId: string, items: Array<{ role: strin
   withTx(() => {
     for (let i = 0; i < items.length; i++) {
       const info = db!
-        .prepare('INSERT INTO messages(character_id, role, content, ts, archived) VALUES(?, ?, ?, ?, 0)')
-        .run(characterId, items[i].role, JSON.stringify(items[i]), base + i)
+        .prepare('INSERT INTO messages(character_id, role, content, ts, archived, kind) VALUES(?, ?, ?, ?, 0, ?)')
+        .run(characterId, items[i].role, JSON.stringify(items[i]), base + i, 'chat')
       ids.push(Number(info.lastInsertRowid))
+      indexMessage(Number(info.lastInsertRowid), JSON.stringify(items[i]))
     }
   })
   return ids
@@ -611,175 +946,207 @@ export function addSummary(characterId: string, s: SummaryRow): void {
   })
 }
 
-// ---- facts ----
+// ---- facts / stories：统一落在 memories 单表 ----
+
+function msToIso(ms: number): string {
+  return new Date(ms).toISOString()
+}
+
+function isoToMs(iso: string, fallback = Date.now()): number {
+  const value = Date.parse(iso)
+  return Number.isFinite(value) ? value : fallback
+}
+
+function evidenceRange(raw: string | null | undefined): { fromTs?: number; toTs?: number } {
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw) as { fromTs?: number; toTs?: number }
+  } catch {
+    return {}
+  }
+}
+
+function factRowToMemory(characterId: string, f: FactRow): MemoryRow {
+  const range = evidenceRange(f.source_evidence)
+  return {
+    id: f.id,
+    character_id: characterId,
+    kind: 'fact',
+    text: f.text,
+    entity: f.entity,
+    subject: f.subject ?? null,
+    attribute: f.attribute ?? null,
+    object: f.object ?? null,
+    polarity: f.polarity ?? 1,
+    confidence: f.confidence,
+    source: f.source,
+    state: f.status,
+    importance: f.importance,
+    happened_at: null,
+    created_at: isoToMs(f.created_at),
+    confirmed_at: isoToMs(f.last_confirmed_at),
+    source_from: range.fromTs ?? null,
+    source_to: range.toTs ?? null,
+    supersedes: null,
+    pinned: f.protected_ === 1 || f.frozen_at ? 1 : 0,
+    embedding: f.embedding,
+    valid_from: f.valid_from ?? null,
+    invalid_at: f.invalid_at ?? f.valid_until ?? null,
+    due_at: null,
+    frozen_at: f.frozen_at,
+    evidence: f.source_evidence,
+  }
+}
+
+function memoryToFactRow(r: MemoryRow): FactRow {
+  const pinned = r.pinned === 1
+  return {
+    id: r.id,
+    character_id: r.character_id,
+    text: r.text,
+    entity: (r.entity ?? 'user') as FactRow['entity'],
+    subject: r.subject ?? null,
+    attribute: r.attribute ?? null,
+    object: r.object ?? null,
+    polarity: r.polarity ?? 1,
+    importance: r.importance,
+    confidence: r.confidence ?? 0.8,
+    source: r.source ?? 'llm_inferred',
+    created_at: msToIso(r.created_at),
+    last_confirmed_at: msToIso(r.confirmed_at ?? r.created_at),
+    status: r.state,
+    evidence_reinforce: 0,
+    evidence_negate: 0,
+    protected_: pinned ? 1 : 0,
+    valid_until: r.invalid_at ?? null,
+    frozen_at: r.frozen_at ?? (pinned ? msToIso(r.confirmed_at ?? r.created_at) : null),
+    embedding: r.embedding,
+    source_evidence:
+      r.evidence ??
+      (r.source_from !== null && r.source_to !== null
+        ? JSON.stringify({ fromTs: r.source_from, toTs: r.source_to })
+        : null),
+    valid_from: r.valid_from ?? null,
+    invalid_at: r.invalid_at ?? null,
+    superseded_by: null,
+  }
+}
+
+function storyRowToMemory(characterId: string, s: StoryRow): MemoryRow {
+  const range = evidenceRange(s.source_evidence)
+  return {
+    id: s.id,
+    character_id: characterId,
+    kind: s.kind,
+    text: s.text,
+    state: s.status === 'active' ? (s.fulfilled === 1 ? 'fulfilled' : 'active') : 'archived',
+    importance: s.importance,
+    happened_at: isoToMs(s.occurred_at),
+    created_at: isoToMs(s.created_at),
+    source_from: range.fromTs ?? null,
+    source_to: range.toTs ?? null,
+    supersedes: null,
+    pinned: 0,
+    embedding: null,
+    due_at: s.due_at,
+    frozen_at: null,
+    evidence: s.source_evidence,
+  }
+}
+
+function memoryToStoryRow(r: MemoryRow): StoryRow {
+  const inactive = r.state === 'archived' || r.state === 'cancelled' || r.state === 'superseded'
+  return {
+    id: r.id,
+    character_id: r.character_id,
+    kind: r.kind,
+    text: r.text,
+    occurred_at: msToIso(r.happened_at ?? r.created_at),
+    due_at: r.due_at ?? null,
+    fulfilled: r.state === 'fulfilled' ? 1 : 0,
+    importance: r.importance,
+    status: inactive ? 'archived' : 'active',
+    created_at: msToIso(r.created_at),
+    source_evidence:
+      r.evidence ??
+      (r.source_from !== null && r.source_to !== null
+        ? JSON.stringify({ fromTs: r.source_from, toTs: r.source_to })
+        : null),
+  }
+}
 
 export function listFacts(characterId: string): FactRow[] {
-  return rows('SELECT * FROM facts WHERE character_id = ? ORDER BY created_at, id', [
-    characterId,
-  ]) as unknown as FactRow[]
+  return listMemoryRows(characterId, { includeInactive: true })
+    .filter((row) => row.kind === 'fact')
+    .map(memoryToFactRow)
 }
 
 export function saveFacts(characterId: string, items: FactRow[]): void {
   withTx(() => {
-    run('DELETE FROM facts WHERE character_id = ?', [characterId])
-    for (const f of items) {
-      run(
-        `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, object, polarity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, valid_from, invalid_at, superseded_by)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          f.id,
-          characterId,
-          f.text,
-          f.entity,
-          f.subject ?? null,
-          f.attribute ?? null,
-          f.object ?? null,
-          f.polarity ?? 1,
-          f.importance,
-          f.confidence,
-          f.source,
-          f.created_at,
-          f.last_confirmed_at,
-          f.status,
-          f.evidence_reinforce,
-          f.evidence_negate,
-          f.protected_,
-          f.valid_until,
-          f.frozen_at,
-          f.embedding,
-          f.valid_from ?? null,
-          f.invalid_at ?? null,
-          f.superseded_by ?? null,
-        ]
-      )
-    }
+    run("DELETE FROM memories WHERE character_id = ? AND kind = 'fact'", [characterId])
+    for (const item of items) insertMemoryRowRaw(characterId, factRowToMemory(characterId, item))
   })
 }
 
-// ---- facts：单实体增量写（避免整表读改写互相覆盖） ----
-
 export function insertFactRow(characterId: string, f: FactRow): void {
-  withTx(() => {
-    run(
-      `INSERT OR REPLACE INTO facts(id, character_id, text, entity, subject, attribute, object, polarity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding, source_evidence, valid_from, invalid_at, superseded_by)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        f.id,
-        characterId,
-        f.text,
-        f.entity,
-        f.subject ?? null,
-        f.attribute ?? null,
-        f.object ?? null,
-        f.polarity ?? 1,
-        f.importance,
-        f.confidence,
-        f.source,
-        f.created_at,
-        f.last_confirmed_at,
-        f.status,
-        f.evidence_reinforce,
-        f.evidence_negate,
-        f.protected_,
-        f.valid_until,
-        f.frozen_at,
-        f.embedding,
-        f.source_evidence,
-        f.valid_from ?? null,
-        f.invalid_at ?? null,
-        f.superseded_by ?? null,
-      ]
-    )
-  })
+  insertMemoryRow(characterId, factRowToMemory(characterId, f))
 }
 
 export function getFactRow(id: string): FactRow | null {
-  const found = rows('SELECT * FROM facts WHERE id = ?', [id])
-  return found.length > 0 ? (found[0] as unknown as FactRow) : null
+  const found = rows('SELECT * FROM memories WHERE id = ?', [id])
+  return found.length > 0 ? memoryToFactRow(found[0] as unknown as MemoryRow) : null
 }
 
 export function reinforceFactRow(id: string, ts: string): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE facts SET last_confirmed_at = ?, evidence_reinforce = evidence_reinforce + 1 WHERE id = ?')
-      .run(ts, id).changes
-  ))
+  return confirmMemoryRow(id, isoToMs(ts))
 }
 
 export function negateFactRow(id: string): number {
-  return withTx(() => Number(
-    db!.prepare("UPDATE facts SET status = 'archived', evidence_negate = evidence_negate + 1 WHERE id = ?")
-      .run(id).changes
-  ))
+  return setMemoryStateRow(id, 'archived')
 }
 
 export function setFactStatusRow(id: string, status: string): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE facts SET status = ? WHERE id = ?').run(status, id).changes
-  ))
+  return setMemoryStateRow(id, status)
 }
 
 export function setFactFrozenRow(id: string, frozenAt: string | null): number {
   return withTx(() => Number(
-    db!.prepare('UPDATE facts SET frozen_at = ? WHERE id = ?').run(frozenAt, id).changes
+    db!.prepare('UPDATE memories SET frozen_at = ?, pinned = ? WHERE id = ?')
+      .run(frozenAt, frozenAt ? 1 : 0, id).changes
   ))
 }
 
 export function setFactEmbeddingRow(id: string, embedding: string): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE facts SET embedding = ? WHERE id = ?').run(embedding, id).changes
-  ))
+  return setMemoryEmbeddingRow(id, embedding)
 }
 
 export function deleteFactRow(id: string): number {
-  return withTx(() => Number(
-    db!.prepare('DELETE FROM facts WHERE id = ?').run(id).changes
-  ))
+  return deleteMemoryRow(id)
 }
 
-// ---- stories ----
-
 export function listStories(characterId: string): StoryRow[] {
-  return rows('SELECT * FROM stories WHERE character_id = ? ORDER BY created_at, id', [
-    characterId,
-  ]) as unknown as StoryRow[]
+  return listMemoryRows(characterId, { includeInactive: true })
+    .filter((row) => row.kind !== 'fact')
+    .map(memoryToStoryRow)
 }
 
 export function saveStories(characterId: string, items: StoryRow[]): void {
   withTx(() => {
-    run('DELETE FROM stories WHERE character_id = ?', [characterId])
-    for (const s of items) {
-      run(
-        `INSERT OR REPLACE INTO stories(id, character_id, kind, text, occurred_at, due_at, fulfilled, importance, status, created_at)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [s.id, characterId, s.kind, s.text, s.occurred_at, s.due_at, s.fulfilled, s.importance, s.status, s.created_at]
-      )
-    }
+    run("DELETE FROM memories WHERE character_id = ? AND kind != 'fact'", [characterId])
+    for (const item of items) insertMemoryRowRaw(characterId, storyRowToMemory(characterId, item))
   })
 }
 
-// ---- stories：单实体增量写 ----
-
 export function insertStoryRow(characterId: string, s: StoryRow): void {
-  withTx(() => {
-    run(
-      `INSERT OR REPLACE INTO stories(id, character_id, kind, text, occurred_at, due_at, fulfilled, importance, status, created_at, source_evidence)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [s.id, characterId, s.kind, s.text, s.occurred_at, s.due_at, s.fulfilled, s.importance, s.status, s.created_at, s.source_evidence]
-    )
-  })
+  insertMemoryRow(characterId, storyRowToMemory(characterId, s))
 }
 
 export function setStoryStatusRow(id: string, status: string): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE stories SET status = ? WHERE id = ?').run(status, id).changes
-  ))
+  return setMemoryStateRow(id, status)
 }
 
 export function clearCharacterMemory(characterId: string): void {
-  withTx(() => {
-    run('DELETE FROM facts WHERE character_id = ?', [characterId])
-    run('DELETE FROM stories WHERE character_id = ?', [characterId])
-  })
+  clearCharacterMemories(characterId)
 }
 
 // ---- 提取游标与来源追踪 ----
@@ -830,8 +1197,8 @@ export function listMessagesAfter(characterId: string, afterTs: number, limit: n
 // 重建前清空抽取层；原文、聊天记录、摘要都不动（摘要由压缩链路单独维护）
 export function resetDerived(characterId: string): { facts: number, stories: number } {
   return withTx(() => ({
-    facts: Number(db!.prepare('DELETE FROM facts WHERE character_id = ?').run(characterId).changes),
-    stories: Number(db!.prepare('DELETE FROM stories WHERE character_id = ?').run(characterId).changes),
+    facts: Number(db!.prepare("DELETE FROM memories WHERE character_id = ? AND kind = 'fact'").run(characterId).changes),
+    stories: Number(db!.prepare("DELETE FROM memories WHERE character_id = ? AND kind != 'fact'").run(characterId).changes),
   }))
 }
 
@@ -895,49 +1262,46 @@ function syncLegacyMemoryFromJson(dataRoot: string): void {
         for (const raw of readJsonArray(factsFile)) {
           const f = raw as LegacyFactJson
           if (typeof f.id !== 'string' || typeof f.text !== 'string' || !f.text) continue
-          run(
-            `INSERT OR REPLACE INTO facts(id, character_id, text, entity, importance, confidence, source, created_at, last_confirmed_at, status, evidence_reinforce, evidence_negate, protected_, valid_until, frozen_at, embedding)
-             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              f.id,
-              dirName,
-              f.text,
-              typeof f.entity === 'string' ? f.entity : 'user',
-              intOr(f.importance, 5),
-              Number.isFinite(Number(f.confidence)) ? Number(f.confidence) : 0.5,
-              typeof f.source === 'string' ? f.source : 'llm_inferred',
-              typeof f.created_at === 'string' ? f.created_at : now,
-              typeof f.last_confirmed_at === 'string' ? f.last_confirmed_at : now,
-              f.status === 'active' ? 'active' : 'archived',
-              intOr(f.evidence?.reinforce, 0),
-              intOr(f.evidence?.negate, 0),
-              f.source === 'manual' ? 1 : 0,
-              null,
-              null,
-              null,
-            ]
-          )
+          insertMemoryRowRaw(dirName, {
+            id: f.id,
+            character_id: dirName,
+            kind: 'fact',
+            text: f.text,
+            entity: typeof f.entity === 'string' ? f.entity : 'user',
+            importance: intOr(f.importance, 5),
+            confidence: Number.isFinite(Number(f.confidence)) ? Number(f.confidence) : 0.5,
+            source: typeof f.source === 'string' ? f.source : 'llm_inferred',
+            state: f.status === 'active' ? 'active' : 'archived',
+            happened_at: null,
+            created_at: isoToMs(typeof f.created_at === 'string' ? f.created_at : now),
+            confirmed_at: isoToMs(typeof f.last_confirmed_at === 'string' ? f.last_confirmed_at : now),
+            source_from: null,
+            source_to: null,
+            supersedes: null,
+            pinned: f.source === 'manual' ? 1 : 0,
+            embedding: null,
+          })
           factCount++
         }
         for (const raw of readJsonArray(storyFile)) {
           const s = raw as LegacyStoryJson
           if (typeof s.id !== 'string' || typeof s.text !== 'string' || !s.text) continue
-          run(
-            `INSERT OR REPLACE INTO stories(id, character_id, kind, text, occurred_at, due_at, fulfilled, importance, status, created_at)
-             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              s.id,
-              dirName,
-              typeof s.kind === 'string' ? s.kind : 'event',
-              s.text,
-              typeof s.occurred_at === 'string' ? s.occurred_at : now,
-              typeof s.due_at === 'string' ? s.due_at : null,
-              s.fulfilled === true ? 1 : 0,
-              intOr(s.importance, 5),
-              s.status === 'active' ? 'active' : 'archived',
-              typeof s.created_at === 'string' ? s.created_at : now,
-            ]
-          )
+          insertMemoryRowRaw(dirName, {
+            id: s.id,
+            character_id: dirName,
+            kind: typeof s.kind === 'string' ? s.kind : 'event',
+            text: s.text,
+            state: s.fulfilled ? 'fulfilled' : (s.status === 'active' ? 'active' : 'archived'),
+            importance: intOr(s.importance, 5),
+            happened_at: isoToMs(typeof s.occurred_at === 'string' ? s.occurred_at : now),
+            created_at: isoToMs(typeof s.created_at === 'string' ? s.created_at : now),
+            source_from: null,
+            source_to: null,
+            supersedes: null,
+            pinned: 0,
+            embedding: null,
+            due_at: typeof s.due_at === 'string' ? s.due_at : null,
+          })
           storyCount++
         }
         setMeta(marker, now)

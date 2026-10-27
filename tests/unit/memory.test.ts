@@ -131,7 +131,6 @@ describe('memory persistence pipeline', () => {
       assert.strictEqual(migratedFacts.length, 1)
       assert.strictEqual(migratedFacts[0].text, '用户的猫叫小饼')
       assert.strictEqual(migratedFacts[0].protected, true)
-      assert.strictEqual(migratedFacts[0].evidence.reinforce, 2)
       assert.strictEqual((await loadStories('c1')).length, 1)
       assert.ok(getMeta('legacy_mem:c1'))
       assert.ok(fs.existsSync(path.join(legacyDir, 'facts.json')))

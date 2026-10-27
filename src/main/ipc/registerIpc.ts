@@ -25,7 +25,7 @@ import { runBootSequence, recheckTts } from '../services/bootService'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
-import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, freezeFact, unfreezeFact, deleteFact, pendingFromArchive, advanceCursor, rebuildMemory } from '../services/memoryStore'
+import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, freezeFact, unfreezeFact, deleteFact, pendingFromArchive, advanceCursor, rebuildMemory, pruneOverflow } from '../services/memoryStore'
 import {
   setMemoryDbLogger,
   memoryDbReady,
@@ -418,6 +418,9 @@ export function registerIpc(windows: WindowManager): void {
     wrap(() => manualAddFact(characterId, text, entity))
   )
   ipcMain.handle(IpcChannels.memory.clear, (_, characterId: string) => wrap(() => clearMemory(characterId)))
+  ipcMain.handle(IpcChannels.memory.prune, (_, characterId: string) =>
+    wrap(() => pruneOverflow(characterId))
+  )
   ipcMain.handle(IpcChannels.memory.pending, (_, characterId: string, limit?: number) =>
     wrap(() => pendingFromArchive(characterId, limit))
   )

@@ -147,11 +147,10 @@ describe('memoryDb', () => {
     expect(reinforceFactRow('f1', '2026-02-01T00:00:00.000Z')).toBe(1)
     expect(getFactRow('f1')).toMatchObject({
       last_confirmed_at: '2026-02-01T00:00:00.000Z',
-      evidence_reinforce: 1,
     })
 
     expect(negateFactRow('f1')).toBe(1)
-    expect(getFactRow('f1')).toMatchObject({ status: 'archived', evidence_negate: 1 })
+    expect(getFactRow('f1')).toMatchObject({ status: 'archived' })
 
     expect(setFactStatusRow('f1', 'active')).toBe(1)
     expect(setFactFrozenRow('f1', '2026-03-01T00:00:00.000Z')).toBe(1)

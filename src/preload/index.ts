@@ -114,6 +114,8 @@ const api = {
       invoke<boolean>(IpcChannels.memory.unfreezeFact, characterId, factId),
     deleteFact: (characterId: string, factId: string) =>
       invoke<boolean>(IpcChannels.memory.deleteFact, characterId, factId),
+    prune: (characterId: string) =>
+      invoke<{ archived: number }>(IpcChannels.memory.prune, characterId),
     getRelevant: (characterId: string, context: string) =>
       invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
         IpcChannels.memory.getRelevant,

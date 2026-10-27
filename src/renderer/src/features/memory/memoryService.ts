@@ -33,6 +33,7 @@ let lastCharacterId: string | null = null
 let userTurns = 0
 let idleTimer: ReturnType<typeof setTimeout> | null = null
 let watchdogTimer: ReturnType<typeof setInterval> | null = null
+let pruneTimer: ReturnType<typeof setInterval> | null = null
 let offs: Array<() => void> = []
 
 function log(level: 'info' | 'warn', msg: string): void {
@@ -295,6 +296,18 @@ export function startMemoryService(): () => void {
     },
     10 * 60_000
   )
+  pruneTimer = setInterval(() => {
+    const characterId = currentCharacterId()
+    void window.opengal.memory
+      .prune(characterId)
+      .then((res) => {
+        if (res.success && res.data && res.data.archived > 0) {
+          log('info', `记忆归档（${characterId}）：${res.data.archived} 条超出上限，已归档`)
+          void refreshSnapshot(characterId)
+        }
+      })
+      .catch(() => {})
+  }, 60 * 60_000)
   void refreshSnapshot(currentCharacterId())
   void seedFromArchive(currentCharacterId())
   offs = [offInput, offDialog]
@@ -303,5 +316,6 @@ export function startMemoryService(): () => void {
     offs = []
     if (idleTimer) clearTimeout(idleTimer)
     if (watchdogTimer) clearInterval(watchdogTimer)
+    if (pruneTimer) clearInterval(pruneTimer)
   }
 }

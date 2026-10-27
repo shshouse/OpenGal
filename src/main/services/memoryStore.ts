@@ -14,11 +14,13 @@ import {
   insertFactRow,
   insertStoryRow,
   reinforceFactRow,
+  negateFactRow,
+  setFactStatusRow,
   setFactFrozenRow,
   setFactEmbeddingRow,
   deleteFactRow,
-  searchMessageContext,
-  searchMessagesInRange,
+  setStoryStatusRow,
+  searchMessages,
   getMemoryCursor,
   setMemoryCursor,
   listMessagesAfter,
@@ -27,6 +29,8 @@ import {
   markCursorInitialized,
   bootstrapCursor,
   resetDerived,
+  listMemoryRows,
+  setMemoryStateRow,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
@@ -138,6 +142,26 @@ function storyToRow(s: MemoryStory, sourceEvidence: string | null = null): Story
     created_at: s.created_at,
     source_evidence: sourceEvidence,
   }
+}
+
+const MAX_ACTIVE_MEMORIES = 2000
+
+// 超过上限时按重要性归档，钉住的记忆不计入上限也不被归档
+export async function pruneOverflow(
+  characterId: string,
+  limit = MAX_ACTIVE_MEMORIES,
+): Promise<{ archived: number }> {
+  await memoryDbReady()
+  const rows = listMemoryRows(characterId)
+  if (rows.length <= limit) return { archived: 0 }
+  const pinned = rows.filter((row) => row.pinned === 1)
+  const rest = rows
+    .filter((row) => row.pinned !== 1)
+    .sort((a, b) => b.importance - a.importance || b.created_at - a.created_at)
+  const room = Math.max(0, limit - pinned.length)
+  const drop = rest.slice(room)
+  for (const row of drop) setMemoryStateRow(row.id, 'archived')
+  return { archived: drop.length }
 }
 
 async function loadFactsTyped(characterId: string): Promise<MemoryFact[]> {
@@ -596,9 +620,7 @@ export async function recallVerbatim(
 ): Promise<string | null> {
   if (!query.trim()) return null
   await memoryDbReady()
-  const rows = range
-    ? searchMessagesInRange(characterId, query, range.fromTs, range.toTs)
-    : searchMessageContext(characterId, query)
+  const rows = searchMessages(characterId, query, { fromTs: range?.fromTs, toTs: range?.toTs, radius: 1 })
   const lines: string[] = []
   let used = 0
   for (const row of rows) {
