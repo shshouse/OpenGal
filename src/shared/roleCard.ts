@@ -38,7 +38,13 @@ function formatMotionMenu(motionGroups: string[]): string[] {
     .map((g) => `- "${g}"：${MOTION_GROUP_LABELS[g] ?? g}`)
 }
 
-export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], memoryBlock?: string, hasTools = false): string {
+export function buildSystemPrompt(
+  card: RoleCard,
+  motionGroups: string[] = [],
+  memoryBlock?: string,
+  hasTools = false,
+  emotions: readonly string[] = STANDARD_EMOTIONS,
+): string {
   const persona = card.persona
   const userIdentity = persona.userIdentity ?? '用户'
   const userTerm = persona.userTerm ?? card.name
@@ -62,7 +68,11 @@ export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], m
   lines.push('')
   lines.push('输出格式（必须严格遵守，否则解析会失败）：')
   lines.push('- 直接输出台词，不要 JSON、不要 Markdown、不要解释性文字。')
-  lines.push(`- 在需要换表情的位置写 <e:表情>；表情只能从以下集合中取一个：${STANDARD_EMOTIONS.join(', ')}；不确定就用 neutral。`)
+  if (emotions.length > 0) {
+    lines.push(`- 在需要换表情的位置写 <e:表情>；表情只能从以下集合中取一个：${emotions.join(', ')}；不确定就用 neutral。`)
+  } else {
+    lines.push('- 不要输出 <e:...> 表情标签（当前皮套没有可用表情）。')
+  }
   if (motionGroups.length > 0) {
     lines.push('- 在需要触发肢体动作的位置写 <a:动作组>；动作组只能从下面的可用动作里选。动作触发一次后失效。')
   } else {
@@ -84,6 +94,8 @@ export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], m
     lines.push(...formatMotionMenu(motionGroups))
   }
   lines.push('')
+  const emotionOpen = emotions.length > 0 ? '<e:happy>' : ''
+  const emotionReset = emotions.length > 0 ? '<e:neutral>' : ''
   lines.push('EXAMPLE INPUT:')
   lines.push('你好呀！')
   lines.push('')
@@ -91,9 +103,9 @@ export function buildSystemPrompt(card: RoleCard, motionGroups: string[] = [], m
   if (motionGroups.length > 0) {
     const exampleAction =
       motionGroups.find((g) => !/^(idle|talk|click)$/i.test(g)) ?? motionGroups[0]
-    lines.push(`<e:happy><a:${exampleAction}>嗨～<e:neutral>你今天看起来心情不错呢。想聊点什么？`)
+    lines.push(`${emotionOpen}<a:${exampleAction}>嗨～${emotionReset}你今天看起来心情不错呢。想聊点什么？`)
   } else {
-    lines.push('<e:happy>嗨～<e:neutral>你今天看起来心情不错呢。想聊点什么？')
+    lines.push(`${emotionOpen}嗨～${emotionReset}你今天看起来心情不错呢。想聊点什么？`)
   }
   return lines.join('\n')
 }
@@ -212,7 +224,16 @@ export class SpeechStreamParser {
     const items: LLMDialogueItem[] = []
     while (this.buffer.length > 0) {
       const lt = this.buffer.indexOf('<')
-      const textEnd = lt === -1 ? this.buffer.length : lt
+      const rest = lt === -1 ? '' : this.buffer.slice(lt)
+      // 动作标签不切段：就地记下动作，文本继续累积到句子边界
+      const inlineAction = lt !== -1 ? /^<\s*a\s*:\s*([^<>]*?)\s*>/i.exec(rest) : null
+      if (inlineAction) {
+        this.applyTag('a', inlineAction[1])
+        this.buffer = this.buffer.slice(0, lt) + this.buffer.slice(lt + inlineAction[0].length)
+        continue
+      }
+      const literalLt = /^<\s*\d/.test(rest)
+      const textEnd = lt === -1 || literalLt ? this.buffer.length : lt
       const text = this.buffer.slice(0, textEnd)
 
       if (text.length === 0) {
@@ -234,8 +255,10 @@ export class SpeechStreamParser {
         continue
       }
 
-      const tagComplete = lt !== -1 && this.buffer.indexOf('>', lt) !== -1
-      const cut = this.findCut(text, final, tagComplete)
+      // 只有表情标签强制切段；动作标签随句子一起切，避免多一次 TTS 合成
+      const pendingTag = rest ? SPEECH_TAG_RE.exec(rest) : null
+      const forceCut = pendingTag ? pendingTag[1].toLowerCase() === 'e' : false
+      const cut = this.findCut(text, final, forceCut)
       if (cut <= 0) break
       const item = this.makeItem(text.slice(0, cut))
       if (item) items.push(item)
@@ -309,8 +332,9 @@ function lastIndexMatch(text: string, re: RegExp): number {
   return -1
 }
 
+// 只剥离行内表演标签，句中的字面小于号（如 <3）必须原样保留
 function stripSpeechTags(text: string): string {
-  return text.replace(/<[^>]*>/g, '').replace(/<[^>]*$/g, '')
+  return text.replace(/<\s*[ea]\s*:\s*[^<>]*?\s*>/gi, '').replace(/<\s*[ea]\s*:\s*[^<>]*$/i, '')
 }
 
 function findClosingBrace(s: string): number {

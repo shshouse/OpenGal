@@ -5,7 +5,7 @@ import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
+import { getAvailableExpressions, getAvailableMotionGroups } from '@/features/live2d/live2dBus'
 import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from './pipelineBus'
 import { getActiveRoleCard } from './activeCard'
@@ -51,8 +51,9 @@ export function getContextUsage(): ContextUsage | null {
   if (!card) return null
   const history = useChatStore.getState().messages
   const motionGroups = getAvailableMotionGroups()
+  const emotions = getAvailableExpressions()
   const memoryBlock = getMemorySnapshot(card.id) ?? undefined
-  const systemContent = buildSystemPrompt(card, motionGroups, memoryBlock)
+  const systemContent = buildSystemPrompt(card, motionGroups, memoryBlock, false, emotions)
   return computeContextUsage(systemContent, memoryBlock, history, resolveTurnBudget(), getCachedSummariesText())
 }
 
@@ -161,6 +162,7 @@ export function startLLMWorker(): () => void {
       motionGroups,
       memoryBlock ?? undefined,
       tools.length > 0,
+      getAvailableExpressions(),
     )
     const compressedHistory = await compressHistory(
       card.id,

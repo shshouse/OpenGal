@@ -6,6 +6,7 @@ import { getModRoot } from './paths'
 
 const ROLE_CARD_DIR_REL = 'Role'
 const CARD_FILE = 'character.json'
+const MANIFEST_FILE = 'opengal.json'
 
 function getRoleCardRoot(): string {
   return path.join(getModRoot(), ROLE_CARD_DIR_REL)
@@ -14,6 +15,21 @@ function getRoleCardRoot(): string {
 export interface LoadedRoleCard {
   entry: RoleCardEntry
   issues: RoleCardIssue[]
+}
+
+// opengal.json 是模组的唯一清单；resources/describe 等分发字段不参与角色卡校验
+function manifestToCard(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+  const manifest = raw as Record<string, unknown>
+  const card: Record<string, unknown> = { ...manifest }
+  for (const key of ['resources', 'describe', 'examples', 'greeting', 'license', 'credits', 'provenance']) {
+    delete card[key]
+  }
+  const voice = card.voice as Record<string, unknown> | undefined
+  if (voice && typeof voice.config === 'string') {
+    card.voice = { ...voice, configRef: voice.config }
+  }
+  return card
 }
 
 function normalizeEntry(folderName: string, rootPath: string, raw: unknown): LoadedRoleCard | null {
@@ -43,12 +59,15 @@ export function listRoleCardsDetailed(): LoadedRoleCard[] {
   for (const folder of fs.readdirSync(root, { withFileTypes: true })) {
     if (!folder.isDirectory()) continue
     const folderPath = path.join(root, folder.name)
-    const cardPath = path.join(folderPath, CARD_FILE)
+    const manifestPath = path.join(folderPath, MANIFEST_FILE)
+    const useManifest = fs.existsSync(manifestPath)
+    const cardPath = useManifest ? manifestPath : path.join(folderPath, CARD_FILE)
     if (!fs.existsSync(cardPath)) continue
 
     try {
       const raw = JSON.parse(fs.readFileSync(cardPath, 'utf-8')) as unknown
-      const result = normalizeEntry(folder.name, folderPath, raw)
+      const source = useManifest ? manifestToCard(raw) : raw
+      const result = normalizeEntry(folder.name, folderPath, source)
       if (!result) continue
       for (const issue of result.issues) {
         if (issue.severity === 'warning') {

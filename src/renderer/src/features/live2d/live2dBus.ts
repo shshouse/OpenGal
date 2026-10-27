@@ -152,24 +152,38 @@ export function applyEmotion(emotion: EmotionTag | string): void {
 
   if (!availableNames.length) return
 
+  const picked = pickExpression(emotion, availableNames)
+  if (picked) {
+    expressionManager.setExpression(picked)
+    return
+  }
+  // 模型写了不存在或未映射的表情时，明确记下来，便于发现提示词漂移
+  console.warn(`[live2d] 无法应用表情 "${emotion}"，可用: ${availableNames.join(', ')}`)
+}
+
+/** 先精确匹配，再退回子串匹配；别名表见 EMOTION_EXPRESSION_MAP */
+export function pickExpression(emotion: string, availableNames: string[]): string | null {
   const candidates = EMOTION_EXPRESSION_MAP[emotion] ?? [emotion]
   for (const candidate of candidates) {
     const lower = candidate.toLowerCase()
-    const match = availableNames.find((n) => n.toLowerCase() === lower)
-    if (match) {
-      expressionManager.setExpression(match)
-      return
-    }
+    const match = availableNames.find((name) => name.toLowerCase() === lower)
+    if (match) return match
   }
-
   for (const candidate of candidates) {
     const lower = candidate.toLowerCase()
-    const partial = availableNames.find((n) => n.toLowerCase().includes(lower))
-    if (partial) {
-      expressionManager.setExpression(partial)
-      return
-    }
+    const partial = availableNames.find((name) => name.toLowerCase().includes(lower))
+    if (partial) return partial
   }
+  return null
+}
+
+export function getAvailableExpressions(): string[] {
+  const manager = currentModel?.internalModel?.motionManager?.expressionManager
+  const defs = manager?.definitions ?? []
+  const names = defs
+    .map((d) => d.Name ?? d.File?.replace(/\.exp3?\.json$/i, '') ?? '')
+    .filter(Boolean)
+  return [...new Set(names)]
 }
 
 export function getAvailableMotionGroups(): string[] {

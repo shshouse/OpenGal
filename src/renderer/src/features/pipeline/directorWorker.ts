@@ -19,6 +19,7 @@ import {
 import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
 import { buildInitiativePerception } from './initiativePerception'
 import { pipelineBus } from './pipelineBus'
+import { parsePerformanceLine } from '@shared/performanceLine'
 
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
@@ -366,14 +367,18 @@ function speakDirect(line: string, userText: string): void {
   const name = card?.displayName || card?.name || 'assistant'
   const chat = useChatStore.getState()
   if (userText.trim()) chat.appendUser(userText)
-  pipelineBus.emit('llm:dialog', {
-    name,
-    text: line,
-    characterId: card?.id,
-    segmentId: crypto.randomUUID(),
-    turnStartedAt: Date.now(),
-  })
-  chat.finalizeStream(line)
+  const messages = parsePerformanceLine(line, name)
+  if (messages.length === 0) return
+  const startedAt = Date.now()
+  for (const message of messages) {
+    pipelineBus.emit('llm:dialog', {
+      ...message,
+      characterId: card?.id,
+      segmentId: crypto.randomUUID(),
+      turnStartedAt: startedAt,
+    })
+  }
+  chat.finalizeStream(messages.map((message) => message.text).join(''))
 }
 
 async function askDirector(
