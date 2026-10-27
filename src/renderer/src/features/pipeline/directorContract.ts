@@ -23,7 +23,7 @@ export type PerceptionEvent =
       addressee: 'her' | 'ambient'
     })
   | (PerceptionBase & { kind: 'screen'; summary: string; changed: boolean })
-  | (PerceptionBase & { kind: 'app'; name: string; title?: string })
+  | (PerceptionBase & { kind: 'app'; name: string; title?: string; fullscreen?: boolean })
   | (PerceptionBase & { kind: 'touch'; how: 'poke' | 'pat' | 'drag' | 'drop' | 'hover'; count?: number })
   | (PerceptionBase & { kind: 'web'; site: string; title: string; excerpt: string; untrusted: true })
   | (PerceptionBase & { kind: 'idle'; sinceMs: number })

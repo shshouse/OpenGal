@@ -17,6 +17,7 @@ import {
   type PerceptionEvent,
 } from './directorContract'
 import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
+import { buildInitiativePerception } from './initiativePerception'
 
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
@@ -462,6 +463,7 @@ export async function evaluateInitiative(idleMs: number): Promise<DirectorDecisi
   const now = Date.now()
   const card = useCharacterStore.getState().getActive()
   const cfg = (await window.opengal.config.get()).data?.asr
+  const env = (await window.opengal.env.get()).data ?? null
   const input: DirectorInput = {
     now,
     character: {
@@ -472,24 +474,17 @@ export async function evaluateInitiative(idleMs: number): Promise<DirectorDecisi
       doing: currentDoing(),
       ...(lastReplyAt ? { lastSpokeAt: lastReplyAt } : {}),
     },
-    perception: [
-      {
-        id: `idle-${now}`,
-        kind: 'idle',
-        at: now,
-        ttlMs: 60_000,
-        trusted: true,
-        sinceMs: idleMs,
-      },
-    ],
+    perception: buildInitiativePerception(now, idleMs, env),
     constraints: {
       proactiveBudgetLeft: budget.remaining(now),
       canInterrupt: false,
       userFocused: false,
     },
   }
+  // Life 模式默认看一眼屏幕；能否附图仍由 askDirector 按模型多模态能力决定
+  const wantScreen = cfg?.directorMode === 'life' || (cfg?.directorScreenContext ?? false)
   const { decision } = await withTimeout(
-    askDirector(input, [], cfg?.directorScreenContext ?? false, () => true),
+    askDirector(input, [], wantScreen, () => true),
     DIRECTOR_TIMEOUT_MS,
   )
   return decision

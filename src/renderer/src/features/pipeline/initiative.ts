@@ -4,6 +4,8 @@ import { describeAction } from './directorContract'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { resolveInitiativePolicy } from '@shared/initiativePolicy'
+import { detectReturn } from './initiativePerception'
+import { buildInitiativeNudge } from '@shared/initiativeNudge'
 
 const TICK_MS = 60_000
 /** 主动开口后多久内不再尝试 */
@@ -13,26 +15,12 @@ function log(level: 'info' | 'warn', message: string): void {
   useLogsStore.getState().appendLocal(level, 'initiative', message)
 }
 
-function timeBucket(now = new Date()): string {
-  const h = now.getHours()
-  if (h < 6) return '深夜'
-  if (h < 9) return '清晨'
-  if (h < 12) return '上午'
-  if (h < 14) return '中午'
-  if (h < 18) return '下午'
-  if (h < 23) return '晚上'
-  return '深夜'
-}
-
-function buildNudge(idleMinutes: number): string {
-  return `（你已经注意到对方 ${idleMinutes} 分钟没有理你了。现在是${timeBucket()}。如果你想开口，就用一两句符合你性格的话主动说点什么，自然、简短，不要提到"很久没说话"这类元信息。）`
-}
-
 /** 静默达到阈值时交给导演决定是否主动开口 */
 export function startInitiative(): () => void {
   let lastActivityAt = Date.now()
   let lastInitiativeAt = 0
   let running = false
+  let wasReturned = false
 
   const off = pipelineBus.on('user:input', (msg) => {
     // 导演与问候自己发出的输入不算用户活动，否则会无限自我重置
@@ -49,8 +37,14 @@ export function startInitiative(): () => void {
       const policy = resolveInitiativePolicy(cfg)
       if (!policy.enabled) return
       if (useChatStore.getState().isSending) return
+      const envRes = await window.opengal.env.get()
+      const env = envRes.success ? (envRes.data ?? null) : null
+      const returned = detectReturn(wasReturned, env)
+      wasReturned = returned.wasReturned
       const idleMs = Date.now() - lastActivityAt
-      if (idleMs < policy.idleMinutes * 60_000) return
+      const idleReady = idleMs >= policy.idleMinutes * 60_000
+      const returnReady = cfg.directorMode === 'life' && returned.fire
+      if (!idleReady && !returnReady) return
       if (lastInitiativeAt && Date.now() - lastInitiativeAt < INITIATIVE_COOLDOWN_MS) return
 
       const decision = await evaluateInitiative(idleMs)
@@ -64,7 +58,7 @@ export function startInitiative(): () => void {
       }
 
       lastInitiativeAt = Date.now()
-      const nudge = buildNudge(Math.round(idleMs / 60_000))
+      const nudge = buildInitiativeNudge(Math.round(idleMs / 60_000), env, cfg.directorMode ?? 'agent')
       log('info', `主动开口: ${decision.reason}`)
       useChatStore.getState().setSending(true)
       pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })
