@@ -5,8 +5,7 @@ import {
   initMemoryDb,
   memoryDbReady,
   closeMemoryDb,
-  searchMessageContext,
-  searchMessagesInRange,
+  searchMessages,
   type MessageRow,
 } from '../main/services/memoryDb.ts'
 
@@ -80,15 +79,10 @@ async function main(): Promise<void> {
   await memoryDbReady()
   const results: EvalResult[] = []
   for (const question of list) {
-    const rows =
-      question.from && question.to
-        ? searchMessagesInRange(
-            question.character,
-            question.query,
-            Date.parse(question.from),
-            Date.parse(question.to),
-          )
-        : searchMessageContext(question.character, question.query)
+    const rows = searchMessages(question.character, question.query, {
+      fromTs: question.from ? Date.parse(question.from) : undefined,
+      toTs: question.to ? Date.parse(question.to) : undefined,
+    })
     results.push(runQuestion(question, render(rows)))
   }
   closeMemoryDb()

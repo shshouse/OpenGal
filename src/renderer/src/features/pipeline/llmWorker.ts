@@ -8,6 +8,7 @@ import { useLogsStore } from '@/features/logs/logsStore'
 import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
 import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from './pipelineBus'
+import { pickRecentSummaries } from '@shared/summaryBudget'
 
 let counter = 0
 let currentStreamId: string | null = null

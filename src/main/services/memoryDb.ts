@@ -203,48 +203,6 @@ CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
   DELETE FROM messages_fts WHERE rowid = old.id;
 END;
 
-CREATE TABLE IF NOT EXISTS facts (
-  id TEXT PRIMARY KEY,
-  character_id TEXT NOT NULL,
-  text TEXT NOT NULL,
-  entity TEXT NOT NULL,
-  subject TEXT,
-  attribute TEXT,
-  object TEXT,
-  polarity INTEGER NOT NULL DEFAULT 1,
-  importance INTEGER NOT NULL,
-  confidence REAL NOT NULL,
-  source TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  last_confirmed_at TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  evidence_reinforce INTEGER NOT NULL DEFAULT 0,
-  evidence_negate INTEGER NOT NULL DEFAULT 0,
-  protected_ INTEGER NOT NULL DEFAULT 0,
-  valid_until TEXT,
-  frozen_at TEXT,
-  embedding TEXT,
-  source_evidence TEXT,
-  valid_from TEXT,
-  invalid_at TEXT,
-  superseded_by TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_facts_char ON facts(character_id, status);
-
-CREATE TABLE IF NOT EXISTS stories (
-  id TEXT PRIMARY KEY,
-  character_id TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  text TEXT NOT NULL,
-  occurred_at TEXT NOT NULL,
-  due_at TEXT,
-  fulfilled INTEGER NOT NULL DEFAULT 0,
-  importance INTEGER NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  created_at TEXT NOT NULL,
-  source_evidence TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_stories_char ON stories(character_id, status);
 
 CREATE TABLE IF NOT EXISTS summaries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -529,8 +487,11 @@ function characterIdOf(row: { character_id: string }): string {
 
 function migrateFactsSchema(): void {
   try {
-    const factColumns = rows('PRAGMA table_info(facts)', []).map((r) => String(r.name))
-    const storyColumns = rows('PRAGMA table_info(stories)', []).map((r) => String(r.name))
+    const hasFacts = rows("SELECT name FROM sqlite_master WHERE type='table' AND name='facts'", []).length > 0
+    const hasStories = rows("SELECT name FROM sqlite_master WHERE type='table' AND name='stories'", []).length > 0
+    if (!hasFacts && !hasStories) return
+    const factColumns = hasFacts ? rows('PRAGMA table_info(facts)', []).map((r) => String(r.name)) : []
+    const storyColumns = hasStories ? rows('PRAGMA table_info(stories)', []).map((r) => String(r.name)) : []
     const additions: Array<[string, string]> = [
       ['valid_until', 'TEXT'],
       ['frozen_at', 'TEXT'],
@@ -544,8 +505,8 @@ function migrateFactsSchema(): void {
       ['invalid_at', 'TEXT'],
       ['superseded_by', 'TEXT'],
     ]
-    const missing = additions.filter(([name]) => !factColumns.includes(name))
-    const needStoryEvidence = !storyColumns.includes('source_evidence')
+    const missing = hasFacts ? additions.filter(([name]) => !factColumns.includes(name)) : []
+    const needStoryEvidence = hasStories && !storyColumns.includes('source_evidence')
     if (missing.length === 0 && !needStoryEvidence) return
     const target = path.join(
       backupRootDir,
@@ -655,28 +616,6 @@ const MESSAGE_COLUMNS = 'id, character_id, role, content, ts, archived, kind'
 
 function likePattern(term: string): string {
   return `%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
-}
-
-// 中文按整句入索引时无法分词，这里按角色过滤后做子串匹配；命中含已归档消息，并补前后邻段避免断章取义
-export function searchMessageContext(
-  characterId: string,
-  query: string,
-  limit = 3,
-  radius = 1,
-): MessageRow[] {
-  return searchMessagesInternal(characterId, query, limit, radius)
-}
-
-// 限定时间范围检索，供回溯"某段时间说过什么"
-export function searchMessagesInRange(
-  characterId: string,
-  query: string,
-  fromTs: number,
-  toTs: number,
-  limit = 3,
-  radius = 1,
-): MessageRow[] {
-  return searchMessagesInternal(characterId, query, limit, radius, fromTs, toTs)
 }
 
 function searchMessagesInternal(

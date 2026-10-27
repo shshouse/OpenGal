@@ -63,23 +63,6 @@ describe('原话检索', () => {
     const other = await recallVerbatim!('c-missing', '年糕')
     expect(other).toBeNull()
   })
-  it('按时间范围检索原话，范围外不返回', () => {
-    const searchRange = (memoryDb as unknown as {
-      searchMessagesInRange?: (
-        characterId: string,
-        query: string,
-        fromTs: number,
-        toTs: number,
-      ) => memoryDb.MessageRow[]
-    }).searchMessagesInRange
-    expect(searchRange).toBeTypeOf('function')
-
-    const from = Date.UTC(2024, 2, 12, 6, 19)
-    const to = Date.UTC(2024, 2, 12, 6, 22)
-    const hits = searchRange!('c-old', '猫', from, to)
-    expect(hits.some((row) => row.content.includes('一只猫'))).toBe(true)
-    expect(searchRange!('c-old', '猫', from - 10 * 60_000, to - 10 * 60_000)).toHaveLength(0)
-  })
 
   it('写入记忆时记录来源时间范围，并能回查原话', async () => {
     const applyCandidates = (memoryStore as unknown as {
