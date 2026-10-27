@@ -18,6 +18,7 @@ import {
 } from './directorContract'
 import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
 import { buildInitiativePerception } from './initiativePerception'
+import { pipelineBus } from './pipelineBus'
 
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
@@ -266,7 +267,11 @@ async function evaluate(): Promise<void> {
       lastReplyAt = Date.now()
       const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
       backlog = []
-      dispatch?.({ text: fullText, source: 'voice' })
+      if (cfg.directorDirectSpeech && action.line) {
+        speakDirect(action.line)
+      } else {
+        dispatch?.({ text: fullText, source: 'voice' })
+      }
       dispatched = true
       resetWaitState()
       log('info', `导演放行: ${decision.reason}`)
@@ -355,6 +360,14 @@ async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> 
   return null
 }
 
+/** 导演直接给出台词：写进对话历史并立刻进入 TTS/演出队列，不再走一次主管线生成 */
+function speakDirect(line: string): void {
+  const card = useCharacterStore.getState().getActive()
+  const name = card?.displayName || card?.name || 'assistant'
+  useChatStore.getState().finalizeStream(line)
+  pipelineBus.emit('llm:dialog', { name, text: line, turnStartedAt: Date.now() })
+}
+
 async function askDirector(
   input: DirectorInput,
   backlogUtterances: Utterance[],
@@ -433,7 +446,8 @@ async function askDirector(
       content: buildDirectorSystemPrompt({
         roleName,
         initiative: isInitiative,
-        mode: cfgAll?.asr?.directorMode ?? 'agent'
+        mode: cfgAll?.asr?.directorMode ?? 'agent',
+        directSpeech: cfgAll?.asr?.directorDirectSpeech ?? false
       })
     },
     { role: 'user', content: userParts }

@@ -7,6 +7,7 @@ describe('导演提示词', () => {
     expect(prompt).toContain('凯尔希')
     expect(prompt).toContain('默认是安静')
     expect(prompt).toContain('"action"')
+    expect(prompt).toContain('"line"')
     expect(prompt).not.toContain('你不在等待指令')
   })
 
@@ -23,6 +24,18 @@ describe('导演提示词', () => {
     const active = buildDirectorSystemPrompt({ roleName: null, mode: 'agent', initiative: true })
     expect(passive).not.toContain('【本次是主动时刻】')
     expect(active).toContain('【本次是主动时刻】')
+  })
+
+  it('直出模式下要求导演给出台词，并去掉不创作对话的约束', () => {
+    const direct = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent', directSpeech: true })
+    expect(direct).toContain('必须在 line 里')
+    expect(direct).not.toContain('不创作任何对话内容')
+  })
+
+  it('未开启直出时仍要求导演只做节奏判断', () => {
+    const indirect = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent' })
+    expect(indirect).toContain('不创作任何对话内容')
+    expect(indirect).not.toContain('必须在 line 里')
   })
 
   it('没有角色名时不写名字规则', () => {

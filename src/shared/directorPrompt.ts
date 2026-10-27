@@ -4,10 +4,11 @@ export interface DirectorPromptOptions {
   roleName: string | null
   initiative?: boolean
   mode?: DirectorMode
+  directSpeech?: boolean
 }
 
 const OUTPUT_CONTRACT = `只输出一个 JSON 对象，不要输出任何其他内容：
-{"action": "speak"|"wait"|"silent", "reason": "简短中文原因", "waitSec": 数字（仅 action="wait" 时需要）, "urgency": "low"|"normal"|"high"}`
+{"action": "speak"|"wait"|"silent", "reason": "简短中文原因", "waitSec": 数字（仅 action="wait" 时需要）, "line": "仅 action="speak" 时可选，你想说的那一两句台词", "urgency": "low"|"normal"|"high"}`
 
 const AGENT_RULES = `你是"导演"，为一个桌面虚拟角色工作。你的唯一职责：判断角色【此刻】是否应该开口。
 
@@ -45,9 +46,15 @@ export function buildDirectorSystemPrompt(options: DirectorPromptOptions): strin
   const nameRule = options.roleName
     ? `\n- 用户叫角色名字（${options.roleName}）=> action="speak"`
     : ''
-  const rules = mode === 'life' ? LIFE_RULES : AGENT_RULES
+  const baseRules = mode === 'life' ? LIFE_RULES : AGENT_RULES
+  const rules = options.directSpeech
+    ? baseRules.replace('你不是角色，不创作任何对话内容。', '你直接以角色的身份说出这句话。')
+    : baseRules
+  const directRule = options.directSpeech
+    ? '\n\n【台词】action="speak" 时必须在 line 里给出她真正说出口的一两句话：口语、简短、符合人设；不要写旁白或动作描述。'
+    : ''
   return [
-    rules,
+    rules + directRule,
     `\n判定原则：${nameRule}\n${COMMON_RULES}`,
     options.initiative ? `\n\n${INITIATIVE_RULES}` : '',
     `\n\n${OUTPUT_CONTRACT}`,

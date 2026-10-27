@@ -52,6 +52,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
     vadSilenceMs: 600,
     directorEnabled: false,
     directorMode: 'agent',
+    directorDirectSpeech: false,
     directorScreenContext: false,
     directorCooldownSec: 20,
     directorInitiativeEnabled: false,
@@ -82,6 +83,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         vadSilenceMs: a.vadSilenceMs ?? 600,
         directorEnabled: a.directorEnabled ?? false,
         directorMode: a.directorMode ?? 'agent',
+        directorDirectSpeech: a.directorDirectSpeech ?? false,
         directorScreenContext: a.directorScreenContext ?? false,
         directorCooldownSec: a.directorCooldownSec ?? 20,
         directorInitiativeEnabled: a.directorInitiativeEnabled ?? false,
@@ -339,6 +341,16 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                   : '只在被叫到、你说话或主动时刻回应'}
               </p>
             </div>
+            <label className="flex items-center gap-2 pl-6 text-xs">
+              <span className="relative inline-flex">
+                <Checkbox
+                  checked={form.directorDirectSpeech}
+                  onChange={(e) => patch({ directorDirectSpeech: e.target.checked })}
+                />
+                <CheckboxIndicator />
+              </span>
+              导演直接给出台词（少一次生成，延迟更低）
+            </label>
             <label className="flex items-center gap-2 pl-6 text-xs">
               <span className="relative inline-flex">
                 <Checkbox

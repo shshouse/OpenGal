@@ -16,6 +16,7 @@ const base = {
   vadSilenceMs: 600,
   directorEnabled: false,
   directorMode: 'agent',
+  directorDirectSpeech: false,
   directorScreenContext: false,
   directorCooldownSec: 20,
   directorInitiativeEnabled: false,

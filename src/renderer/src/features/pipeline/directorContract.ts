@@ -58,7 +58,7 @@ export interface DirectorInput {
 
 export type DirectorAction =
   | { type: 'silent'; why: string }
-  | { type: 'speak'; interrupt?: boolean }
+  | { type: 'speak'; interrupt?: boolean; line?: string }
   | { type: 'wait'; waitSec: number; why: string }
   // 以下为保留动作，当前版本按 silent 处理
   | { type: 'emote'; name: string }
@@ -130,8 +130,14 @@ export function parseDirectorDecision(raw: string): DirectorDecision {
   const urgency = parsed.urgency === 'high' || parsed.urgency === 'low' ? parsed.urgency : 'normal'
 
   switch (actionType) {
-    case 'speak':
-      return { action: { type: 'speak', interrupt: parsed.interrupt === true }, reason, urgency }
+    case 'speak': {
+      const line = typeof parsed.line === 'string' ? parsed.line.trim().slice(0, 200) : ''
+      return {
+        action: { type: 'speak', interrupt: parsed.interrupt === true, ...(line ? { line } : {}) },
+        reason,
+        urgency,
+      }
+    }
     case 'wait':
       return {
         action: { type: 'wait', waitSec: clampWaitSec(parsed.waitSec), why: reason },
