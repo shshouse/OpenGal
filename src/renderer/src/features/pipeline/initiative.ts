@@ -3,6 +3,7 @@ import { evaluateInitiative, takeInitiativeBudget } from './directorWorker'
 import { describeAction } from './directorContract'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { resolveInitiativePolicy } from '@shared/initiativePolicy'
 
 const TICK_MS = 60_000
 /** 主动开口后多久内不再尝试 */
@@ -44,10 +45,12 @@ export function startInitiative(): () => void {
     running = true
     try {
       const cfg = (await window.opengal.config.get()).data?.asr
-      if (!cfg?.directorInitiativeEnabled || !cfg.directorEnabled) return
+      if (!cfg) return
+      const policy = resolveInitiativePolicy(cfg)
+      if (!policy.enabled) return
       if (useChatStore.getState().isSending) return
       const idleMs = Date.now() - lastActivityAt
-      if (idleMs < Math.max(1, cfg.directorIdleMinutes) * 60_000) return
+      if (idleMs < policy.idleMinutes * 60_000) return
       if (lastInitiativeAt && Date.now() - lastInitiativeAt < INITIATIVE_COOLDOWN_MS) return
 
       const decision = await evaluateInitiative(idleMs)

@@ -51,6 +51,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
     hotwords: [],
     vadSilenceMs: 600,
     directorEnabled: false,
+    directorMode: 'agent',
     directorScreenContext: false,
     directorCooldownSec: 20,
     directorInitiativeEnabled: false,
@@ -80,6 +81,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         hotwords: a.hotwords ?? [],
         vadSilenceMs: a.vadSilenceMs ?? 600,
         directorEnabled: a.directorEnabled ?? false,
+        directorMode: a.directorMode ?? 'agent',
         directorScreenContext: a.directorScreenContext ?? false,
         directorCooldownSec: a.directorCooldownSec ?? 20,
         directorInitiativeEnabled: a.directorInitiativeEnabled ?? false,
@@ -317,6 +319,26 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
         </p>
         {form.directorEnabled && (
           <>
+            <div className="space-y-1 pl-6">
+              <label className="text-xs font-medium text-muted-foreground">运行模式</label>
+              <Select
+                value={form.directorMode}
+                onValueChange={(v) => patch({ directorMode: v as ASRConfig['directorMode'] })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agent">Agent：被唤醒才回应，围绕用户</SelectItem>
+                  <SelectItem value="life">Life：自主观察与行动，像住在这里</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                {form.directorMode === 'life'
+                  ? '她会自己决定观察什么、说不说话；沉默也是她的选择'
+                  : '只在被叫到、你说话或主动时刻回应'}
+              </p>
+            </div>
             <label className="flex items-center gap-2 pl-6 text-xs">
               <span className="relative inline-flex">
                 <Checkbox

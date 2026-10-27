@@ -79,6 +79,8 @@ export interface ASRConfig {
   hotwords: string[]
   vadSilenceMs: number
   directorEnabled: boolean
+  /** agent=围绕用户响应；life=自主观察与行动 */
+  directorMode: 'agent' | 'life'
   directorScreenContext: boolean
   directorCooldownSec: number
   /** 允许导演在用户长时间不说话时主动开口 */

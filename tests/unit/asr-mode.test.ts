@@ -15,6 +15,7 @@ const base = {
   hotwords: [],
   vadSilenceMs: 600,
   directorEnabled: false,
+  directorMode: 'agent',
   directorScreenContext: false,
   directorCooldownSec: 20,
   directorInitiativeEnabled: false,

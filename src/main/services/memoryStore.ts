@@ -192,8 +192,12 @@ export async function clearMemory(characterId: string): Promise<void> {
 
 export { normalizeText, similarity as textSimilarity }
 
+let lastStamp = 0
+
+// 同一毫秒内的两次写入也要有先后，否则解析器分不出哪条更新
 function nowIso(): string {
-  return new Date().toISOString()
+  lastStamp = Math.max(Date.now(), lastStamp + 1)
+  return new Date(lastStamp).toISOString()
 }
 
 function newId(prefix: string): string {
