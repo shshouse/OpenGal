@@ -228,6 +228,14 @@ export class SpeechStreamParser {
       // 动作标签不切段：就地记下动作，文本继续累积到句子边界
       const inlineAction = lt !== -1 ? /^<\s*a\s*:\s*([^<>]*?)\s*>/i.exec(rest) : null
       if (inlineAction) {
+        const before = this.buffer.slice(0, lt)
+        // 动作落在两句之间时归到后一句：前一句已经说完，不能让它在说完之后才执行
+        if (before.trim() && SENTENCE_END_RE.test(before.trim().slice(-1))) {
+          const item = this.makeItem(before)
+          if (item) items.push(item)
+          this.buffer = this.buffer.slice(lt)
+          continue
+        }
         this.applyTag('a', inlineAction[1])
         this.buffer = this.buffer.slice(0, lt) + this.buffer.slice(lt + inlineAction[0].length)
         continue

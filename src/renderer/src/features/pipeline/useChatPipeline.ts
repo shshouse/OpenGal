@@ -38,7 +38,7 @@ export function useChatPipeline() {
         }
       }
       finalizeStream(
-        displayText || undefined,
+        raw.trim() ? raw : displayText || undefined,
         toolCallsSnapshot.length > 0 ? toolCallsSnapshot : undefined,
       )
       setSending(false)

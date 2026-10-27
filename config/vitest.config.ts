@@ -23,6 +23,7 @@ export default defineConfig({
         'src/shared/**/*.ts',
         'src/main/services/memoryStore.ts',
         'src/main/services/memoryDb.ts',
+        'src/main/services/memory/**/*.ts',
         'src/main/services/ttsPort.ts',
         'src/main/services/plugins/manifest.ts',
         'src/renderer/src/features/pipeline/contextAssembler.ts',
