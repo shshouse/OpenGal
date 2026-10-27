@@ -9,7 +9,9 @@ import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
 import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from './pipelineBus'
 import { getActiveRoleCard } from './activeCard'
-import { pickRecentSummaries } from '@shared/summaryBudget'
+import { calibratePromptTokens, computeContextUsage, estimateTokens, messageText, promptRawTokens, type ContextUsage } from './llmContext'
+import { compressHistory, getCachedSummariesText } from './llmCompression'
+import { fetchEnvBlock } from './llmEnv'
 
 let counter = 0
 let currentStreamId: string | null = null
@@ -21,39 +23,6 @@ let displayTextThisTurn = ''
 let latencyTurnStart = 0
 let firstTokenLogged = false
 let firstDialogLogged = false
-
-// 上下文预算按 1M 窗口设计：默认全局配置为 1M，且只信任模型真实窗口
-const COMPRESSION_THRESHOLD = 0.85
-const TARGET_RATIO = 0.6
-const PROTECT_HEAD_MESSAGES = 6
-const MAX_SUMMARY_FAILURES = 3
-let summaryFailures = 0
-let cachedSummariesText: string | null = null
-
-async function loadSummariesText(characterId: string): Promise<string | null> {
-  const res = await window.opengal.chatHistory.summaries(characterId)
-  const rows = res.success && res.data ? res.data : []
-  if (rows.length === 0) {
-    cachedSummariesText = null
-    return null
-  }
-  cachedSummariesText = rows.map((r) => r.text).join('\n')
-  return cachedSummariesText
-}
-
-function messageText(m: ChatMessage): string {
-  return typeof m.content === 'string'
-    ? m.content
-    : m.content.map((p) => (p.type === 'text' ? p.text : '')).join(' ')
-}
-
-interface ContextUsage {
-  systemTokens: number
-  memoryTokens: number
-  historyTokens: number
-  totalTokens: number
-  maxTokens: number
-}
 
 async function fetchRelevantMemory(characterId: string, context: string): Promise<string | null> {
   try {
@@ -71,62 +40,7 @@ async function fetchRelevantMemory(characterId: string, context: string): Promis
   return getMemorySnapshot(characterId) ?? null
 }
 
-let tokenCalibration = 1
 let pendingPromptRawTokens = 0
-
-function rawEstimateTokens(text: string): number {
-  let tokens = 0
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i)
-    if (code >= 0x4e00 && code <= 0x9fff) {
-      tokens += 2
-    } else if (code >= 0x3000 && code <= 0x303f) {
-      tokens += 1
-    } else {
-      tokens += 0.25
-    }
-  }
-  return Math.ceil(tokens)
-}
-
-// 用 API 返回的 prompt_tokens 校准估算，避免中文分词误差导致压缩时机失真
-function estimateTokens(text: string): number {
-  return Math.ceil(rawEstimateTokens(text) * tokenCalibration)
-}
-
-function calibratePromptTokens(actualPrompt: number | undefined, rawEstimate: number): void {
-  if (!actualPrompt || actualPrompt <= 0 || rawEstimate <= 0) return
-  const ratio = actualPrompt / rawEstimate
-  if (ratio < 0.3 || ratio > 3) return
-  tokenCalibration = ratio
-  useLogsStore
-    .getState()
-    .appendLocal('info', 'llm-worker', `分词校准 ${ratio.toFixed(2)}x（实测 ${actualPrompt} / 估算 ${rawEstimate}）`)
-}
-
-function promptRawTokens(messages: ChatMessage[]): number {
-  return messages.reduce((sum, m) => sum + rawEstimateTokens(messageText(m)) + 8, 0)
-}
-
-function computeContextUsage(
-  systemContent: string,
-  memoryBlock: string | undefined,
-  history: ChatMessage[],
-  maxTokens: number,
-): ContextUsage {
-  const systemTokens = estimateTokens(systemContent)
-  const memoryTokens = memoryBlock ? estimateTokens(memoryBlock) : 0
-  const historyTokens =
-    history.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0) +
-    (cachedSummariesText ? estimateTokens(cachedSummariesText) : 0)
-  return {
-    systemTokens,
-    memoryTokens,
-    historyTokens,
-    totalTokens: systemTokens + memoryTokens + historyTokens,
-    maxTokens,
-  }
-}
 
 export function getLastRawResponse(): string {
   return accumulatedRaw
@@ -139,7 +53,7 @@ export function getContextUsage(): ContextUsage | null {
   const motionGroups = getAvailableMotionGroups()
   const memoryBlock = getMemorySnapshot(card.id) ?? undefined
   const systemContent = buildSystemPrompt(card, motionGroups, memoryBlock)
-  return computeContextUsage(systemContent, memoryBlock, history, resolveTurnBudget())
+  return computeContextUsage(systemContent, memoryBlock, history, resolveTurnBudget(), getCachedSummariesText())
 }
 
 let globalContextWindow: number | null = null
@@ -166,165 +80,12 @@ const RETRY_BASE_MS = 2000
 const TURN_DEADLINE_MS = 5 * 60_000
 const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
 
-function buildEnvBlock(env: {
-  timeText: string
-  idleSeconds: number
-  justReturned: boolean
-  awayMinutes: number
-  game: { name: string; fullscreen: boolean } | null
-  foreground: { app: string; title: string; fullscreen: boolean } | null
-}): string {
-  const lines = [`现在时间：${env.timeText}`]
-  if (env.justReturned) {
-    lines.push(`用户刚刚离开了约 ${env.awayMinutes} 分钟，现在回来了`)
-  }
-  if (env.game) {
-    lines.push(
-      `用户正在玩游戏《${env.game.name}》${env.game.fullscreen ? '（全屏中）' : ''}——回复要更简短，不要频繁打扰`,
-    )
-  } else if (env.foreground?.fullscreen && env.foreground.app) {
-    lines.push(`用户正在全屏使用 ${env.foreground.app}`)
-  } else if (env.foreground?.app) {
-    lines.push(`用户当前前台应用：${env.foreground.app}`)
-  }
-  if (env.idleSeconds > 300) {
-    lines.push(`用户已约 ${Math.round(env.idleSeconds / 60)} 分钟没有操作电脑`)
-  }
-  return `【当前环境】\n${lines.join('\n')}`
-}
-
-async function fetchEnvBlock(): Promise<ChatMessage | null> {
-  try {
-    const res = await window.opengal.env.get()
-    if (res.success && res.data) {
-      return { role: 'system', content: buildEnvBlock(res.data) }
-    }
-  } catch {
-    /* 环境信息可选，失败不阻塞对话 */
-  }
-  return null
-}
-
 function isRetryableError(error: string): boolean {
   return /timeout|network|ECONNRESET|502|503|504|rate limit|overloaded/i.test(error)
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-// 存档式压缩：超阈值时把旧段摘要追加进 L1（SQLite summaries 分段），原文标记 archived 永不删除
-// 头部若干条始终保留，避免把开场设定摘要掉
-async function compressHistory(
-  characterId: string,
-  history: ChatMessage[],
-  turnBudget: number,
-  systemTokens: number,
-  stale: () => boolean,
-): Promise<ChatMessage[]> {
-  const summariesText = await loadSummariesText(characterId)
-  if (stale()) return history
-  const summaryMessage: ChatMessage | null = summariesText
-    ? { role: 'system', content: `[既往对话摘要]\n${summariesText}`, contextTag: 'summary' }
-    : null
-
-  const headCount = Math.min(PROTECT_HEAD_MESSAGES, history.length)
-  const head = history.slice(0, headCount)
-  const withSummary = (rest: ChatMessage[]): ChatMessage[] =>
-    summaryMessage ? [...head, summaryMessage, ...rest] : [...head, ...rest]
-  const unchanged = (): ChatMessage[] =>
-    summaryMessage ? withSummary(history.slice(headCount)) : history
-
-  const summaryTokens = summariesText ? estimateTokens(summariesText) : 0
-  const historyTokens = history.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
-  const budget = turnBudget * COMPRESSION_THRESHOLD - systemTokens - summaryTokens
-  if (historyTokens <= budget) return unchanged()
-
-  // 尾部预算 = 窗口 × 触发阈值 × 目标比例；1M 窗口约保留 100k 原文
-  const tailBudget = Math.max(4000, Math.floor(turnBudget * COMPRESSION_THRESHOLD * TARGET_RATIO))
-  let tailTokens = 0
-  let keepFrom = history.length
-  while (keepFrom > headCount && tailTokens < tailBudget) {
-    keepFrom--
-    tailTokens += estimateTokens(messageText(history[keepFrom]))
-  }
-  const toCompress = history.slice(headCount, keepFrom)
-  const recent = history.slice(keepFrom)
-  if (toCompress.length === 0) return unchanged()
-
-  const summarySource = [
-    summariesText ? `【此前摘要】\n${summariesText}` : '',
-    '【新增对话】',
-    ...toCompress.map((m) => `${m.role === 'user' ? '用户' : '角色'}: ${messageText(m).slice(0, 200)}`),
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const res = await window.opengal.llm.chat({
-    messages: [
-      {
-        role: 'system',
-        content: '将以下对话历史压缩为一段简洁的摘要，保留关键事实和情感脉络。输出纯文本，不要 JSON。',
-      },
-      { role: 'user', content: summarySource },
-    ],
-  })
-
-  if (stale()) return history
-  if (!res.success || !res.data?.content) {
-    summaryFailures++
-    useLogsStore
-      .getState()
-      .appendLocal('warn', 'llm-worker', `历史压缩失败（连续 ${summaryFailures} 次），跳过本轮`)
-    if (summaryFailures >= MAX_SUMMARY_FAILURES) {
-      useLogsStore
-        .getState()
-        .appendLocal('warn', 'llm-worker', `摘要连续失败，强制丢弃 ${toCompress.length} 条最旧原文以控制上下文`)
-      return withSummary(recent)
-    }
-    return unchanged()
-  }
-  summaryFailures = 0
-
-  const newText = res.data.content.trim()
-  // 兜底：压缩后仍超阈值则放弃归档，保原文返回（避免归档与注入脱节）
-  const newTotal =
-    systemTokens +
-    summaryTokens +
-    estimateTokens(newText) +
-    recent.reduce((sum, m) => sum + estimateTokens(messageText(m)), 0)
-  if (newTotal > turnBudget) {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', `压缩后仍超预算 (${newTotal}/${turnBudget})，放弃本轮归档`)
-    return unchanged()
-  }
-
-  const ids = toCompress.map((m) => (m as ChatMessage & { dbId?: number }).dbId)
-  const fromId = ids[0]
-  const toId = ids[ids.length - 1]
-  if (typeof fromId !== 'number' || typeof toId !== 'number') {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', '待压缩消息缺少数据库 ID，跳过本轮归档')
-    return unchanged()
-  }
-  const committed = await window.opengal.chatHistory.commitCompression(characterId, fromId, toId, {
-    start_ts: Date.now(),
-    end_ts: Date.now(),
-    text: newText,
-    message_count: toCompress.length,
-  })
-  if (!committed?.success || !committed.data || committed.data.archived === 0) {
-    useLogsStore.getState().appendLocal('warn', 'llm-worker', '压缩提交失败或区间已归档，取消本轮归档')
-    return unchanged()
-  }
-  if (stale()) return history
-  useChatStore.getState().dropFront(toCompress.length, headCount)
-
-  useLogsStore.getState().appendLocal(
-    'info',
-    'llm-worker',
-    `存档压缩: ${toCompress.length} 条归档，新摘要段 ${estimateTokens(newText)} tokens，预算 ${turnBudget}`,
-  )
-
-  return withSummary(recent)
 }
 
 function logLatency(stage: string): void {
