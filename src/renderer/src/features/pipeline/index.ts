@@ -1,4 +1,5 @@
-import { startLLMWorker, stopLLMWorker, setActiveRoleCard, setGlobalContextWindow } from './llmWorker'
+import { startLLMWorker, stopLLMWorker, setGlobalContextWindow } from './llmWorker'
+import { setActiveRoleCard } from './activeCard'
 import { startTTSWorker, stopTTSWorker } from './ttsWorker'
 import { startUIWorker, stopUIWorker } from './uiWorker'
 import { startInitiative } from './initiative'
@@ -10,10 +11,34 @@ import { startASRBridge } from '@/features/asr/asrStore'
 import { startSubtitleWorker, useSubtitleStore } from './subtitles'
 import { subtitleText } from '@shared/subtitles'
 import { startBargeInBridge } from './bargeIn'
+import { useLogsStore } from '@/features/logs/logsStore'
 
 export { pipelineBus, setActiveRoleCard }
 export type { MessageHandler } from './handlerChain'
 export { HandlerChain } from './handlerChain'
+
+function summarize(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const record = payload as Record<string, unknown>
+  const text = record.text ?? record.content ?? record.error
+  if (typeof text === 'string') return text.slice(0, 120)
+  const keys = Object.keys(record)
+  return keys.length > 0 ? keys.join(',') : undefined
+}
+
+function installPipelineTrace(): () => void {
+  const forced = typeof localStorage !== 'undefined' && localStorage.getItem('opengal:trace') === '1'
+  if (!import.meta.env.DEV && !forced) return () => {}
+  pipelineBus.setTracer(({ event, payload, listeners }) => {
+    useLogsStore.getState().appendLocal(
+      'debug',
+      'pipeline',
+      `${event} · ${listeners} listeners`,
+      summarize(payload),
+    )
+  })
+  return () => pipelineBus.setTracer(null)
+}
 
 export interface PipelineHandle {
   dispose: () => void
@@ -69,6 +94,7 @@ function startPetBubbleBridge(): () => void {
 }
 
 export function startPipeline(): PipelineHandle {
+  const stopTrace = installPipelineTrace()
   const stopSubtitles = startSubtitleWorker()
   void window.opengal.config.get().then((res) => {
     const cw = res.data?.llm?.contextWindow
@@ -87,6 +113,7 @@ export function startPipeline(): PipelineHandle {
   const stopInitiative = startInitiative()
   return {
     dispose: () => {
+      stopTrace()
       stopInitiative()
       stopBargeIn()
       stopSubtitles()

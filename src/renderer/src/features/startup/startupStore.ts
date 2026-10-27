@@ -3,7 +3,7 @@ import type { BootStep } from '@shared/types'
 import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { pipelineBus } from '@/features/pipeline'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 
 export type BootPhase = 'booting' | 'waking' | 'awake'
 

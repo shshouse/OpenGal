@@ -23,7 +23,7 @@ import { getBackupRoot, getDataRoot } from '../services/paths'
 import { startEnvMonitor, getEnvSnapshot } from '../services/envContext'
 import { runBootSequence, recheckTts } from '../services/bootService'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
-import { getToolDefinitions, executeTool } from '../services/tools'
+import { getToolDefinitions, executeTool, initTools } from '../services/tools'
 import { initPlugins, scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
 import { memoryEvidence } from '../services/memoryDb'
 import { initMemoryStore, loadFacts, loadStories, getMemoryBlock, applyCandidates, manualAddFact, clearMemory, freezeFact, unfreezeFact, deleteFact, pendingFromArchive, advanceCursor, rebuildMemory, pruneOverflow } from '../services/memoryStore'
@@ -51,6 +51,7 @@ function wrap<T>(run: () => Promise<T> | T): Promise<IpcResult<T>> {
 
 export function registerIpc(windows: WindowManager): void {
   setMemoryDbLogger(logBus)
+  initTools()
   initPlugins(getDataRoot())
   initMemoryStore(getDataRoot(), readConfig().memory, getBackupRoot())
   startEnvMonitor()

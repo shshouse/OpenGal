@@ -373,7 +373,7 @@ function bm25Score(factNorm: string, ctxNorm: string): number {
   if (factTerms.length === 0) return 0
   const tf = new Map<string, number>()
   for (const t of factTerms) tf.set(t, (tf.get(t) ?? 0) + 1)
-  // ponytail: avgdl 用文档自身长度代替语料平均长度，长度归一化恒为 1，退化为纯 tf 加权；单机启发式够用，升级需收集全库平均长度
+  // 已知近似：avgdl 用文档自身长度代替语料平均长度，长度归一化恒为 1，退化为纯 tf 加权；单机够用
   const avgdl = Math.max(1, factTerms.length)
   let score = 0
   for (const term of new Set(ctxTerms)) {

@@ -71,7 +71,7 @@ export function startSubtitleWorker(): () => void {
     useSubtitleStore.setState((state) => {
       const existing = state.records.find((r) => r.id === id)
       const record = { id, characterId, segments: [...(existing?.segments ?? []), { id: segmentId, text: msg.text }] }
-      // ponytail: 只保留最近 200 轮字幕缓存；更长历史可迁移到独立文件存储。
+      // 只保留最近 200 轮字幕缓存；更长历史需迁移到独立存储
       return { records: [...state.records.filter((r) => r.id !== id), record].slice(-200) }
     })
     pending.push(async () => {

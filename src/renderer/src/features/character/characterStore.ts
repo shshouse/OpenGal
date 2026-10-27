@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { RoleCardEntry } from '@shared/types'
-import { setActiveRoleCard as wireLLMWorkerRoleCard, pipelineBus } from '@/features/pipeline'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
+import { setActiveRoleCard as wireLLMWorkerRoleCard } from '@/features/pipeline/activeCard'
 import { useChatStore } from '@/features/chat/chatStore'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
 

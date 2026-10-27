@@ -1,6 +1,6 @@
 import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
 import { packContext, type ContextItem } from './contextAssembler'
-import type { ChatMessage, LLMDialogueItem, MessageContentPart, RoleCard, ToolCall, ToolDefinition } from '@shared/types'
+import type { ChatMessage, LLMDialogueItem, MessageContentPart, ToolCall, ToolDefinition } from '@shared/types'
 import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
@@ -8,24 +8,19 @@ import { useLogsStore } from '@/features/logs/logsStore'
 import { getAvailableMotionGroups } from '@/features/live2d/live2dBus'
 import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from './pipelineBus'
+import { getActiveRoleCard } from './activeCard'
 import { pickRecentSummaries } from '@shared/summaryBudget'
 
 let counter = 0
 let currentStreamId: string | null = null
 let bound = false
 let unsubscribers: Array<() => void> = []
-let activeRoleCard: RoleCard | null = null
 let accumulatedReasoning = ''
 let accumulatedRaw = ''
 let displayTextThisTurn = ''
 let latencyTurnStart = 0
 let firstTokenLogged = false
 let firstDialogLogged = false
-
-export function setActiveRoleCard(card: RoleCard): void {
-  if (activeRoleCard && activeRoleCard.id !== card.id) pipelineBus.emit('pipeline:abort', undefined)
-  activeRoleCard = card
-}
 
 // 上下文预算按 1M 窗口设计：默认全局配置为 1M，且只信任模型真实窗口
 const COMPRESSION_THRESHOLD = 0.85
@@ -138,11 +133,12 @@ export function getLastRawResponse(): string {
 }
 
 export function getContextUsage(): ContextUsage | null {
-  if (!activeRoleCard) return null
+  const card = getActiveRoleCard()
+  if (!card) return null
   const history = useChatStore.getState().messages
   const motionGroups = getAvailableMotionGroups()
-  const memoryBlock = getMemorySnapshot(activeRoleCard.id) ?? undefined
-  const systemContent = buildSystemPrompt(activeRoleCard, motionGroups, memoryBlock)
+  const memoryBlock = getMemorySnapshot(card.id) ?? undefined
+  const systemContent = buildSystemPrompt(card, motionGroups, memoryBlock)
   return computeContextUsage(systemContent, memoryBlock, history, resolveTurnBudget())
 }
 
@@ -154,7 +150,7 @@ export function setGlobalContextWindow(n: number): void {
 
 // 上下文窗口：模型物理窗口，用于显示上限
 function resolveContextWindow(): number {
-  return activeRoleCard?.llm?.contextWindow ?? globalContextWindow ?? 1048576
+  return getActiveRoleCard()?.llm?.contextWindow ?? globalContextWindow ?? 1048576
 }
 
 // 每轮实际发送预算：默认按 1M 窗口设计，超出再靠 50% 阈值压缩
@@ -349,6 +345,7 @@ export function startLLMWorker(): () => void {
   let turnSeq = 0
 
   const emitDialog = (item: LLMDialogueItem): void => {
+    const card = getActiveRoleCard()
     dialogCountThisTurn++
     displayTextThisTurn += item.text
     if (!firstDialogLogged && latencyTurnStart > 0) {
@@ -358,13 +355,13 @@ export function startLLMWorker(): () => void {
     pipelineBus.emit('llm:dialog', {
       ...toDialogMessage(item, latencyTurnStart),
       segmentId: crypto.randomUUID(),
-      characterId: activeRoleCard?.id,
-      language: activeRoleCard?.language,
+      characterId: card?.id,
+      language: card?.language,
     })
   }
 
   const offUserInput = pipelineBus.on('user:input', (input: UserInputMessage) => {
-    if (!activeRoleCard) {
+    if (!getActiveRoleCard()) {
       pipelineBus.emit('llm:done', { ok: false, error: 'No active role card' })
       return
     }
@@ -386,24 +383,26 @@ export function startLLMWorker(): () => void {
   })
 
   async function runTurn(userText: string, myTurn: number, systemPrompt?: string): Promise<void> {
+    const card = getActiveRoleCard()
+    if (!card) return
     const stale = (): boolean => myTurn !== turnSeq
     const turnStartedAt = Date.now()
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
     const [memoryBlock, toolsResp] = await Promise.all([
-      fetchRelevantMemory(activeRoleCard!.id, userText),
+      fetchRelevantMemory(card.id, userText),
       window.opengal.tools.list(),
     ])
     if (stale()) return
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
     const systemContent = buildSystemPrompt(
-      activeRoleCard!,
+      card,
       motionGroups,
       memoryBlock ?? undefined,
       tools.length > 0,
     )
     const compressedHistory = await compressHistory(
-      activeRoleCard!.id,
+      card.id,
       history,
       resolveTurnBudget(),
       estimateTokens(systemContent),
@@ -574,7 +573,7 @@ export function startLLMWorker(): () => void {
       const roundRawTokens = promptRawTokens(messagesForLLM)
       const nonStream = await window.opengal.llm.chat({
         messages: messagesForLLM,
-        overrides: activeRoleCard!.llm,
+        overrides: card.llm,
         tools,
         toolChoice: 'auto',
       })
@@ -796,7 +795,7 @@ async function runStreamRound(
 
     void window.opengal.llm
       .chatStream(
-        { messages, overrides: activeRoleCard!.llm, tools, toolChoice: 'auto' },
+        { messages, overrides: getActiveRoleCard()?.llm, tools, toolChoice: 'auto' },
         startId!,
       )
       .then((result) => {
@@ -840,7 +839,7 @@ function sanitizeHistoryForLLM(messages: ChatMessage[]): ChatMessage[] {
 }
 
 function toDialogMessage(item: LLMDialogueItem, turnStartedAt: number): LLMDialogMessage {
-  const card = activeRoleCard
+  const card = getActiveRoleCard()
   const msg: LLMDialogMessage = {
     name: card?.displayName ?? card?.name ?? 'assistant',
     text: item.text,
