@@ -268,7 +268,7 @@ async function evaluate(): Promise<void> {
       const fullText = [...backlog, ...utterances].map((u) => u.text).join(' ')
       backlog = []
       if (cfg.directorDirectSpeech && action.line) {
-        speakDirect(action.line)
+        speakDirect(action.line, fullText)
       } else {
         dispatch?.({ text: fullText, source: 'voice' })
       }
@@ -360,12 +360,20 @@ async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> 
   return null
 }
 
-/** 导演直接给出台词：写进对话历史并立刻进入 TTS/演出队列，不再走一次主管线生成 */
-function speakDirect(line: string): void {
+/** 导演直接给出台词：记录用户原话与角色台词，再进入 TTS/演出队列，不走主管线生成 */
+function speakDirect(line: string, userText: string): void {
   const card = useCharacterStore.getState().getActive()
   const name = card?.displayName || card?.name || 'assistant'
-  useChatStore.getState().finalizeStream(line)
-  pipelineBus.emit('llm:dialog', { name, text: line, turnStartedAt: Date.now() })
+  const chat = useChatStore.getState()
+  if (userText.trim()) chat.appendUser(userText)
+  pipelineBus.emit('llm:dialog', {
+    name,
+    text: line,
+    characterId: card?.id,
+    segmentId: crypto.randomUUID(),
+    turnStartedAt: Date.now(),
+  })
+  chat.finalizeStream(line)
 }
 
 async function askDirector(
