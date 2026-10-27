@@ -37,6 +37,7 @@ export const IpcChannels = {
     unfreezeFact: 'memory:unfreezeFact',
     deleteFact: 'memory:deleteFact',
     prune: 'memory:prune',
+    evidence: 'memory:evidence',
   },
   pet: {
     open: 'pet:open',

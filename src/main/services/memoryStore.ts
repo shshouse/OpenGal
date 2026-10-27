@@ -31,6 +31,8 @@ import {
   resetDerived,
   listMemoryRows,
   setMemoryStateRow,
+  memoryEvidence,
+  pruneSummaries,
   type FactRow,
   type StoryRow,
 } from './memoryDb.ts'
@@ -152,6 +154,7 @@ export async function pruneOverflow(
   limit = MAX_ACTIVE_MEMORIES,
 ): Promise<{ archived: number }> {
   await memoryDbReady()
+  pruneSummaries(characterId)
   const rows = listMemoryRows(characterId)
   if (rows.length <= limit) return { archived: 0 }
   const pinned = rows.filter((row) => row.pinned === 1)
@@ -612,6 +615,39 @@ function formatMessageTime(ts: number): string {
 }
 
 // 原话召回：补充 facts/stories 覆盖不到的逐字历史，带时间戳，供模型区分"当年说的"和"刚说的"
+// 词法没命中时退回记忆向量：命中的事实再展开成当时的原话
+async function recallFromMemoryVectors(
+  characterId: string,
+  query: string,
+  charCap: number,
+): Promise<string | null> {
+  const facts = (await loadFactsTyped(characterId)).filter((fact) => fact.status === 'active')
+  if (facts.length === 0) return null
+  let hits: Array<{ fact: MemoryFact; similarity: number }>
+  try {
+    hits = await searchSimilarAsync(facts, query, 3, 0.35)
+  } catch {
+    return null
+  }
+  if (hits.length === 0) return null
+  const lines: string[] = []
+  let used = 0
+  for (const hit of hits) {
+    for (const row of memoryEvidence(characterId, hit.fact.id, 2)) {
+      const text = messageText(row.content).trim()
+      if (!text) continue
+      const line = `[${formatMessageTime(row.ts)}] ${row.role}: ${text}`
+      if (used + line.length > charCap) break
+      lines.push(line)
+      used += line.length
+    }
+  }
+  if (lines.length === 0) {
+    return hits.map((hit) => `[记忆] ${hit.fact.text}`).join('\n')
+  }
+  return `相关历史原话（按时间排列）：\n${lines.join('\n')}`
+}
+
 export async function recallVerbatim(
   characterId: string,
   query: string,
@@ -621,6 +657,7 @@ export async function recallVerbatim(
   if (!query.trim()) return null
   await memoryDbReady()
   const rows = searchMessages(characterId, query, { fromTs: range?.fromTs, toTs: range?.toTs, radius: 1 })
+  if (rows.length === 0) return recallFromMemoryVectors(characterId, query, charCap)
   const lines: string[] = []
   let used = 0
   for (const row of rows) {

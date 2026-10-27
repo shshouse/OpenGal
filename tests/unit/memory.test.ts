@@ -264,9 +264,11 @@ describe('memory persistence pipeline', () => {
       const { saveFacts } = await import('../../src/main/services/memoryDb')
       saveFacts(c4, factsC4.map((f) => ({
         id: f.id, character_id: c4, text: f.text, entity: f.entity, importance: f.importance,
+        subject: f.subject ?? null, attribute: f.attribute ?? null,
         confidence: f.confidence, source: f.source, created_at: f.created_at, last_confirmed_at: f.last_confirmed_at,
         status: f.status, evidence_reinforce: f.evidence.reinforce, evidence_negate: f.evidence.negate,
         protected_: f.protected ? 1 : 0, valid_until: null, frozen_at: null, embedding: null,
+        source_evidence: null,
       })))
       const frozenFact = await manualAddFact(c4, '用户的生日是3月15日')
       await freezeFact(c4, frozenFact.id)

@@ -1,11 +1,25 @@
 import * as React from 'react'
-import { Brain, Lock, LockOpen, Trash2, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
+import { Brain, Lock, LockOpen, Trash2, Plus, RefreshCw, RotateCcw, Search, Quote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
 import type { MemoryFact, MemoryStory } from '@shared/types'
+
+function sourceText(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as unknown
+    if (typeof parsed === 'string') return parsed
+    if (parsed && typeof parsed === 'object' && 'content' in parsed) {
+      const inner = (parsed as { content?: unknown }).content
+      if (typeof inner === 'string') return inner
+    }
+    return content
+  } catch {
+    return content
+  }
+}
 
 export function MemorySettings() {
   const activeId = useCharacterStore((s) => s.activeId)
@@ -18,6 +32,8 @@ export function MemorySettings() {
   const [newFactText, setNewFactText] = React.useState('')
   const [adding, setAdding] = React.useState(false)
   const [rebuilding, setRebuilding] = React.useState(false)
+  const [openSource, setOpenSource] = React.useState<string | null>(null)
+  const [sources, setSources] = React.useState<Record<string, Array<{ id: number; role: string; content: string; ts: number }>>>({})
 
   const activeChar = characters.find((c) => c.id === activeId)
   const charName = activeChar?.displayName ?? activeChar?.name ?? '未选择角色'
@@ -69,6 +85,18 @@ export function MemorySettings() {
     if (!activeId) return
     const res = await window.opengal.memory.deleteFact(activeId, factId)
     if (res.success) await load()
+  }
+
+  async function toggleSource(id: string): Promise<void> {
+    if (!activeId) return
+    if (openSource === id) {
+      setOpenSource(null)
+      return
+    }
+    setOpenSource(id)
+    if (sources[id]) return
+    const res = await window.opengal.memory.evidence(activeId, id)
+    if (res.success && res.data) setSources((prev) => ({ ...prev, [id]: res.data ?? [] }))
   }
 
   async function handleAdd(): Promise<void> {
@@ -171,9 +199,9 @@ export function MemorySettings() {
               const frozen = !!f.frozen_at
               const pct = retentionPercent(f)
               return (
-                <div
-                  key={f.id}
-                  className={cn(
+                <React.Fragment key={f.id}>
+                  <div
+                    className={cn(
                     'flex items-center gap-2 border-b px-3 py-2 text-sm last:border-b-0',
                     expired && 'opacity-50 line-through',
                     f.status === 'archived' && 'opacity-40'
@@ -203,13 +231,38 @@ export function MemorySettings() {
                   </div>
                   <button
                     type="button"
+                    title="查看来源"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => void toggleSource(f.id)}
+                  >
+                    <Quote className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     title="删除"
                     className="shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={() => void handleDelete(f.id)}
                   >
                     <Trash2 className="size-3.5" />
                   </button>
-                </div>
+                  </div>
+                  {openSource === f.id && (
+                    <div className="border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      {(sources[f.id] ?? []).length === 0 ? (
+                        <span>这条记忆没有记录来源原话</span>
+                      ) : (
+                        (sources[f.id] ?? []).map((m) => (
+                          <div key={`${f.id}-${m.id}`} className="flex gap-2 py-0.5">
+                            <span className="shrink-0 tabular-nums">
+                              {new Date(m.ts).toLocaleDateString()}
+                            </span>
+                            <span className="min-w-0 flex-1">{sourceText(m.content)}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </React.Fragment>
               )
             })
           )}

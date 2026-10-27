@@ -9,7 +9,6 @@ import {
   initMemoryStore,
   loadFacts,
   manualAddFact,
-  textSimilarity,
 } from '../../src/main/services/memoryStore'
 import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
 
@@ -50,31 +49,19 @@ describe('memoryStore 并发写', () => {
     expect(await loadFacts('c2')).toHaveLength(2)
   })
 
-  it('删除期间裁判完成不复活已删除记忆', async () => {
+  it('删除后相似信息不会复活旧记忆', async () => {
     const F1 = '用户每天跑步五公里'
     const F2 = '用户每周游泳三公里'
-    const similarity = textSimilarity(F1, F2)
-    expect(similarity).toBeGreaterThanOrEqual(0.35)
-    expect(similarity).toBeLessThan(0.6)
 
     const fact = await manualAddFact('c3', F1)
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const pending = applyCandidates(
-      'c3',
-      { facts: [{ text: F2, entity: 'user', importance: 6, confidence: 0.5, reason: 'test' }], stories: [] },
-      async () => {
-        await gate
-        return 'reinforces'
-      },
-    )
-    await new Promise((resolve) => setTimeout(resolve, 50))
     await deleteFact('c3', fact.id)
-    release()
-    await pending
+    await applyCandidates('c3', {
+      facts: [{ text: F2, entity: 'user', importance: 6, confidence: 0.5, reason: 'test' }],
+      stories: [],
+    })
+
     const facts = await loadFacts('c3')
     expect(facts.some((item) => item.id === fact.id)).toBe(false)
+    expect(facts.some((item) => item.text === F2)).toBe(true)
   })
 })

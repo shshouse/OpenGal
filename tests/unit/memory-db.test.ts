@@ -45,6 +45,8 @@ function fact(id: string, overrides: Partial<FactRow> = {}): FactRow {
     character_id: 'c-fact',
     text: `事实 ${id}`,
     entity: 'user',
+    subject: null,
+    attribute: null,
     importance: 5,
     confidence: 0.8,
     source: 'user_statement',

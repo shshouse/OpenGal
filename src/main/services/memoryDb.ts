@@ -786,6 +786,33 @@ export function deleteMemoryRow(id: string): number {
   ))
 }
 
+// 一条记忆的来源原话：优先用显式 messageIds，否则按记录的时间范围回查
+export function memoryEvidence(characterId: string, memoryId: string, limit = 5): MessageRow[] {
+  const found = rows('SELECT * FROM memories WHERE id = ? AND character_id = ?', [memoryId, characterId])
+  if (found.length === 0) return []
+  const row = found[0] as unknown as MemoryRow
+  const evidence = row.evidence
+    ? (JSON.parse(row.evidence) as { messageIds?: unknown })
+    : null
+  const ids = Array.isArray(evidence?.messageIds)
+    ? evidence.messageIds.filter((id): id is number => typeof id === 'number').slice(0, limit)
+    : []
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => '?').join(', ')
+    return rows(
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id IN (${placeholders}) ORDER BY ts, id`,
+      [characterId, ...ids]
+    ) as unknown as MessageRow[]
+  }
+  if (row.source_from !== null && row.source_to !== null) {
+    return rows(
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ts >= ? AND ts <= ? ORDER BY ts, id LIMIT ?`,
+      [characterId, row.source_from, row.source_to, limit]
+    ) as unknown as MessageRow[]
+  }
+  return []
+}
+
 export function clearCharacterMemories(characterId: string): void {
   withTx(() => {
     run('DELETE FROM memories WHERE character_id = ?', [characterId])
@@ -874,6 +901,20 @@ export function listSummaries(characterId: string): SummaryRow[] {
     'SELECT start_ts, end_ts, text, message_count FROM summaries WHERE character_id = ? ORDER BY created_at',
     [characterId]
   ) as unknown as SummaryRow[]
+}
+
+// 摘要只保留最近的若干条，更旧的删除（原文仍在，可重新摘要）
+export function pruneSummaries(characterId: string, keep = 50): number {
+  const all = rows(
+    'SELECT id FROM summaries WHERE character_id = ? ORDER BY end_ts DESC, id DESC',
+    [characterId]
+  )
+  if (all.length <= keep) return 0
+  const drop = all.slice(keep).map((row) => Number(row.id))
+  withTx(() => {
+    for (const id of drop) run('DELETE FROM summaries WHERE id = ?', [id])
+  })
+  return drop.length
 }
 
 export function addSummary(characterId: string, s: SummaryRow): void {
