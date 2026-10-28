@@ -2,6 +2,7 @@ import * as React from 'react'
 import { X } from 'lucide-react'
 import { TitleBar } from '@/components/titlebar/TitleBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
+import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
 import { LogsPanel } from '@/components/logs/LogsPanel'
@@ -14,6 +15,11 @@ import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { useStartupStore } from '@/features/startup/startupStore'
 import { useASRStore } from '@/features/asr/asrStore'
+import { shouldShowMainStage } from '@shared/stagePolicy'
+import { isCharacterRunning } from '@shared/characterRuntime'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { setEyesClosed } from '@/features/live2d/live2dBus'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 
 type View = 'chat' | 'market' | 'settings' | 'logs'
 const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
@@ -22,9 +28,12 @@ export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [petOpen, setPetOpen] = React.useState(false)
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const [view, setView] = React.useState<View>('chat')
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
   const activeId = useCharacterStore((s) => s.activeId)
+  const runningById = useCharacterRuntimeStore((s) => s.byId)
+  const activeRunning = isCharacterRunning(runningById, activeId)
 
   React.useEffect(() => {
     const onMouseUp = (e: MouseEvent) => {
@@ -64,8 +73,8 @@ export default function App() {
       const cfg = await window.opengal.config.get()
       if (cfg.success && cfg.data) {
         setConfig(cfg.data)
+        useCharacterRuntimeStore.getState().hydrate(cfg.data.runningCharacters)
         await useASRStore.getState().applySettings(cfg.data.asr)
-        useStartupStore.getState().beginBoot()
         if (!cfg.data.showLive2D) useStartupStore.getState().reportLive2d('skipped')
         await loadCharacters(cfg.data.activeCharacterId)
         const active = useCharacterStore.getState().getActive()
@@ -87,6 +96,25 @@ export default function App() {
       }
     })()
   }, [loadCharacters])
+
+  React.useEffect(() => {
+    window.opengal.pet?.emitRuntime?.({
+      runningCharacters: runningById,
+      activeCharacterId: activeId,
+    })
+  }, [runningById, activeId])
+
+  React.useEffect(() => window.opengal.pet?.onAvatar?.(setAvatarUrl), [])
+
+  React.useEffect(() => {
+    setEyesClosed(!activeRunning)
+    if (activeRunning) {
+      if (useStartupStore.getState().phase !== 'awake') useStartupStore.getState().beginBoot()
+      return
+    }
+    pipelineBus.emit('pipeline:abort', undefined)
+    void window.opengal.tts.cancel()
+  }, [activeId, activeRunning])
 
   React.useEffect(() => {
     if (!activeId) return
@@ -122,6 +150,20 @@ export default function App() {
     }
   }
 
+  async function handleAvatarClick(characterId: string): Promise<void> {
+    if (characterId !== activeId) {
+      await useCharacterStore.getState().setActive(characterId)
+    }
+    const nextRunning = !isCharacterRunning(
+      useCharacterRuntimeStore.getState().byId,
+      characterId,
+    )
+    const runningCharacters = useCharacterRuntimeStore
+      .getState()
+      .setRunning(characterId, nextRunning)
+    await saveConfig({ runningCharacters })
+  }
+
   async function togglePet(): Promise<void> {
     if (petOpen) {
       await window.opengal.pet.close()
@@ -152,8 +194,14 @@ export default function App() {
     [model]
   )
 
-  const live2dLayer = config?.showLive2D ? (
-    <Live2DStage model={model} onChange={handleModelChange} />
+  const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
+  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, petOpen) ? (
+    <Live2DStage
+      model={model}
+      sleeping={!activeRunning}
+      onChange={handleModelChange}
+      onSnapshot={handleSnapshot}
+    />
   ) : (
     <div className="h-full w-full bg-background" />
   )
@@ -161,6 +209,8 @@ export default function App() {
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar
+        avatarUrl={avatarUrl}
+        onAvatarClick={(id) => void handleAvatarClick(id)}
         onOpenChat={() => setView('chat')}
         chatActive={view === 'chat'}
         onOpenSettings={() => setView('settings')}
@@ -177,10 +227,7 @@ export default function App() {
         <TitleBar />
         <main className="relative flex flex-1 overflow-hidden">
           {view === 'chat' && (
-            <>
-              <div className="absolute inset-0">{live2dLayer}</div>
-              <GalgameChatPanel />
-            </>
+            <ChatWorkspace chat={<GalgameChatPanel />} stage={live2dLayer} />
           )}
 
           {view === 'market' && <MarketPage />}

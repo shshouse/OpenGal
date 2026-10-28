@@ -9,4 +9,3 @@ export interface ASREngine {
   setSpeechStartCallback(cb: (() => void) | null): void
 }
 
-export type ASREngineKind = 'sherpa'

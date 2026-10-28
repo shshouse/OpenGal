@@ -2,8 +2,13 @@ import * as React from 'react'
 import { Settings, Terminal, Cat, Eye, EyeOff, Store, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ModuleLights } from '@/components/nav/ModuleLights'
+import { useCharacterStore } from '@/features/character/characterStore'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { isCharacterRunning } from '@shared/characterRuntime'
 
 interface Props {
+  avatarUrl?: string | null
+  onAvatarClick: (characterId: string) => void
   onOpenChat: () => void
   chatActive: boolean
   onOpenSettings: () => void
@@ -48,6 +53,8 @@ function RailButton({
 }
 
 export function Sidebar({
+  avatarUrl,
+  onAvatarClick,
   onOpenChat,
   chatActive,
   onOpenSettings,
@@ -60,8 +67,60 @@ export function Sidebar({
   onOpenLogs,
   logsActive
 }: Props) {
+  const characters = useCharacterStore((state) => state.list)
+  const activeId = useCharacterStore((state) => state.activeId)
+  const runningById = useCharacterRuntimeStore((state) => state.byId)
   return (
     <nav className="flex w-16 shrink-0 flex-col items-center gap-1 border-r bg-card/60 px-1.5 py-2">
+      {characters.length > 0 ? (
+        <div className="mb-1 flex flex-col items-center gap-1">
+          {characters.map((character) => {
+            const active = character.id === activeId
+            const running = isCharacterRunning(runningById, character.id)
+            const label = character.displayName ?? character.name
+            return (
+              <button
+                key={character.id}
+                type="button"
+                title={`${label}：${running ? '运行中，点击休眠' : '沉睡中，点击唤醒'}`}
+                onClick={() => onAvatarClick(character.id)}
+                className={cn(
+                  'relative flex size-11 items-center justify-center overflow-hidden rounded-full border bg-background text-xs transition-all',
+                  active ? 'border-primary ring-2 ring-primary/40' : 'border-border',
+                  !running && 'opacity-60 saturate-50'
+                )}
+              >
+                {active && avatarUrl ? (
+                  <img src={avatarUrl} alt={label} className="h-full w-full object-cover" />
+                ) : (
+                  <span style={{ color: character.color ?? undefined }}>
+                    {label.slice(0, 1)}
+                  </span>
+                )}
+                <span
+                  className={cn(
+                    'absolute bottom-0.5 right-0.5 size-2 rounded-full border border-background',
+                    running ? 'bg-emerald-500' : 'bg-muted-foreground'
+                  )}
+                />
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <button
+          type="button"
+          title="当前角色"
+          onClick={onOpenChat}
+          className="mb-1 flex size-11 items-center justify-center overflow-hidden rounded-full border border-border bg-background"
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="当前角色" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-xs text-muted-foreground">角色</span>
+          )}
+        </button>
+      )}
       <RailButton label="OPEN" title="OpenGal 主页" active={chatActive} onClick={onOpenChat}>
         <Sparkles className="size-5" />
       </RailButton>

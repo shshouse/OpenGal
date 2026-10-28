@@ -6,6 +6,9 @@ import { useLogsStore } from '@/features/logs/logsStore'
 import { resolveInitiativePolicy } from '@shared/initiativePolicy'
 import { detectReturn } from './initiativePerception'
 import { buildInitiativeNudge } from '@shared/initiativeNudge'
+import { useCharacterStore } from '@/features/character/characterStore'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { isCharacterRunning } from '@shared/characterRuntime'
 
 const TICK_MS = 60_000
 /** 主动开口后多久内不再尝试 */
@@ -36,6 +39,8 @@ export function startInitiative(): () => void {
       if (!cfg) return
       const policy = resolveInitiativePolicy(cfg)
       if (!policy.enabled) return
+      const activeId = useCharacterStore.getState().activeId
+      if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
       if (useChatStore.getState().isSending) return
       const envRes = await window.opengal.env.get()
       const env = envRes.success ? (envRes.data ?? null) : null

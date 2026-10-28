@@ -187,6 +187,32 @@ const api = {
       return () => {
         ipcRenderer.off(IpcChannels.pet.bubble, handler)
       }
+    },
+    emitPerformance: (payload: { emotion?: string; motion?: string; characterId?: string }) =>
+      ipcRenderer.send(IpcChannels.pet.emitPerformance, payload),
+    emitRuntime: (payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) =>
+      ipcRenderer.send(IpcChannels.pet.emitRuntime, payload),
+    onRuntime: (listener: (payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) => void) => {
+      const handler = (_: unknown, payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) => listener(payload)
+      ipcRenderer.on(IpcChannels.pet.runtime, handler)
+      return () => {
+        ipcRenderer.off(IpcChannels.pet.runtime, handler)
+      }
+    },
+    emitAvatar: (dataUrl: string) => ipcRenderer.send(IpcChannels.pet.emitAvatar, dataUrl),
+    onAvatar: (listener: (dataUrl: string) => void) => {
+      const handler = (_: unknown, dataUrl: string) => listener(dataUrl)
+      ipcRenderer.on(IpcChannels.pet.avatar, handler)
+      return () => {
+        ipcRenderer.off(IpcChannels.pet.avatar, handler)
+      }
+    },
+    onPerformance: (listener: (payload: { emotion?: string; motion?: string; characterId?: string }) => void) => {
+      const handler = (_: unknown, payload: { emotion?: string; motion?: string; characterId?: string }) => listener(payload)
+      ipcRenderer.on(IpcChannels.pet.performance, handler)
+      return () => {
+        ipcRenderer.off(IpcChannels.pet.performance, handler)
+      }
     }
   },
   tts: {

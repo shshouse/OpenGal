@@ -141,6 +141,8 @@ export interface AppConfig {
   asr: ASRConfig
   model: Live2DModelConfig | null
   activeCharacterId: string | null
+  /** 每个角色独立的运行状态；未列出的角色默认沉睡 */
+  runningCharacters: Record<string, boolean>
   showLive2D: boolean
   memory: MemoryConfig
   tools: ToolsConfig

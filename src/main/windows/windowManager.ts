@@ -133,6 +133,24 @@ export class WindowManager {
     }
   }
 
+  sendPetPerformance(payload: { emotion?: string; motion?: string; characterId?: string }): void {
+    if (this.pet && !this.pet.isDestroyed()) {
+      this.pet.webContents.send(IpcChannels.pet.performance, payload)
+    }
+  }
+
+  sendPetRuntime(payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }): void {
+    if (this.pet && !this.pet.isDestroyed()) {
+      this.pet.webContents.send(IpcChannels.pet.runtime, payload)
+    }
+  }
+
+  sendMainAvatar(dataUrl: string): void {
+    if (this.main && !this.main.isDestroyed()) {
+      this.main.webContents.send(IpcChannels.pet.avatar, dataUrl)
+    }
+  }
+
   minimizeMain(): void {
     this.main?.minimize()
   }

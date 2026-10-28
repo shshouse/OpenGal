@@ -45,7 +45,13 @@ export const IpcChannels = {
     dragStart: 'pet:dragStart',
     dragMove: 'pet:dragMove',
     setBubble: 'pet:setBubble',
-    bubble: 'pet:bubble'
+    bubble: 'pet:bubble',
+    emitPerformance: 'pet:emitPerformance',
+    performance: 'pet:performance',
+    emitRuntime: 'pet:emitRuntime',
+    runtime: 'pet:runtime',
+    emitAvatar: 'pet:emitAvatar',
+    avatar: 'pet:avatar'
   },
   model: {
     scan: 'model:scan',

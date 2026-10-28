@@ -71,3 +71,17 @@
     font-family: 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', 'Courier New', monospace;
   }
 }
+
+@layer utilities {
+  .edge {
+    box-shadow: inset 0 0 0 1px hsl(var(--border));
+  }
+  .edge-focus:focus-visible {
+    box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.35);
+  }
+  .edge-float {
+    box-shadow:
+      inset 0 0 0 1px hsl(var(--border)),
+      0 18px 40px -28px rgb(0 0 0 / 0.5);
+  }
+}

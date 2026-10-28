@@ -111,7 +111,3 @@ export function stopMicCapture(): void {
 export function getAnalyser(): AnalyserNode | null {
   return analyser
 }
-
-export function isMicActive(): boolean {
-  return stream !== null
-}

@@ -39,6 +39,12 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       if (msg.motion) {
         playMotionGroup(msg.motion)
       }
+      // 同一次表演同步给桌宠，主窗口与桌宠不会出现两套情绪
+      window.opengal.pet?.emitPerformance?.({
+        emotion: msg.emotion,
+        motion: msg.motion,
+        characterId: msg.characterId,
+      })
       pipelineBus.emit('tts:segmentStart', msg)
     }
 

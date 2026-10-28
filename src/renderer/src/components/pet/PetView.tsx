@@ -1,8 +1,11 @@
 import * as React from 'react'
 import type { Live2DModelConfig } from '@shared/types'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
-import { playMotionGroup } from '@/features/live2d/live2dBus'
+import { applyEmotion, playMotionGroup } from '@/features/live2d/live2dBus'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { useCharacterStore } from '@/features/character/characterStore'
+import { isCharacterRunning } from '@shared/characterRuntime'
 
 const DRAG_THRESHOLD_PX = 6
 
@@ -10,6 +13,9 @@ const DRAG_THRESHOLD_PX = 6
 export default function PetView() {
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [bubble, setBubble] = React.useState<string | null>(null)
+  const activeId = useCharacterStore((s) => s.activeId)
+  const runningById = useCharacterRuntimeStore((s) => s.byId)
+  const sleeping = !isCharacterRunning(runningById, activeId)
   const dragRef = React.useRef<{ x: number; y: number; dragging: boolean } | null>(null)
 
   React.useEffect(() => {
@@ -18,6 +24,17 @@ export default function PetView() {
   }, [])
 
   React.useEffect(() => window.opengal.pet.onBubble((text) => setBubble(text)), [])
+
+  React.useEffect(() => window.opengal.pet.onRuntime(({ runningCharacters, activeCharacterId }) => {
+    useCharacterRuntimeStore.getState().hydrate(runningCharacters)
+    useCharacterStore.setState({ activeId: activeCharacterId })
+  }), [])
+
+  // 主窗口的表演事件同时驱动桌宠：同一角色、同一表情与动作
+  React.useEffect(() => window.opengal.pet.onPerformance(({ emotion, motion }) => {
+    if (emotion) applyEmotion(emotion)
+    if (motion) playMotionGroup(motion)
+  }), [])
 
   // 每条新气泡重置隐藏计时；回复停止更新后 5 秒自动消失
   React.useEffect(() => {
@@ -30,6 +47,7 @@ export default function PetView() {
     void (async () => {
       const cfg = await window.opengal.config.get()
       if (!cfg.success || !cfg.data) return
+      useCharacterRuntimeStore.getState().hydrate(cfg.data.runningCharacters)
       const activeId = cfg.data.activeCharacterId
       if (activeId) {
         const fromCard = await window.opengal.model.resolveFromCard(activeId)
@@ -45,7 +63,7 @@ export default function PetView() {
       const def = await window.opengal.model.resolveDefault()
       if (def.success && def.data) setModel(def.data)
     })()
-  }, [])
+  }, [activeId])
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
     if (e.button !== 0) return
@@ -90,7 +108,14 @@ export default function PetView() {
           </div>
         </div>
       )}
-      <Live2DStage model={model} transparent interactive={false} transformGestures={false} />
+      <Live2DStage
+        model={model}
+        sleeping={sleeping}
+        transparent
+        interactive={false}
+        transformGestures={false}
+        onSnapshot={(dataUrl) => window.opengal.pet.emitAvatar(dataUrl)}
+      />
     </div>
   )
 }

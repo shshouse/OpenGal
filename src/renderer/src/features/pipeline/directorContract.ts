@@ -72,9 +72,6 @@ export interface DirectorDecision {
   urgency: 'low' | 'normal' | 'high'
 }
 
-/** 已实现的动作；其余保留动作会被降级为 silent */
-export const IMPLEMENTED_ACTIONS = ['silent', 'speak', 'wait'] as const
-
 // ---------------------------------------------------------------- 纯函数
 
 export function framePerception(events: PerceptionEvent[], now: number, limit = 40): PerceptionEvent[] {

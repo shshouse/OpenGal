@@ -59,6 +59,7 @@ const defaultConfig: AppConfig = {
   },
   model: null,
   activeCharacterId: null,
+  runningCharacters: {},
   showLive2D: true,
   tools: {
     webSearch: {
@@ -204,10 +205,4 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
   getStore().set(persisted)
   logBus.info('config', `配置更新: ${summarizePatch(patch)}`)
   return next
-}
-
-export function resetConfig(): AppConfig {
-  getStore().clear()
-  logBus.warn('config', '配置已重置为默认值')
-  return readConfig()
 }

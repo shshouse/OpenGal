@@ -2,7 +2,8 @@ import * as React from 'react'
 import * as PIXI from 'pixi.js'
 import { Loader2, AlertCircle } from 'lucide-react'
 import type { Live2DModelConfig } from '@shared/types'
-import { registerLive2DModel, playMotionGroup, resetPose } from '@/features/live2d/live2dBus'
+import { registerLive2DModel, playMotionGroup, resetPose, setEyesClosed } from '@/features/live2d/live2dBus'
+import { getHeadCrop } from '@shared/characterRuntime'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
 
@@ -29,7 +30,9 @@ interface Props {
   interactive?: boolean
   transparent?: boolean
   transformGestures?: boolean
+  sleeping?: boolean
   onChange?: (next: { scale: number; xRatio: number; yRatio: number }) => void
+  onSnapshot?: (dataUrl: string) => void
 }
 
 export function Live2DStage({
@@ -37,7 +40,9 @@ export function Live2DStage({
   interactive = true,
   transparent = false,
   transformGestures = true,
-  onChange
+  sleeping = false,
+  onChange,
+  onSnapshot
 }: Props) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
@@ -352,13 +357,51 @@ export function Live2DStage({
     return () => container.removeEventListener('pointermove', handler)
   }, [interactive, model?.paramMapping])
 
+  React.useEffect(() => {
+    setEyesClosed(sleeping)
+  }, [sleeping])
+
+  React.useEffect(() => {
+    if (!onSnapshot) return
+    let capturing = false
+    const timer = window.setInterval(() => {
+      const app = appRef.current
+      if (!app || capturing) return
+      capturing = true
+      void (async () => {
+        try {
+          const dataUrl = await app.renderer.extract.base64(app.stage)
+          const image = new Image()
+          image.src = dataUrl
+          await image.decode()
+          const crop = getHeadCrop(image.width, image.height)
+          if (crop.size === 0) return
+          const target = document.createElement('canvas')
+          target.width = crop.size
+          target.height = crop.size
+          const ctx = target.getContext('2d')
+          if (!ctx) return
+          ctx.drawImage(image, crop.x, crop.y, crop.size, crop.size, 0, 0, crop.size, crop.size)
+          onSnapshot(target.toDataURL('image/png'))
+        } catch {
+          /* 模型尚未就绪时忽略 */
+        } finally {
+          capturing = false
+        }
+      })()
+    }, 800)
+    return () => window.clearInterval(timer)
+  }, [onSnapshot])
+
   return (
     <div
       ref={containerRef}
       className="relative h-full w-full overflow-hidden select-none"
       style={{
         background: transparent ? 'transparent' : undefined,
-        cursor: status === 'ready' ? 'grab' : undefined
+        cursor: status === 'ready' ? 'grab' : undefined,
+        filter: sleeping ? 'saturate(0.55) brightness(0.7)' : undefined,
+        transition: 'filter 300ms ease'
       }}
     >
       <canvas ref={canvasRef} className="block h-full w-full" />

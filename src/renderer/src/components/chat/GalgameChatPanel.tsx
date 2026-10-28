@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, ChevronUp, ChevronDown, Square, ImagePlus } from 'lucide-react'
+import { Send, Square, ImagePlus, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,8 @@ import { getLive2DModel } from '@/features/live2d/live2dBus'
 import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directorWorker'
 import { extractAssistantDisplayText } from '@shared/roleCard'
+import { isCharacterRunning } from '@shared/characterRuntime'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useStartupStore } from '@/features/startup/startupStore'
 import { displaySubtitle, useSubtitleStore } from '@/features/pipeline/subtitles'
@@ -17,6 +19,10 @@ import { consumeVoiceInterruption } from '@/features/pipeline/bargeIn'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
+
+const COMPOSITION_GUARD_MS = 500
+const BOTTOM_STICK_PX = 40
+const BOTTOM_JUMP_PX = 120
 
 function abortPipeline(): void {
   pipelineBus.emit('pipeline:abort', undefined)
@@ -36,26 +42,45 @@ export function GalgameChatPanel() {
   const [draft, setDraft] = React.useState('')
   const pendingImages = usePendingImages()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const [historyOpen, setHistoryOpen] = React.useState(false)
+  const [showJump, setShowJump] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement>(null)
+  const stickRef = React.useRef(true)
+  const composingRef = React.useRef(false)
+  const compositionEndAtRef = React.useRef(0)
   const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
   const bootAwake = useStartupStore((s) => s.phase === 'awake')
+  const runningById = useCharacterRuntimeStore((s) => s.byId)
+  const sleeping = Boolean(character && !isCharacterRunning(runningById, character.id))
+  const canInteract = bootAwake && !sleeping
   useSubtitleStore((s) => s.records)
   useSubtitleStore((s) => s.preferences)
   const subtitle = (text: string): string => displaySubtitle(character?.id ?? '', text)
 
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
-
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
-  const displayText = streamingDisplay
-    || (lastAssistant ? extractAssistantDisplayText(lastAssistant.content as string) : '')
   const displayName = character?.displayName ?? character?.name ?? 'OpenGal'
 
-  React.useEffect(() => {
-    if (historyOpen && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [historyOpen, messages.length, streamingSegments.length])
+  const scrollToLatest = React.useCallback((smooth = false) => {
+    const el = scrollRef.current
+    if (!el) return
+    stickRef.current = true
+    setShowJump(false)
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+
+  const handleScroll = React.useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    stickRef.current = distance <= BOTTOM_STICK_PX
+    setShowJump(distance > BOTTOM_JUMP_PX)
+  }, [])
+
+  // 流式输出期间内容高度一直在变，所以每次渲染后按「是否贴底」决定要不要跟随
+  React.useLayoutEffect(() => {
+    if (!stickRef.current) return
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  })
 
   React.useEffect(() => {
     setASRFinalCallback((text) => {
@@ -83,8 +108,9 @@ export function GalgameChatPanel() {
 
   function handleSend(): void {
     const text = draft.trim()
-    if ((!text && pendingImages.images.length === 0) || isSending) return
-    const images = pendingImages.images
+    if ((!text && pendingImages.images.length === 0) || isSending || sleeping) return
+    const images = pendingImages.images.map((image) => image.url)
+    stickRef.current = true
     setDraft('')
     pendingImages.clear()
     send(text, images.length > 0 ? images : undefined)
@@ -95,106 +121,95 @@ export function GalgameChatPanel() {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0 flex flex-col">
-      {/* 历史对话（上滑展开）：收起时必须 pointer-events-none，否则透明容器会盖住画布吃掉拖拽/滚轮 */}
-      <div
-        className={cn(
-          'flex-1 overflow-hidden transition-all duration-200',
-          historyOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-        )}
-      >
-        {historyOpen && (
-          <div ref={scrollRef} className="flex h-full flex-col gap-2 overflow-y-auto bg-background/85 p-4 backdrop-blur-sm">
-            {messages.map((message, index) => (
+    <div className="flex h-full min-w-0 flex-col">
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b px-4">
+        <span className="truncate text-xs font-medium">{displayName}</span>
+        <span className="text-[11px] text-muted-foreground">{sleeping ? '沉睡中' : '运行中'}</span>
+      </header>
+
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex h-full flex-col gap-2 overflow-y-auto p-4"
+        >
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={cn(
+                'flex flex-col gap-0.5',
+                message.role === 'user' ? 'items-end' : 'items-start'
+              )}
+            >
+              <span className="text-[10px] text-muted-foreground">
+                {message.role === 'user' ? '我' : displayName}
+              </span>
               <div
-                key={index}
                 className={cn(
-                  'flex flex-col gap-0.5',
-                  message.role === 'user' ? 'items-end' : 'items-start'
+                  'max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-1.5 text-sm',
+                  message.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground'
                 )}
               >
-                <span className="text-[10px] text-muted-foreground">
-                  {message.role === 'user' ? '我' : displayName}
-                </span>
-                <div
-                  className={cn(
-                    'max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-1.5 text-sm',
-                    message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground'
+                {message.role === 'user' &&
+                  (message as PersistedUserMessage).images &&
+                  (message as PersistedUserMessage).images!.length > 0 && (
+                    <div className="mb-1.5 flex flex-wrap gap-1.5">
+                      {(message as PersistedUserMessage).images!.map((url, i) => (
+                        <img
+                          key={i}
+                          src={url}
+                          alt={`图片 ${i + 1}`}
+                          className="max-h-32 max-w-full rounded-md object-cover"
+                        />
+                      ))}
+                    </div>
                   )}
-                >
-                  {message.role === 'user' &&
-                    (message as PersistedUserMessage).images &&
-                    (message as PersistedUserMessage).images!.length > 0 && (
-                      <div className="mb-1.5 flex flex-wrap gap-1.5">
-                        {(message as PersistedUserMessage).images!.map((url, i) => (
-                          <img
-                            key={i}
-                            src={url}
-                            alt={`图片 ${i + 1}`}
-                            className="max-h-32 max-w-full rounded-md border border-white/20 object-cover"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  {message.role === 'assistant'
-                    ? subtitle(extractAssistantDisplayText(message.content as string))
-                    : (message as PersistedUserMessage).userText}
-                </div>
+                {message.role === 'assistant'
+                  ? subtitle(extractAssistantDisplayText(message.content as string))
+                  : (message as PersistedUserMessage).userText}
               </div>
-            ))}
-            {streamingDisplay && (
-              <div className="flex flex-col items-start gap-0.5">
-                <span className="text-[10px] text-muted-foreground">{displayName}</span>
-                <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-secondary px-3 py-1.5 text-sm text-secondary-foreground">
-                  {subtitle(streamingDisplay)}
-                </div>
+            </div>
+          ))}
+
+          {streamingDisplay && (
+            <div className="flex flex-col items-start gap-0.5">
+              <span className="text-[10px] text-muted-foreground">{displayName}</span>
+              <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-secondary px-3 py-1.5 text-sm text-secondary-foreground">
+                {subtitle(streamingDisplay)}
               </div>
-            )}
-            {error && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
-                {error}
-              </div>
-            )}
-            {persistError && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
-                聊天记录未保存：{persistError}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
+              {error}
+            </div>
+          )}
+          {persistError && (
+            <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive whitespace-pre-wrap break-all">
+              聊天记录未保存：{persistError}
+            </div>
+          )}
+        </div>
+
+        {showJump && (
+          <button
+            type="button"
+            onClick={() => scrollToLatest(true)}
+            className="edge absolute bottom-3 left-1/2 flex h-7 -translate-x-1/2 items-center gap-1 rounded-full bg-background/95 px-3 text-[11px] text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
+          >
+            <ArrowDown className="size-3" />
+            跳至最新
+          </button>
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setHistoryOpen((v) => !v)}
-        className="pointer-events-auto absolute right-3 top-14 z-10 flex h-6 items-center gap-0.5 rounded-full border bg-background/60 px-2 text-[10px] text-muted-foreground backdrop-blur-sm"
-      >
-        {historyOpen ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
-        {historyOpen ? '收起' : `历史 ${messages.length}`}
-      </button>
-
-      <div className="pointer-events-auto relative mx-auto mb-4 w-[calc(100%-1.5rem)] max-w-3xl rounded-2xl border bg-background/85 shadow-lg backdrop-blur-sm">
-        <span className="absolute -top-3 left-4 rounded-md border bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground shadow">
-          {displayName}
-        </span>
-        <button
-          type="button"
-          onClick={() => setHistoryOpen(true)}
-          className="block w-full px-4 pt-3 pb-1 text-left"
-        >
-          <span className={cn(
-            'block min-h-[2.5rem] whitespace-pre-wrap text-sm leading-relaxed',
-            !displayText && !isSending && 'text-muted-foreground'
-          )}>
-            {subtitle(displayText) || (isSending ? '……' : '')}
-          </span>
-        </button>
-
-        <div className="px-3 pb-3 pt-1">
-          <PendingImagesBar pending={pendingImages} />
-          <div className="flex items-end gap-2">
+      <div className="shrink-0 px-3 pb-3 pt-1">
+        <PendingImagesBar pending={pendingImages} />
+        <div className="rounded-2xl bg-muted/40 p-2">
+          <div className="flex items-end gap-1.5">
             <input
               ref={fileInputRef}
               type="file"
@@ -209,16 +224,30 @@ export function GalgameChatPanel() {
             <Textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onCompositionStart={() => {
+                composingRef.current = true
+              }}
+              onCompositionEnd={() => {
+                composingRef.current = false
+                compositionEndAtRef.current = performance.now()
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key !== 'Enter' || e.shiftKey) return
+                const native = e.nativeEvent
+                // 选字中的回车属于输入法，既不发送也不 preventDefault，否则会打断候选确认
+                if (composingRef.current || native.isComposing || native.keyCode === 229) return
+                // 选字结束 500ms 内的回车只可能是选词确认的伴生键，吞掉换行但不发送
+                if (performance.now() - compositionEndAtRef.current < COMPOSITION_GUARD_MS) {
                   e.preventDefault()
-                  handleSend()
+                  return
                 }
+                e.preventDefault()
+                handleSend()
               }}
               onPaste={pendingImages.handlePaste}
-              placeholder={bootAwake ? '输入消息，可粘贴图片...' : '正在唤醒…'}
-              disabled={!bootAwake}
-              className="min-h-[40px] resize-none bg-muted/50 text-sm"
+              placeholder={sleeping ? '她正在沉睡，点击左侧头像唤醒' : canInteract ? '输入消息，可粘贴图片...' : '正在唤醒…'}
+              disabled={!canInteract}
+              className="min-h-[44px] resize-none rounded-lg bg-background text-sm"
               rows={1}
             />
             <Button
@@ -226,12 +255,12 @@ export function GalgameChatPanel() {
               size="icon"
               className="size-10 shrink-0"
               title="添加图片"
-              disabled={!bootAwake}
+              disabled={!canInteract}
               onClick={() => fileInputRef.current?.click()}
             >
               <ImagePlus className="size-4" />
             </Button>
-            <div className={cn(!bootAwake && 'pointer-events-none opacity-40')}>
+            <div className={cn(!canInteract && 'pointer-events-none opacity-40')}>
               <MicButton />
             </div>
             <ContextUsageIndicator />
@@ -249,7 +278,8 @@ export function GalgameChatPanel() {
                 size="icon"
                 className="size-10 shrink-0"
                 onClick={handleSend}
-                disabled={(!draft.trim() && pendingImages.images.length === 0) || !bootAwake}
+                disabled={(!draft.trim() && pendingImages.images.length === 0) || !canInteract}
+                title="发送"
               >
                 <Send className="size-4" />
               </Button>

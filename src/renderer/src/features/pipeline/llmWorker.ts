@@ -1,4 +1,6 @@
 import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
+import { isCharacterRunning } from '@shared/characterRuntime'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
 import { packContext, type ContextItem } from './contextAssembler'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, ToolCall, ToolDefinition } from '@shared/types'
 import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
@@ -123,10 +125,12 @@ export function startLLMWorker(): () => void {
   }
 
   const offUserInput = pipelineBus.on('user:input', (input: UserInputMessage) => {
-    if (!getActiveRoleCard()) {
+    const card = getActiveRoleCard()
+    if (!card) {
       pipelineBus.emit('llm:done', { ok: false, error: 'No active role card' })
       return
     }
+    if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, card.id)) return
     if (currentStreamId) {
       try {
         void window.opengal.llm.abortStream(currentStreamId)

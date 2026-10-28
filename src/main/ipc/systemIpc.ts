@@ -16,6 +16,22 @@ export function registerSystemIpc(windows: WindowManager): void {
     if (typeof text === 'string') windows.sendPetBubble(text.slice(0, 500))
   })
 
+  // 主窗口与桌宠共享同一次表演：表情和动作同时下发
+  ipcMain.on(IpcChannels.pet.emitPerformance, (_, payload: unknown) => {
+    if (payload && typeof payload === 'object') {
+      windows.sendPetPerformance(payload as { emotion?: string; motion?: string; characterId?: string })
+    }
+  })
+
+  ipcMain.on(IpcChannels.pet.emitRuntime, (_, payload: unknown) => {
+    if (payload && typeof payload === 'object') {
+      windows.sendPetRuntime(payload as { runningCharacters: Record<string, boolean>; activeCharacterId: string | null })
+    }
+  })
+  ipcMain.on(IpcChannels.pet.emitAvatar, (_, dataUrl: unknown) => {
+    if (typeof dataUrl === 'string') windows.sendMainAvatar(dataUrl)
+  })
+
   ipcMain.handle(IpcChannels.window.minimize, () => {
     windows.minimizeMain()
   })

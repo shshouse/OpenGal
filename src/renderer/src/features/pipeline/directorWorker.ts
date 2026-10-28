@@ -3,6 +3,8 @@ import type { UserInputMessage } from '@shared/messages'
 import { resolveSlotConfig } from '@shared/llmSlot'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useCharacterStore } from '@/features/character/characterStore'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { isCharacterRunning } from '@shared/characterRuntime'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { isSpeaking } from './uiHandlers'
 import {
@@ -145,6 +147,8 @@ function pruneBacklog(): void {
 export function offerUtterance(text: string): void {
   const t = text.trim()
   if (!t) return
+  const activeId = useCharacterStore.getState().activeId
+  if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
   buffer.push({ text: t, at: Date.now() })
   if (silenceTimer) clearTimeout(silenceTimer)
   const wait = Math.min(SILENCE_WINDOW_MS, Math.max(0, buffer[0].at + MAX_BUFFER_WAIT_MS - Date.now()))
