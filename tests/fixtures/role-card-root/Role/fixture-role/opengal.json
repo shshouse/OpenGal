@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-role",
+  "name": "测试角色",
+  "displayName": "测试角色",
+  "language": "zh",
+  "windowMode": "pet",
+  "color": "#C75B39",
+  "describe": {
+    "summary": "用于验证完整角色清单加载",
+    "tags": ["测试"]
+  },
+  "persona": {
+    "userIdentity": "测试用户",
+    "userTerm": "测试用户",
+    "description": "这是仓库内的固定测试角色。",
+    "personality": "稳定、可重复。",
+    "scenario": "只存在于测试夹具中。",
+    "rules": "按角色卡声明输出。"
+  },
+  "greeting": "测试问候。",
+  "examples": [
+    {
+      "user": "你好",
+      "assistant": "你好。"
+    }
+  ],
+  "performance": {
+    "mode": "live2d",
+    "live2d": {
+      "modelPath": "model/fixture.model3.json",
+      "canvasYRatio": 0.85,
+      "paramMapping": {
+        "angleX": "PARAM_ANGLE_X",
+        "angleY": "PARAM_ANGLE_Y",
+        "angleZ": "PARAM_ANGLE_Z"
+      }
+    }
+  },
+  "resources": {
+    "expressions": ["neutral", "happy"],
+    "motions": ["Idle", "talk"]
+  },
+  "voice": {
+    "engine": "gpt-sovits",
+    "modelFormat": "v1",
+    "config": "voice/config.json",
+    "referenceAudio": "voice/ref.wav",
+    "referenceText": "Fixture reference.",
+    "referenceLanguage": "en"
+  },
+  "license": {
+    "spdx": "NOASSERTION",
+    "commercial": false,
+    "redistribute": false,
+    "note": "仅用于仓库测试。"
+  },
+  "credits": [
+    {
+      "role": "character",
+      "name": "测试夹具",
+      "note": "仓库内合成数据"
+    }
+  ],
+  "provenance": {
+    "voice": "合成测试数据"
+  }
+}
