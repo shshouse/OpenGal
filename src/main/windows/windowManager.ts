@@ -1,14 +1,17 @@
-import { BrowserWindow, screen, shell } from 'electron'
+import { BrowserWindow, Menu, screen, shell, Tray } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 
-const windowIcon = join(process.cwd(), 'public/Logo/icon.png')
+const windowIcon = is.dev
+  ? join(process.cwd(), 'public/Logo/icon.png')
+  : join(process.resourcesPath, 'icon.png')
 
 interface WindowDeps {
   preloadPath: string
   rendererDevServerUrl?: string
   rendererHtmlPath: string
+  isQuitting: () => boolean
 }
 
 export class WindowManager {
@@ -27,6 +30,7 @@ export class WindowManager {
 
   createMainWindow(): BrowserWindow {
     if (this.main && !this.main.isDestroyed()) {
+      if (this.main.isMinimized()) this.main.restore()
       this.main.show()
       this.main.focus()
       return this.main
@@ -52,6 +56,11 @@ export class WindowManager {
     })
 
     this.main.on('ready-to-show', () => this.main?.show())
+    this.main.on('close', (event) => {
+      if (this.deps.isQuitting()) return
+      event.preventDefault()
+      this.main?.hide()
+    })
     this.main.webContents.setWindowOpenHandler((details) => {
       shell.openExternal(details.url)
       return { action: 'deny' }
@@ -62,6 +71,18 @@ export class WindowManager {
 
     this.loadRoute(this.main, '')
     return this.main
+  }
+
+  createTray(onQuit: () => void): Tray {
+    const tray = new Tray(windowIcon)
+    tray.setToolTip('OpenGal')
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: '打开 OpenGal', click: () => this.createMainWindow() },
+      { type: 'separator' },
+      { label: '退出', click: onQuit }
+    ]))
+    tray.on('click', () => this.createMainWindow())
+    return tray
   }
 
   openPetWindow(): { success: true } {
@@ -180,13 +201,17 @@ export class WindowManager {
   }
 }
 
-export function createWindowManager(rendererHtmlRelative: string): WindowManager {
+export function createWindowManager(
+  rendererHtmlRelative: string,
+  isQuitting: () => boolean
+): WindowManager {
   const preloadPath = join(__dirname, '../preload/index.js')
   const rendererHtmlPath = join(__dirname, rendererHtmlRelative)
   const rendererDevServerUrl = process.env.ELECTRON_RENDERER_URL
   return new WindowManager({
     preloadPath,
     rendererHtmlPath,
-    rendererDevServerUrl
+    rendererDevServerUrl,
+    isQuitting
   })
 }

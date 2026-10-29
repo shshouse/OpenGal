@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, type Tray } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
@@ -32,6 +32,8 @@ if (process.env.OPENGAL_CDP_PORT) {
 }
 
 let windows: WindowManager
+let tray: Tray | null = null
+let quitting = false
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.opengal.desktop')
@@ -50,7 +52,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_event, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-  windows = createWindowManager('../renderer/index.html')
+  windows = createWindowManager('../renderer/index.html', () => quitting)
+  tray = windows.createTray(() => app.quit())
   registerIpc(windows)
   initUpdater()
   logBus.info('app', 'OpenGal 主进程启动')
@@ -60,7 +63,7 @@ app.whenReady().then(() => {
   windows.createMainWindow()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) windows.createMainWindow()
+    windows.createMainWindow()
   })
 })
 
@@ -71,6 +74,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  quitting = true
+  tray?.destroy()
+  tray = null
   shutdownPlugins()
   flushMemoryDb()
   void stopTTSServer()

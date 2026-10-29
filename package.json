@@ -100,6 +100,10 @@
     "npmRebuild": false,
     "extraResources": [
       {
+        "from": "public/Logo/icon.png",
+        "to": "icon.png"
+      },
+      {
         "from": "resources/models",
         "to": "models",
         "filter": [
