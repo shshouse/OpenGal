@@ -47,7 +47,7 @@ const CARD_FIELD_MAP: Partial<Record<keyof TTSConfig, string>> = {
 
 function CardTag() {
   return (
-    <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">角色卡</span>
+    <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-xs text-primary">角色卡</span>
   )
 }
 
@@ -293,7 +293,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         <label className="text-xs font-medium text-muted-foreground">
           引擎
           {cardEngine && (
-            <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-[10px] text-primary">
+            <span className="ml-1 rounded bg-primary/15 px-1 py-0.5 text-xs text-primary">
               角色模型: {cardEngine}
             </span>
           )}

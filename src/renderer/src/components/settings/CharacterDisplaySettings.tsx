@@ -151,7 +151,7 @@ export function CharacterDisplaySettings({
         }}
       />
 
-      <p className="pt-1 text-[11px] text-muted-foreground">
+      <p className="pt-1 text-xs text-muted-foreground">
         提示：也可以在右侧面板直接按住拖拽移动人物，滚轮缩放。
       </p>
 

@@ -415,7 +415,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                       placeholder={currentTemplate?.exampleModel ?? '模型名'}
                     />
                   )}
-                  <div className="flex items-center justify-between text-[11px]">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">
                       {loadingModels
                         ? '正在拉取模型列表...'
@@ -485,7 +485,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                             onChange={(e) => setForm((f) => ({ ...f, contextWindow: e.target.value.replace(/\D/g, '') }))}
                           />
                         </div>
-                        <div className="flex shrink-0 gap-2 text-[11px]">
+                        <div className="flex shrink-0 gap-2 text-xs">
                           {CONTEXT_PRESETS.map((v) => (
                             <button
                               key={v}
@@ -507,7 +507,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                             onChange={(e) => setForm((f) => ({ ...f, maxTokens: e.target.value.replace(/\D/g, '') }))}
                           />
                         </div>
-                        <div className="flex shrink-0 gap-2 text-[11px]">
+                        <div className="flex shrink-0 gap-2 text-xs">
                           {OUTPUT_PRESETS.map((v) => (
                             <button
                               key={v}
@@ -707,7 +707,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             导演和记忆等判断类任务使用此模型，可选更便宜的模型。
           </p>
         </div>

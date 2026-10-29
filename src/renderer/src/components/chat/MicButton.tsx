@@ -33,7 +33,7 @@ export function MicButton() {
           {running ? <Mic className="size-4" /> : <MicOff className="size-4" />}
         </Button>
         {error && (
-          <div className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-destructive px-2 py-1 text-[11px] text-destructive-foreground shadow">
+          <div className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-destructive px-2 py-1 text-xs text-destructive-foreground shadow">
             {error}
           </div>
         )}

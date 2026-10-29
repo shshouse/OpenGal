@@ -253,7 +253,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
           <button
             type="button"
             onClick={() => setLevels(new Set<LogLevel>(['error']))}
-            className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-400 transition-colors hover:bg-red-500/20"
+            className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs text-red-400 transition-colors hover:bg-red-500/20"
             title="只看错误"
           >
             {errorCount} 个错误
@@ -300,7 +300,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
           type="button"
           onClick={selectAllLevels}
           className={cn(
-            'h-6 rounded px-2 text-[11px] transition-colors',
+            'h-6 rounded px-2 text-xs transition-colors',
             allLevelsOn
               ? 'bg-accent text-foreground'
               : 'text-muted-foreground/60 hover:bg-accent/50 hover:text-muted-foreground'
@@ -317,7 +317,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
               type="button"
               onClick={() => toggleLevel(level)}
               className={cn(
-                'flex h-6 items-center gap-1.5 rounded px-2 text-[11px] transition-colors',
+                'flex h-6 items-center gap-1.5 rounded px-2 text-xs transition-colors',
                 active
                   ? 'bg-accent text-foreground'
                   : 'text-muted-foreground/50 hover:bg-accent/50 hover:text-muted-foreground'
@@ -373,7 +373,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="h-full overflow-y-auto font-mono text-[11px]"
+          className="h-full overflow-y-auto font-mono text-xs"
         >
           {filtered.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
@@ -421,13 +421,13 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
                   <button
                     type="button"
                     onClick={() => setShown((n) => n + PAGE_SIZE)}
-                    className="rounded-md border px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="rounded-md border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
                     显示更早的 {Math.min(PAGE_SIZE, filtered.length - visible.length)} 条
                   </button>
                 </div>
               ) : (
-                <div className="py-3 text-center text-[10px] text-muted-foreground/40">
+                <div className="py-3 text-center text-xs text-muted-foreground/40">
                   — 已经到底了 —
                 </div>
               )}
@@ -439,7 +439,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
           <button
             type="button"
             onClick={jumpToLatest}
-            className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-muted px-3 py-1.5 text-[11px] text-foreground shadow-lg transition-colors hover:bg-accent"
+            className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-muted px-3 py-1.5 text-xs text-foreground shadow-lg transition-colors hover:bg-accent"
           >
             <ArrowUp className="size-3" />
             {unseen > 0 ? `回到最新 · ${unseen} 条新日志` : '回到最新'}
@@ -513,11 +513,11 @@ const LogRow = React.memo(function LogRow({ entry, query, expanded, onToggle }: 
         </div>
         {hasDetails ? (
           expanded ? (
-            <pre className="mb-1 mt-1 whitespace-pre-wrap break-all rounded border border-border/60 bg-muted/30 px-2 py-1.5 text-[10.5px] leading-[16px] text-muted-foreground">
+            <pre className="mb-1 mt-1 whitespace-pre-wrap break-all rounded border border-border/60 bg-muted/30 px-2 py-1.5 text-xs leading-[16px] text-muted-foreground">
               {highlight(entry.details ?? '', query)}
             </pre>
           ) : (
-            <span className="text-[10px] text-muted-foreground/45">详情 · 点击展开</span>
+            <span className="text-xs text-muted-foreground/45">详情 · 点击展开</span>
           )
         ) : null}
       </div>

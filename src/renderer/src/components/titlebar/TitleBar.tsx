@@ -42,7 +42,7 @@ export function TitleBar() {
         >
           <Terminal className="size-3.5" />
           {errorCount > 0 ? (
-            <span className="absolute right-1.5 top-1.5 inline-flex h-3 min-w-3 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground">
+            <span className="absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold leading-none text-destructive-foreground">
               {errorCount > 99 ? '99+' : errorCount}
             </span>
           ) : null}

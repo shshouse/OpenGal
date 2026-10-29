@@ -176,7 +176,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
           <Button
             size="sm"
             variant="ghost"
-            className="h-5 px-2 text-[11px]"
+            className="h-5 px-2 text-xs"
             onClick={() => void refreshDevices()}
           >
             <RefreshCw className="mr-1 size-3" /> 刷新
@@ -196,7 +196,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
           </SelectContent>
         </Select>
         {devices.length === 0 && (
-          <p className="text-[11px] text-muted-foreground">未检测到输入设备</p>
+          <p className="text-xs text-muted-foreground">未检测到输入设备</p>
         )}
       </div>
 
@@ -237,7 +237,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
             ? 'resources/models/asr/sherpa-onnx-streaming-zipformer-zh-xlarge-int8-2025-06-30'
             : 'STT/models/（sherpa-onnx 发布的模型目录名）'}
         />
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {form.mode === 'streaming'
             ? '流式模式只支持 sherpa-onnx-streaming-zipformer-* 中文模型；需要 encoder/decoder/joiner/tokens.txt'
             : '从 ModelScope/HuggingFace 下载对应引擎的模型并解压'}
@@ -280,7 +280,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                 }
                 placeholder={'角色名、游戏术语等，每行一个'}
               />
-              <p className="text-[11px] text-muted-foreground">热词不宜超过 20 个，仅 Qwen3-ASR 系模型支持</p>
+              <p className="text-xs text-muted-foreground">热词不宜超过 20 个，仅 Qwen3-ASR 系模型支持</p>
             </div>
           )}
           <div className="space-y-1">
@@ -290,7 +290,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
               value={form.vadSilenceMs}
               onChange={(e) => patch({ vadSilenceMs: Number(e.target.value) || 600 })}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               静音持续该时长后判定一句话结束，越小出字越快但易截断；流式模式下作为端点静音阈值
             </p>
           </div>
@@ -316,7 +316,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
           </span>
           导演模式
         </label>
-        <p className="pl-6 text-[11px] text-muted-foreground">
+        <p className="pl-6 text-xs text-muted-foreground">
           开启后语音不再直接发送，而是由导演综合语音内容、对话历史、屏幕画面判断该不该开口
         </p>
         {form.directorEnabled && (
@@ -335,7 +335,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                   <SelectItem value="life">Life：自主观察与行动，像住在这里</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {form.directorMode === 'life'
                   ? '她会自己决定观察什么、说不说话；沉默也是她的选择'
                   : '只在被叫到、你说话或主动时刻回应'}
@@ -368,7 +368,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                 value={form.directorCooldownSec}
                 onChange={(e) => patch({ directorCooldownSec: Number(e.target.value) || 0 })}
               />
-              <p className="text-[11px] text-muted-foreground">两次语音回应之间的最小间隔</p>
+              <p className="text-xs text-muted-foreground">两次语音回应之间的最小间隔</p>
             </div>
             <div className="space-y-2 border-t pl-6 pt-2">
               <label className="flex items-center gap-2 text-xs">
@@ -381,7 +381,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                 </span>
                 允许主动开口
               </label>
-              <p className="pl-6 text-[11px] text-muted-foreground">
+              <p className="pl-6 text-xs text-muted-foreground">
                 开启后，对方静默超过设定时间时由导演判断要不要主动说一句；没有具体理由就不说
               </p>
               {form.directorInitiativeEnabled && (
@@ -401,7 +401,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
                       value={form.directorInitiativePerHour}
                       onChange={(e) => patch({ directorInitiativePerHour: Number(e.target.value) || 0 })}
                     />
-                    <p className="text-[11px] text-muted-foreground">填 0 表示不限</p>
+                    <p className="text-xs text-muted-foreground">填 0 表示不限</p>
                   </div>
                 </>
               )}

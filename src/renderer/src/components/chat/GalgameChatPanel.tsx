@@ -124,7 +124,7 @@ export function GalgameChatPanel() {
     <div className="flex h-full min-w-0 flex-col">
       <header className="flex h-10 shrink-0 items-center gap-2 border-b px-4">
         <span className="truncate text-xs font-medium">{displayName}</span>
-        <span className="text-[11px] text-muted-foreground">{sleeping ? '沉睡中' : '运行中'}</span>
+        <span className="text-xs text-muted-foreground">{sleeping ? '沉睡中' : '运行中'}</span>
       </header>
 
       <div className="relative min-h-0 flex-1">
@@ -141,7 +141,7 @@ export function GalgameChatPanel() {
                 message.role === 'user' ? 'items-end' : 'items-start'
               )}
             >
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {message.role === 'user' ? '我' : displayName}
               </span>
               <div
@@ -175,7 +175,7 @@ export function GalgameChatPanel() {
 
           {streamingDisplay && (
             <div className="flex flex-col items-start gap-0.5">
-              <span className="text-[10px] text-muted-foreground">{displayName}</span>
+              <span className="text-xs text-muted-foreground">{displayName}</span>
               <div className="max-w-[85%] whitespace-pre-wrap rounded-xl bg-secondary px-3 py-1.5 text-sm text-secondary-foreground">
                 {subtitle(streamingDisplay)}
               </div>
@@ -198,7 +198,7 @@ export function GalgameChatPanel() {
           <button
             type="button"
             onClick={() => scrollToLatest(true)}
-            className="edge absolute bottom-3 left-1/2 flex h-7 -translate-x-1/2 items-center gap-1 rounded-full bg-background/95 px-3 text-[11px] text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
+            className="edge absolute bottom-3 left-1/2 flex h-7 -translate-x-1/2 items-center gap-1 rounded-full bg-background/95 px-3 text-xs text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
           >
             <ArrowDown className="size-3" />
             跳至最新
@@ -208,7 +208,7 @@ export function GalgameChatPanel() {
 
       <div className="shrink-0 px-3 pb-3 pt-1">
         <PendingImagesBar pending={pendingImages} />
-        <div className="rounded-2xl bg-muted/40 p-2">
+        <div className="rounded-xl bg-card/70 p-2">
           <div className="flex items-end gap-1.5">
             <input
               ref={fileInputRef}
@@ -247,7 +247,7 @@ export function GalgameChatPanel() {
               onPaste={pendingImages.handlePaste}
               placeholder={sleeping ? '她正在沉睡，点击左侧头像唤醒' : canInteract ? '输入消息，可粘贴图片...' : '正在唤醒…'}
               disabled={!canInteract}
-              className="min-h-[44px] resize-none rounded-lg bg-background text-sm"
+              className="max-h-60 min-h-11 resize-none overflow-y-auto rounded-md bg-background text-sm leading-relaxed [field-sizing:content]"
               rows={1}
             />
             <Button

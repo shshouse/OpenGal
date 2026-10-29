@@ -61,7 +61,7 @@ export function ModCard({ mod, onGet, onOpen }: ModCardProps) {
       <div className="flex flex-1 flex-col p-2.5">
         <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{mod.title}</h3>
 
-        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-0.5">
             <Eye className="size-3" />
             {formatNumber(mod.view_count ?? 0)}
@@ -86,19 +86,19 @@ export function ModCard({ mod, onGet, onOpen }: ModCardProps) {
             <User className="size-3.5 text-muted-foreground" />
           )}
           {mod.source_info?.source_type === 'repost' && (
-            <span className="text-[11px] text-muted-foreground/60">上传者</span>
+            <span className="text-xs text-muted-foreground/60">上传者</span>
           )}
           <span className="truncate text-xs text-muted-foreground">{mod.author?.username || '匿名'}</span>
           {mod.source_info?.source_type === 'original' && (
-            <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-emerald-500">原创</span>
+            <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-emerald-500">原创</span>
           )}
           {mod.source_info?.source_type === 'repost' && (
-            <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-amber-500">转载</span>
+            <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-amber-500">转载</span>
           )}
         </div>
 
         <div className="mt-auto flex items-center gap-2 pt-2">
-          <span className="max-w-[7rem] truncate rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="max-w-[7rem] truncate rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {mod.category?.name || '未分类'}
           </span>
         </div>

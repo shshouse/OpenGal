@@ -13,11 +13,11 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
       disabled={disabled}
       className={cn(
         'peer relative h-4 w-4 shrink-0 appearance-none rounded border border-border bg-transparent',
-        'transition-colors duration-150',
+        'transition-colors',
         'hover:border-muted-foreground/60',
         'checked:border-primary checked:bg-primary',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        'disabled:cursor-not-allowed disabled:opacity-50',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/65 focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+        'disabled:cursor-not-allowed disabled:opacity-45',
         className
       )}
       {...props}

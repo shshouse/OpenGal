@@ -406,7 +406,7 @@ export function Live2DStage({
     >
       <canvas ref={canvasRef} className="block h-full w-full" />
       {status === 'ready' && transformGestures && (
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/30 px-2 py-0.5 text-[10px] text-white/60">
+        <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/30 px-2 py-0.5 text-xs text-white/60">
           拖拽移动 · 滚轮缩放
         </div>
       )}

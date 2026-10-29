@@ -41,13 +41,13 @@ function RailButton({
       title={title}
       onClick={onClick}
       className={cn(
-        'flex w-full flex-col items-center justify-center gap-1 rounded-lg py-2 text-muted-foreground transition-colors',
+        'flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-muted-foreground transition-colors',
         'hover:bg-accent hover:text-accent-foreground',
         active && 'bg-accent text-accent-foreground'
       )}
     >
       {children}
-      <span className="text-[10px] leading-none">{label}</span>
+      <span className="text-xs leading-none">{label}</span>
     </button>
   )
 }

@@ -137,7 +137,7 @@ export function ChatWorkspace({ chat, stage }: Props): React.JSX.Element {
             setCollapsed(false)
             setRatio(clampRatio(restoreRef.current))
           }}
-          className="edge absolute right-3 top-3 z-30 flex h-7 items-center gap-1 rounded-full bg-background/90 px-2.5 text-[11px] text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
+          className="edge absolute right-3 top-3 z-30 flex h-7 items-center gap-1 rounded-full bg-background/90 px-2.5 text-xs text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
         >
           <PanelRight className="size-3" />
           显示角色

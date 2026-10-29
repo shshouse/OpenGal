@@ -64,10 +64,10 @@ export function CharacterSettings() {
                 </span>
                 {active && <Check className="size-3.5 shrink-0 text-primary" />}
               </div>
-              <span className="line-clamp-2 text-[11px] text-muted-foreground">
+              <span className="line-clamp-2 text-xs text-muted-foreground">
                 {card.persona.description || card.persona.personality}
               </span>
-              <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+              <div className="mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground">
                 <span className="rounded-full border px-1.5 py-px">
                   TTS: {card.voice?.engine ?? '—'}
                 </span>

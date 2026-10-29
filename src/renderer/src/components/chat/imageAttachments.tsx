@@ -123,7 +123,7 @@ export function PendingImagesBar({ pending }: { pending: PendingImages }) {
         >
           <img src={image.url} alt="" className="size-5 shrink-0 rounded-[4px] object-cover" />
           <span
-            className="min-w-0 flex-1 overflow-hidden text-[11px] leading-none text-muted-foreground"
+            className="min-w-0 flex-1 overflow-hidden text-xs leading-none text-muted-foreground"
             title={image.name}
           >
             {middleEllipsis(image.name, NAME_MAX_CHARS)}

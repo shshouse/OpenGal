@@ -216,10 +216,10 @@ export function MemorySettings() {
                     {frozen ? <Lock className="size-3.5 text-amber-500" /> : <LockOpen className="size-3.5" />}
                   </button>
                   <span className="min-w-0 flex-1 truncate">{f.text}</span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {f.entity === 'user' ? '用户' : f.entity === 'character' ? '角色' : '关系'}
                   </span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">重要度{f.importance}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">重要度{f.importance}</span>
                   <div className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-muted">
                     <div
                       className={cn(
@@ -285,16 +285,16 @@ export function MemorySettings() {
                   s.status === 'archived' && 'opacity-40'
                 )}
               >
-                <span className="shrink-0 rounded-full border px-1.5 py-px text-[10px] text-muted-foreground">
+                <span className="shrink-0 rounded-full border px-1.5 py-px text-xs text-muted-foreground">
                   {s.kind === 'promise' ? '约定' : s.kind === 'milestone' ? '里程碑' : s.kind === 'joke' ? '梗' : '事件'}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{s.text}</span>
                 {s.due_at && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     截止 {s.due_at.slice(0, 10)}
                   </span>
                 )}
-                <span className="shrink-0 text-[10px] text-muted-foreground">重要度{s.importance}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">重要度{s.importance}</span>
               </div>
             ))
           )}

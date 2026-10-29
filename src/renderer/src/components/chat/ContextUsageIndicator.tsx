@@ -45,7 +45,7 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
   return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} Z`
 }
 
-const SIZE = 28
+const SIZE = 36
 const CENTER = SIZE / 2
 const RADIUS = SIZE / 2 - 1
 
@@ -110,7 +110,7 @@ export function ContextUsageIndicator() {
               y={CENTER}
               textAnchor="middle"
               dominantBaseline="central"
-              className="fill-foreground text-[8px] font-medium"
+              className="fill-foreground text-xs font-medium"
             >
               {usagePercent}%
             </text>
