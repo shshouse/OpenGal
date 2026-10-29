@@ -154,7 +154,7 @@ export class WindowManager {
     }
   }
 
-  sendPetPerformance(payload: { emotion?: string; motion?: string; characterId?: string }): void {
+  sendPetPerformance(payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }): void {
     if (this.pet && !this.pet.isDestroyed()) {
       this.pet.webContents.send(IpcChannels.pet.performance, payload)
     }

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import type { Live2DModelConfig } from '@shared/types'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
+import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { applyEmotion, playMotionGroup } from '@/features/live2d/live2dBus'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
@@ -13,6 +14,7 @@ const DRAG_THRESHOLD_PX = 6
 export default function PetView() {
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [bubble, setBubble] = React.useState<string | null>(null)
+  const [spriteCard, setSpriteCard] = React.useState<import('@shared/types').RoleCardEntry | null>(null)
   const activeId = useCharacterStore((s) => s.activeId)
   const runningById = useCharacterRuntimeStore((s) => s.byId)
   const sleeping = !isCharacterRunning(runningById, activeId)
@@ -48,9 +50,11 @@ export default function PetView() {
       const cfg = await window.opengal.config.get()
       if (!cfg.success || !cfg.data) return
       useCharacterRuntimeStore.getState().hydrate(cfg.data.runningCharacters)
-      const activeId = cfg.data.activeCharacterId
-      if (activeId) {
-        const fromCard = await window.opengal.model.resolveFromCard(activeId)
+      const currentId = activeId ?? cfg.data.activeCharacterId
+      const cards = await window.opengal.character.list()
+      setSpriteCard(cards.data?.find((card) => card.id === currentId && card.performance.mode === 'sprite') ?? null)
+      if (currentId) {
+        const fromCard = await window.opengal.model.resolveFromCard(currentId)
         if (fromCard.success && fromCard.data) {
           setModel(mergeSavedTransform(fromCard.data, cfg.data.model))
           return
@@ -108,14 +112,14 @@ export default function PetView() {
           </div>
         </div>
       )}
-      <Live2DStage
+      {spriteCard?.spriteFrames ? <SpriteStage frames={spriteCard.spriteFrames} characterId={spriteCard.id} sleeping={sleeping} pet /> : <Live2DStage
         model={model}
         sleeping={sleeping}
         transparent
         interactive={false}
         transformGestures={false}
         onSnapshot={(dataUrl) => window.opengal.pet.emitAvatar(dataUrl)}
-      />
+      />}
     </div>
   )
 }

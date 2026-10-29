@@ -4,6 +4,7 @@ import { TitleBar } from '@/components/titlebar/TitleBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
+import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
 import { LogsPanel } from '@/components/logs/LogsPanel'
 import { MarketPage } from '@/components/market/MarketPage'
@@ -32,8 +33,13 @@ export default function App() {
   const [view, setView] = React.useState<View>('chat')
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
   const activeId = useCharacterStore((s) => s.activeId)
+  const activeCard = useCharacterStore((s) => s.list.find((card) => card.id === s.activeId))
   const runningById = useCharacterRuntimeStore((s) => s.byId)
   const activeRunning = isCharacterRunning(runningById, activeId)
+
+  React.useEffect(() => {
+    if (activeCard?.performance.mode === 'sprite') setAvatarUrl(activeCard.spriteFrames?.idle ?? null)
+  }, [activeCard])
 
   React.useEffect(() => {
     const onMouseUp = (e: MouseEvent) => {
@@ -195,7 +201,9 @@ export default function App() {
   )
 
   const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
-  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, petOpen) ? (
+  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, petOpen) ? activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
+    <SpriteStage frames={activeCard.spriteFrames} characterId={activeCard.id} sleeping={!activeRunning} />
+  ) : (
     <Live2DStage
       model={model}
       sleeping={!activeRunning}

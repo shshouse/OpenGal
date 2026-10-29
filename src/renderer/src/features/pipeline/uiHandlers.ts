@@ -53,7 +53,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       return
     }
 
-    await playDialogAudio(msg.audioUrl, () => {
+    await playDialogAudio(msg.audioUrl, msg.characterId, () => {
       if (!this.firstAudioLogged && msg.turnStartedAt) {
         this.firstAudioLogged = true
         useLogsStore
@@ -66,7 +66,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
 }
 
 // 只在真实播放开始时回调 onStart；取消后不再触发（防止迟到的声画复活旧回复）。
-async function playDialogAudio(audioUrl: string, onStart: () => void): Promise<void> {
+async function playDialogAudio(audioUrl: string, characterId: string | undefined, onStart: () => void): Promise<void> {
   await new Promise<void>((resolve) => {
     const model = getLive2DModel()
     const audio = model ? null : new Audio(audioUrl)
@@ -76,12 +76,18 @@ async function playDialogAudio(audioUrl: string, onStart: () => void): Promise<v
       if (settled || started) return
       started = true
       speakingCount += 1
+      pipelineBus.emit('tts:playback', { speaking: true, characterId })
+      window.opengal.pet?.emitPerformance?.({ speaking: true, characterId })
       onStart()
     }
     const done = (): void => {
       if (settled) return
       settled = true
-      if (started) speakingCount = Math.max(0, speakingCount - 1)
+      if (started) {
+        speakingCount = Math.max(0, speakingCount - 1)
+        pipelineBus.emit('tts:playback', { speaking: false, characterId })
+        window.opengal.pet?.emitPerformance?.({ speaking: false, characterId })
+      }
       if (cancelPlayback === cancel) cancelPlayback = null
       audio?.removeEventListener('playing', start)
       audio?.removeEventListener('ended', done)

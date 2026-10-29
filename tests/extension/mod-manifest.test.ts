@@ -45,6 +45,14 @@ beforeAll(() => {
     performance: { mode: 'live2d', live2d: { modelPath: 'model/b.model3.json' } },
     persona: { description: '只有 character.json', personality: '旧' },
   })
+  writeCard('sprite', {
+    id: 'sprite', name: '立绘', windowMode: 'theater', persona,
+    performance: { mode: 'sprite', sprite: { spriteDir: 'sprites', defaultSprite: 'idle.png' } },
+  })
+  const sprites = path.join(root, 'Role', 'sprite', 'sprites')
+  fs.mkdirSync(sprites, { recursive: true })
+  fs.writeFileSync(path.join(sprites, 'idle.png'), 'idle')
+  fs.writeFileSync(path.join(sprites, 'talk.png'), 'talk')
 })
 
 afterAll(() => {
@@ -54,6 +62,12 @@ afterAll(() => {
 })
 
 describe('模组清单', () => {
+  it('立绘帧转换为模组 URL，缺少的可选帧不影响加载', () => {
+    const frames = listRoleCardsDetailed().find((item) => item.entry.id === 'sprite')?.entry.spriteFrames
+    expect(frames?.idle).toBe('opengal://mods/Role/sprite/sprites/idle.png')
+    expect(frames?.talk).toBe('opengal://mods/Role/sprite/sprites/talk.png')
+    expect(frames?.blink).toBeUndefined()
+  })
   it('存在 opengal.json 时优先于 character.json', () => {
     const loaded = listRoleCardsDetailed()
     const card = loaded.find((item) => item.entry.id === 'sonetto')

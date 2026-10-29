@@ -177,6 +177,24 @@ describe('voice barge-in and playback cancellation', () => {
     expect(consumeVoiceInterruption()).toBe(false)
   })
 
+  it('立绘只在语音实际播放期间收到角色状态', async () => {
+    state.model = null
+    const events: Array<{ speaking: boolean; characterId?: string }> = []
+    const off = pipelineBus.on('tts:playback', (event) => events.push(event))
+    pipelineBus.emit('tts:output', output('sprite-audio'))
+    const audio = state.audioInstances.at(-1)!
+    expect(events).toEqual([])
+    audio.dispatchEvent(new Event('playing'))
+    expect(events).toEqual([{ speaking: true, characterId: 'role' }])
+    audio.dispatchEvent(new Event('ended'))
+    await flush()
+    expect(events).toEqual([
+      { speaking: true, characterId: 'role' },
+      { speaking: false, characterId: 'role' },
+    ])
+    off()
+  })
+
   it('静音段等待期间的 abort 不吞掉新一代队列', async () => {
     const playedBefore = state.audioInstances.length
     pipelineBus.emit('llm:dialog', { name: 'role', text: '无声段' })

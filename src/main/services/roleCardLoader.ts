@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { RoleCardEntry } from '@shared/types'
 import { validateRoleCard, type RoleCardIssue } from '@shared/roleCardSchema'
-import { getModRoot } from './paths'
+import { getModRoot, toModUrl } from './paths'
 
 const ROLE_CARD_DIR_REL = 'Role'
 const CARD_FILE = 'character.json'
@@ -47,6 +47,25 @@ function normalizeEntry(folderName: string, rootPath: string, raw: unknown): Loa
     rootPath,
     folderName,
     builtin: true,
+  }
+  const sprite = entry.performance.sprite
+  if (sprite && entry.performance.mode === 'sprite') {
+    const dir = path.resolve(rootPath, sprite.spriteDir)
+    const frame = (name: string): string | undefined => {
+      const file = path.resolve(dir, name)
+      const relative = path.relative(rootPath, file)
+      if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(file)) return undefined
+      return toModUrl(file)
+    }
+    const idle = frame(sprite.defaultSprite)
+    if (idle) entry.spriteFrames = {
+      idle,
+      blink: frame('blink.png'),
+      talk: frame('talk.png'),
+      blinkTalk: frame('blink-talk.png'),
+      happy: frame('happy.png'),
+      sad: frame('sad.png'),
+    }
   }
   return { entry, issues: result.issues }
 }

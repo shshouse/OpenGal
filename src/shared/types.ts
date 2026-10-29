@@ -356,6 +356,15 @@ export interface RoleSpriteConfig {
   scale?: number
 }
 
+export interface SpriteFrames {
+  idle: string
+  blink?: string
+  talk?: string
+  blinkTalk?: string
+  happy?: string
+  sad?: string
+}
+
 export interface RoleVoiceConfig {
   // 声明模型格式（gpt-sovits / genie），不等于引擎开关；引擎由全局 TTS 设置决定，不匹配时该角色无语音
   engine?: string
@@ -400,6 +409,7 @@ export interface RoleCardEntry extends RoleCard {
   rootPath: string
   folderName: string
   builtin?: boolean
+  spriteFrames?: SpriteFrames
 }
 
 export interface LLMDialogueItem {

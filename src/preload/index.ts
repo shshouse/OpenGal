@@ -188,7 +188,7 @@ const api = {
         ipcRenderer.off(IpcChannels.pet.bubble, handler)
       }
     },
-    emitPerformance: (payload: { emotion?: string; motion?: string; characterId?: string }) =>
+    emitPerformance: (payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) =>
       ipcRenderer.send(IpcChannels.pet.emitPerformance, payload),
     emitRuntime: (payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) =>
       ipcRenderer.send(IpcChannels.pet.emitRuntime, payload),
@@ -207,8 +207,8 @@ const api = {
         ipcRenderer.off(IpcChannels.pet.avatar, handler)
       }
     },
-    onPerformance: (listener: (payload: { emotion?: string; motion?: string; characterId?: string }) => void) => {
-      const handler = (_: unknown, payload: { emotion?: string; motion?: string; characterId?: string }) => listener(payload)
+    onPerformance: (listener: (payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) => void) => {
+      const handler = (_: unknown, payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) => listener(payload)
       ipcRenderer.on(IpcChannels.pet.performance, handler)
       return () => {
         ipcRenderer.off(IpcChannels.pet.performance, handler)
