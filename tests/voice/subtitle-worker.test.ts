@@ -131,4 +131,34 @@ describe('subtitle worker', () => {
     const tts = readFileSync(path.resolve('src/renderer/src/features/pipeline/ttsWorker.ts'), 'utf8')
     expect(tts).not.toContain('msg.translate')
   })
+
+  it('系统语言变化后丢弃仍在途的旧语言译文', async () => {
+    mod.applySubtitleConfig({
+      systemLocale: 'zh-CN',
+      subtitles: { mode: 'bilingual', targetLanguage: 'system' },
+    } as never)
+    stop = mod.startSubtitleWorker()
+    emit('locale-race', 'Hello.', 7, 'en')
+    await flush()
+    const callIndex = state.calls.length - 1
+
+    mod.applySubtitleConfig({
+      systemLocale: 'en-US',
+      subtitles: { mode: 'bilingual', targetLanguage: 'system' },
+    } as never)
+    complete(callIndex, '你好。')
+    await flush()
+
+    expect(mod.displaySubtitle('role', 'Hello.')).toBe('Hello.')
+  })
+
+  it('未配置字幕时默认翻译到系统语言', () => {
+    mod.applySubtitleConfig({ systemLocale: 'zh-Hans-CN' } as never)
+
+    expect(mod.useSubtitleStore.getState().preferences).toEqual({
+      mode: 'translated',
+      targetLanguage: 'system',
+    })
+    expect(mod.useSubtitleStore.getState().systemLocale).toBe('zh-Hans-CN')
+  })
 })

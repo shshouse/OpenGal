@@ -16,7 +16,7 @@ interface SubtitleState {
 }
 
 export const useSubtitleStore = create<SubtitleState>()(persist((): SubtitleState => ({
-  preferences: { mode: 'off', targetLanguage: 'system' },
+  preferences: { mode: 'translated', targetLanguage: 'system' },
   systemLocale: navigator.language,
   records: [],
 }), {
@@ -31,7 +31,7 @@ export const useSubtitleStore = create<SubtitleState>()(persist((): SubtitleStat
 
 export function applySubtitleConfig(config: AppConfig): void {
   const previous = useSubtitleStore.getState()
-  const preferences = config.subtitles ?? { mode: 'off', targetLanguage: 'system' }
+  const preferences = config.subtitles ?? { mode: 'translated', targetLanguage: 'system' }
   const systemLocale = config.systemLocale || navigator.language
   const changed = previous.preferences.targetLanguage !== preferences.targetLanguage || previous.systemLocale !== systemLocale
   useSubtitleStore.setState({
@@ -95,7 +95,11 @@ export function startSubtitleWorker(): () => void {
         const translated: unknown = JSON.parse(content).translation
         if (typeof translated !== 'string' || !translated.trim()) throw new Error('译文为空或格式无效')
         if (stopped || epoch !== generation || useChatStore.getState().sessionId !== characterId) return
-        if (useSubtitleStore.getState().preferences.targetLanguage !== state.preferences.targetLanguage) return
+        const current = useSubtitleStore.getState()
+        const currentTarget = current.preferences.targetLanguage === 'system'
+          ? current.systemLocale
+          : current.preferences.targetLanguage
+        if (currentTarget !== target) return
         useSubtitleStore.setState((current) => ({ records: current.records.map((r) => r.id === id ? {
           ...r, segments: r.segments.map((s) => s.id === segmentId ? { ...s, translation: translated.trim() } : s),
         } : r) }))

@@ -8,6 +8,7 @@ import { normalizeAsrEngine, normalizeAsrMode } from '../../shared/asrKinds'
 const defaultConfig: AppConfig = {
   uiLanguage: 'zh',
   theme: 'system',
+  subtitles: { mode: 'translated', targetLanguage: 'system' },
   llm: {
     baseURL: 'https://api.deepseek.com',
     apiKey: '',
