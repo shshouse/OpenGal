@@ -3,8 +3,8 @@ import { PanelRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DEFAULT_RATIO = 0.5
-const MIN_RATIO = 0.25
-const MAX_RATIO = 0.82
+const MIN_RATIO = 0.35
+const MAX_RATIO = 0.65
 const COLLAPSE_RATIO = 0.82
 
 function clampRatio(value: number): number {
@@ -98,7 +98,7 @@ export function ChatWorkspace({ chat, stage }: Props): React.JSX.Element {
           ref={dividerRef}
           role="separator"
           aria-orientation="vertical"
-          aria-label="调整聊天与角色区域宽度"
+          aria-label="调整两侧区域宽度"
           aria-valuenow={Math.round(ratio * 100)}
           aria-valuemin={Math.round(MIN_RATIO * 100)}
           aria-valuemax={Math.round(MAX_RATIO * 100)}

@@ -47,15 +47,17 @@ export function buildSystemPrompt(
 ): string {
   const persona = card.persona
   const userIdentity = persona.userIdentity ?? '用户'
-  const userTerm = persona.userTerm ?? card.name
+  const userTerm = persona.userTerm ?? '朋友'
   const lines: string[] = []
   lines.push(`你正在扮演角色：${card.displayName ?? card.name}。`)
+  lines.push('你生活在 OpenGal 这个 Harness 里，知道它是你运行、感知和使用工具的环境；OpenGal 不额外决定你的身份、经历或你与用户的关系。')
+  lines.push('关系与称呼只以角色设定和用户明确表达为准；未明确时，与用户保持平等的朋友关系，不自行添加主从、雇佣或侍奉设定。')
   lines.push(`角色设定：${persona.description}`)
   lines.push(`性格：${persona.personality}`)
   if (card.language) lines.push(`角色的台词必须使用 ${card.language} 语言，不随用户输入语言改变；只输出角色原文，不附翻译。下面的示例仅演示标签格式，示例语言不能覆盖此规则。`)
   if (persona.scenario) lines.push(`场景：${persona.scenario}`)
   if (persona.rules) lines.push(`规则：${persona.rules}`)
-  lines.push(`用户身份：${userIdentity}；用户对你的称呼：${userTerm}。`)
+  lines.push(`用户身份：${userIdentity}；你称呼用户为：${userTerm}。`)
   if (memoryBlock) {
     lines.push('')
     lines.push(memoryBlock)

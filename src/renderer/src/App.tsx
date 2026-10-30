@@ -8,13 +8,15 @@ import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
 import { LogsPanel } from '@/components/logs/LogsPanel'
 import { MarketPage } from '@/components/market/MarketPage'
+import { HomePage } from '@/components/home/HomePage'
+import { RoleDashboard } from '@/components/dashboard/RoleDashboard'
 import { Sidebar } from '@/components/nav/Sidebar'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
-import { useStartupStore } from '@/features/startup/startupStore'
+import { useStartupStore, maybeGreet } from '@/features/startup/startupStore'
 import { useASRStore } from '@/features/asr/asrStore'
 import { shouldShowMainStage } from '@shared/stagePolicy'
 import { isCharacterRunning } from '@shared/characterRuntime'
@@ -22,15 +24,18 @@ import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeS
 import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 
-type View = 'chat' | 'market' | 'settings' | 'logs'
-const VIEW_ORDER: View[] = ['chat', 'market', 'settings', 'logs']
+type View = 'home' | 'chat' | 'market' | 'settings' | 'logs'
+const VIEW_ORDER: View[] = ['home', 'chat', 'market', 'settings', 'logs']
 
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [petOpen, setPetOpen] = React.useState(false)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [view, setView] = React.useState<View>('chat')
+  const [view, setView] = React.useState<View>('home')
+  const [actionError, setActionError] = React.useState('')
+  const characters = useCharacterStore((s) => s.list)
+  const bootSteps = useStartupStore((s) => s.steps)
   const loadCharacters = useCharacterStore((s) => s.loadCharacters)
   const activeId = useCharacterStore((s) => s.activeId)
   const activeCard = useCharacterStore((s) => s.list.find((card) => card.id === s.activeId))
@@ -116,6 +121,7 @@ export default function App() {
     setEyesClosed(!activeRunning)
     if (activeRunning) {
       if (useStartupStore.getState().phase !== 'awake') useStartupStore.getState().beginBoot()
+      else void maybeGreet()
       return
     }
     pipelineBus.emit('pipeline:abort', undefined)
@@ -156,18 +162,32 @@ export default function App() {
     }
   }
 
-  async function handleAvatarClick(characterId: string): Promise<void> {
-    if (characterId !== activeId) {
-      await useCharacterStore.getState().setActive(characterId)
-    }
+  async function setRunningFor(characterId: string): Promise<void> {
     const nextRunning = !isCharacterRunning(
       useCharacterRuntimeStore.getState().byId,
       characterId,
     )
-    const runningCharacters = useCharacterRuntimeStore
-      .getState()
-      .setRunning(characterId, nextRunning)
-    await saveConfig({ runningCharacters })
+    const runningCharacters = {
+      ...useCharacterRuntimeStore.getState().byId,
+      [characterId]: nextRunning,
+    }
+    try {
+      await saveConfig({ runningCharacters })
+      useCharacterRuntimeStore.getState().setRunning(characterId, nextRunning)
+      setActionError('')
+    } catch {
+      setActionError('运行状态保存失败，请重试')
+    }
+  }
+
+  async function openCharacter(characterId: string): Promise<void> {
+    if (characterId !== activeId) await useCharacterStore.getState().setActive(characterId)
+    setView('chat')
+  }
+
+  async function handleAvatarClick(characterId: string): Promise<void> {
+    await openCharacter(characterId)
+    await setRunningFor(characterId)
   }
 
   async function togglePet(): Promise<void> {
@@ -219,8 +239,8 @@ export default function App() {
       <Sidebar
         avatarUrl={avatarUrl}
         onAvatarClick={(id) => void handleAvatarClick(id)}
-        onOpenChat={() => setView('chat')}
-        chatActive={view === 'chat'}
+        onOpenChat={() => setView('home')}
+        chatActive={view === 'home' || view === 'chat'}
         onOpenSettings={() => setView('settings')}
         onOpenMarket={() => setView('market')}
         marketActive={view === 'market'}
@@ -233,10 +253,42 @@ export default function App() {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <TitleBar />
+        {actionError && (
+          <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+            {actionError}
+          </div>
+        )}
         <main className="relative flex flex-1 overflow-hidden">
-          {view === 'chat' && (
-            <ChatWorkspace chat={<GalgameChatPanel />} stage={live2dLayer} />
+          {view === 'home' && (
+            <HomePage
+              characters={characters}
+              activeId={activeId}
+              runningById={runningById}
+              steps={bootSteps}
+              onOpenRole={(id) => void openCharacter(id)}
+              onToggleRunning={setRunningFor}
+            />
           )}
+
+          <div className={view === 'chat' ? 'h-full min-w-0 flex-1' : 'hidden'}>
+            <ChatWorkspace
+              chat={activeCard ? (
+                <RoleDashboard
+                  character={activeCard}
+                  running={activeRunning}
+                  onToggleRunning={() => void setRunningFor(activeCard.id)}
+                />
+              ) : <div className="p-6 text-sm text-muted-foreground">请选择一个角色</div>}
+              stage={(
+                <div className="flex h-full min-w-0 flex-col">
+                  <div className="min-h-0 flex-1">{live2dLayer}</div>
+                  <div className="h-[38%] min-h-[240px] max-h-[420px] shrink-0 border-t">
+                    <GalgameChatPanel />
+                  </div>
+                </div>
+              )}
+            />
+          </div>
 
           {view === 'market' && <MarketPage />}
 

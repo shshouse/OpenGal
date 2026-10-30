@@ -11,6 +11,7 @@ import { startASRBridge } from '@/features/asr/asrStore'
 import { startSubtitleWorker, useSubtitleStore } from './subtitles'
 import { subtitleText } from '@shared/subtitles'
 import { startBargeInBridge } from './bargeIn'
+import { startActivityBridge } from '@/features/activity/activityBridge'
 import { useLogsStore } from '@/features/logs/logsStore'
 
 export { pipelineBus, setActiveRoleCard }
@@ -96,6 +97,7 @@ function startPetBubbleBridge(): () => void {
 export function startPipeline(): PipelineHandle {
   const stopTrace = installPipelineTrace()
   const stopSubtitles = startSubtitleWorker()
+  const stopActivity = startActivityBridge()
   void window.opengal.config.get().then((res) => {
     const cw = res.data?.llm?.contextWindow
     if (typeof cw === 'number' && cw > 0) setGlobalContextWindow(cw)
@@ -114,6 +116,7 @@ export function startPipeline(): PipelineHandle {
   return {
     dispose: () => {
       stopTrace()
+      stopActivity()
       stopInitiative()
       stopBargeIn()
       stopSubtitles()

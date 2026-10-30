@@ -10,7 +10,7 @@ export interface Live2DSpeakOptions {
 }
 
 export interface Live2DLike {
-  speak: (sound: string, options?: Live2DSpeakOptions) => void
+  speak: (sound: string, options?: Live2DSpeakOptions) => void | boolean | Promise<boolean>
   stopSpeaking: () => void
   expression?: (name: string) => void
   motion?: (group: string, index?: number) => void
@@ -25,6 +25,8 @@ export interface Live2DLike {
       definitions?: Record<string, unknown>
       startRandomMotion?: (group: string, priority: number) => Promise<boolean>
       isFinished?: () => boolean
+      /** 正在播放的语音；由 lipsync 补丁维护，动作播放会把它 dispose 掉 */
+      currentAudio?: { ended: boolean }
     }
     coreModel?: {
       setParameterValueById?: (id: string, value: number) => void
@@ -207,6 +209,12 @@ export function playMotionGroup(group: string): void {
   const model = currentModel
   const mm = model?.internalModel?.motionManager
   if (!model || !mm?.startRandomMotion) return
+  // lipsync 补丁里动作与语音共用 currentAudio：FORCE 动作会 dispose 正在播的语音，
+  // 而且不会清空 currentAudio，导致之后所有 speak 静默失败。语音期间一律不动。
+  if (mm.currentAudio && !mm.currentAudio.ended) {
+    useLogsStore.getState().appendLocal('debug', 'live2d', `语音播放中，已忽略动作组: ${group}`)
+    return
+  }
   const defs = mm.definitions
   if (defs && !(group in defs)) {
     useLogsStore

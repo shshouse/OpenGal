@@ -46,13 +46,16 @@ describe('role card prompt', () => {
     expect(prompt).toContain('工具使用规则')
   })
 
-  it('缺省称呼时回退到角色名', () => {
+  it('缺省称呼时回退到朋友', () => {
     const bare = {
       ...card,
       persona: { description: '歌姬', personality: '安静' },
     } as unknown as RoleCard
     const prompt = buildSystemPrompt(bare)
-    expect(prompt).toContain('用户身份：用户；用户对你的称呼：Miku')
+    expect(prompt).toContain('用户身份：用户；你称呼用户为：朋友')
+    expect(prompt).toContain('OpenGal')
+    expect(prompt).toContain('平等的朋友')
+    expect(prompt).not.toContain('主人')
   })
 })
 

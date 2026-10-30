@@ -30,14 +30,11 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       this.firstAudioLogged = false
     }
 
-    // 视觉推进：气泡、字幕、表情、动作都在真实发声时触发，避免声画错位
+    // 视觉推进：气泡、字幕、表情都在真实发声时触发，避免声画错位
     const startVisuals = (): void => {
       if (msg.emotion && msg.emotion !== this.lastEmotion) {
         this.lastEmotion = msg.emotion
         applyEmotion(msg.emotion)
-      }
-      if (msg.motion) {
-        playMotionGroup(msg.motion)
       }
       // 同一次表演同步给桌宠，主窗口与桌宠不会出现两套情绪
       window.opengal.pet?.emitPerformance?.({
@@ -47,6 +44,9 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       })
       pipelineBus.emit('tts:segmentStart', msg)
     }
+
+    // 动作必须先于语音：lipsync 补丁的 FORCE 动作会 dispose 正在播放的音频
+    if (msg.motion) playMotionGroup(msg.motion)
 
     if (!msg.audioUrl) {
       startVisuals()
@@ -69,7 +69,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
 async function playDialogAudio(audioUrl: string, characterId: string | undefined, onStart: () => void): Promise<void> {
   await new Promise<void>((resolve) => {
     const model = getLive2DModel()
-    const audio = model ? null : new Audio(audioUrl)
+    let audio: HTMLAudioElement | null = null
     let settled = false
     let started = false
     const start = (): void => {
@@ -80,6 +80,12 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
       window.opengal.pet?.emitPerformance?.({ speaking: true, characterId })
       onStart()
     }
+    const onPlaying = (): void => start()
+    const onEnded = (): void => done()
+    const onError = (): void => {
+      start()
+      done()
+    }
     const done = (): void => {
       if (settled) return
       settled = true
@@ -89,9 +95,9 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
         window.opengal.pet?.emitPerformance?.({ speaking: false, characterId })
       }
       if (cancelPlayback === cancel) cancelPlayback = null
-      audio?.removeEventListener('playing', start)
-      audio?.removeEventListener('ended', done)
-      audio?.removeEventListener('error', done)
+      audio?.removeEventListener('playing', onPlaying)
+      audio?.removeEventListener('ended', onEnded)
+      audio?.removeEventListener('error', onError)
       resolve()
     }
     const cancel = (): void => {
@@ -106,32 +112,48 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
         /* 已释放的播放器不影响队列退出 */
       }
     }
-    cancelPlayback = cancel
-    try {
-      if (model) {
-        // Live2D 库没有 onStart 回调：speak 调用即开始排入播放，紧随其后推进视觉
-        model.speak(audioUrl, {
-          volume: 1,
-          crossOrigin: 'anonymous',
-          onFinish: done,
-          onError: () => {
-            start()
-            done()
-          },
-        })
+    // 回退路径：不经过 Live2D（没有口型同步，但保证有声音且必定回调）
+    const playElement = (): void => {
+      const el = new Audio(audioUrl)
+      audio = el
+      el.addEventListener('playing', onPlaying)
+      el.addEventListener('ended', onEnded)
+      el.addEventListener('error', onError)
+      void el.play().catch(() => {
         start()
-      } else if (audio) {
-        audio.addEventListener('playing', start)
-        audio.addEventListener('ended', done)
-        audio.addEventListener('error', () => {
+        done()
+      })
+    }
+    cancelPlayback = cancel
+    if (!model) {
+      playElement()
+      return
+    }
+    try {
+      // Live2D 库没有 onStart 回调：speak 调用即开始排入播放，紧随其后推进视觉
+      const ret = model.speak(audioUrl, {
+        volume: 1,
+        crossOrigin: 'anonymous',
+        onFinish: done,
+        onError: () => {
           start()
           done()
+        },
+      })
+      start()
+      // 库拒绝播放时返回 false 且不触发任何回调（通常是上一段音频被动作销毁后留下的
+      // currentAudio），清掉残留后回退到独立 audio，否则整条播放队列会永久卡住
+      void Promise.resolve(ret)
+        .then((ok) => {
+          if (ok !== false || settled) return
+          try {
+            model.stopSpeaking()
+          } catch {
+            /* 残留音频释放失败不影响回退 */
+          }
+          playElement()
         })
-        void audio.play().catch(() => {
-          start()
-          done()
-        })
-      }
+        .catch(() => {})
     } catch (err) {
       console.warn('[UIWorker] audio playback failed', err)
       start()

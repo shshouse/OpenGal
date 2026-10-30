@@ -37,9 +37,10 @@ const PAGE_SIZE = 300
 
 interface Props {
   onClose?: () => void
+  embedded?: boolean
 }
 
-export function LogsPanel({ onClose }: Props): React.JSX.Element {
+export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Element {
   const entries = useLogsStore((s) => s.entries)
   const hydrate = useLogsStore((s) => s.hydrate)
 
@@ -241,7 +242,10 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+      <header className={cn(
+        'flex shrink-0 items-center gap-3 border-b px-4',
+        embedded ? 'min-h-12 flex-wrap gap-x-2 gap-y-1 py-2' : 'h-12',
+      )}>
         <span className="text-sm font-semibold">运行日志</span>
         <span className="text-xs tabular-nums text-muted-foreground">
           {flash ??
@@ -261,9 +265,9 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
         ) : null}
 
         <div className="ml-auto flex items-center gap-0.5">
-          <HeaderButton icon={Copy} label="复制" onClick={() => void handleCopy()} />
-          <HeaderButton icon={Download} label="导出" onClick={() => void handleExport()} />
-          <HeaderButton icon={FolderOpen} label="日志目录" onClick={() => void handleReveal()} />
+          <HeaderButton icon={Copy} label="复制" iconOnly={embedded} onClick={() => void handleCopy()} />
+          <HeaderButton icon={Download} label="导出" iconOnly={embedded} onClick={() => void handleExport()} />
+          <HeaderButton icon={FolderOpen} label="日志目录" iconOnly={embedded} onClick={() => void handleReveal()} />
           <button
             type="button"
             title={confirmClear ? '再点一次清空当前日志' : '清空当前日志（磁盘文件保留）'}
@@ -279,7 +283,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
             )}
           >
             <Trash2 className="size-3.5" />
-            {confirmClear ? '确认清空' : '清空'}
+            {confirmClear && !embedded ? '确认清空' : !embedded ? '清空' : null}
           </button>
           {onClose ? (
             <button
@@ -295,7 +299,10 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
         </div>
       </header>
 
-      <div className="flex h-10 shrink-0 items-center gap-1.5 border-b px-4">
+      <div className={cn(
+        'flex shrink-0 items-center gap-1.5 border-b px-4',
+        embedded ? 'flex-wrap py-2' : 'h-10',
+      )}>
         <button
           type="button"
           onClick={selectAllLevels}
@@ -333,7 +340,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
         <div className="mx-1 h-4 w-px shrink-0 bg-border" />
 
         <Select value={source} onValueChange={setSource}>
-          <SelectTrigger className="h-7 w-40 shrink-0 text-xs">
+          <SelectTrigger className={cn('h-7 shrink-0 text-xs', embedded ? 'w-32' : 'w-40')}>
             <SelectValue placeholder="全部来源" />
           </SelectTrigger>
           <SelectContent className="max-h-80">
@@ -348,7 +355,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
           </SelectContent>
         </Select>
 
-        <div className="relative ml-auto min-w-0 max-w-sm flex-1">
+        <div className={cn('relative min-w-0', embedded ? 'w-full' : 'ml-auto max-w-sm flex-1')}>
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/60" />
           <Input
             value={query}
@@ -412,6 +419,7 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
                   key={entry.id}
                   entry={entry}
                   query={query}
+                  compact={embedded}
                   expanded={expanded.has(entry.id)}
                   onToggle={toggleExpanded}
                 />
@@ -453,10 +461,12 @@ export function LogsPanel({ onClose }: Props): React.JSX.Element {
 function HeaderButton({
   icon: Icon,
   label,
+  iconOnly = false,
   onClick
 }: {
   icon: React.ComponentType<{ className?: string }>
   label: string
+  iconOnly?: boolean
   onClick: () => void
 }): React.JSX.Element {
   return (
@@ -467,7 +477,7 @@ function HeaderButton({
       className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <Icon className="size-3.5" />
-      {label}
+      {iconOnly ? null : label}
     </button>
   )
 }
@@ -475,11 +485,12 @@ function HeaderButton({
 interface RowProps {
   entry: LogEntry
   query: string
+  compact?: boolean
   expanded: boolean
   onToggle: (id: string) => void
 }
 
-const LogRow = React.memo(function LogRow({ entry, query, expanded, onToggle }: RowProps) {
+const LogRow = React.memo(function LogRow({ entry, query, compact = false, expanded, onToggle }: RowProps) {
   const meta = LEVEL_META[entry.level]
   const hasDetails = Boolean(entry.details)
   return (
@@ -487,6 +498,7 @@ const LogRow = React.memo(function LogRow({ entry, query, expanded, onToggle }: 
       onClick={hasDetails ? () => onToggle(entry.id) : undefined}
       className={cn(
         'flex items-start gap-2 border-l-2 border-transparent px-3 py-[3px] leading-[18px] transition-colors hover:bg-accent/40',
+        compact && 'flex-wrap',
         hasDetails && 'cursor-pointer',
         entry.level === 'error' && 'border-l-red-500/60',
         entry.level === 'warn' && 'border-l-amber-500/60'
@@ -502,7 +514,7 @@ const LogRow = React.memo(function LogRow({ entry, query, expanded, onToggle }: 
       >
         {entry.source}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className={cn('min-w-0', compact ? 'w-full flex-none' : 'flex-1')}>
         <div
           className={cn(
             'whitespace-pre-wrap break-words',

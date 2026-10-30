@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type { BootStep } from '@shared/types'
-import { setEyesClosed } from '@/features/live2d/live2dBus'
+import { isCharacterRunning } from '@shared/characterRuntime'
+import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { useCharacterStore } from '@/features/character/characterStore'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
@@ -26,6 +28,7 @@ const BOOT_FORCE_WAKE_MS = 30_000
 
 let bootBegan = false
 let greeted = false
+let greetingPending = false
 let llmConfigured = false
 
 function timeBucket(): string {
@@ -43,17 +46,24 @@ function allSettled(steps: BootStep[]): boolean {
   return steps.every((s) => s.status !== 'pending' && s.status !== 'running')
 }
 
-async function maybeGreet(): Promise<void> {
-  if (greeted) return
-  greeted = true
+export async function maybeGreet(): Promise<void> {
+  if (greeted || greetingPending) return
+  const activeId = useCharacterStore.getState().activeId
+  if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
+  greetingPending = true
   try {
     const cfg = await window.opengal.config.get()
     if (!cfg.success || !cfg.data?.startup.greetingEnabled || !llmConfigured) return
-    const nudge = `（你刚刚从睡眠中醒来。现在是${timeBucket()}。用一两句符合你性格的话向主人打招呼，自然简短，不要提到系统或启动。）`
+    const currentId = useCharacterStore.getState().activeId
+    if (currentId !== activeId || !isCharacterRunning(useCharacterRuntimeStore.getState().byId, currentId)) return
+    greeted = true
+    const nudge = `（现在是${timeBucket()}。请用一两句符合角色设定的话向用户打招呼，自然简短，可以结合当前时间，不要提到系统或启动。）`
     useChatStore.getState().setSending(true)
     pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })
   } catch (err) {
     useLogsStore.getState().appendLocal('warn', 'startup', `唤醒问候发送失败: ${(err as Error).message}`)
+  } finally {
+    greetingPending = false
   }
 }
 
@@ -63,7 +73,6 @@ export const useStartupStore = create<StartupState>((set, get) => {
     set({ phase: 'waking' })
     window.setTimeout(() => {
       set({ phase: 'awake' })
-      setEyesClosed(false)
       void maybeGreet()
     }, WAKE_HOLD_MS)
   }
@@ -81,7 +90,6 @@ export const useStartupStore = create<StartupState>((set, get) => {
     beginBoot: () => {
       if (bootBegan) return
       bootBegan = true
-      setEyesClosed(true)
       window.opengal.boot.onStep(applyStep)
       void window.opengal.boot.start().then((res) => {
         if (res.success && res.data) {
@@ -90,10 +98,15 @@ export const useStartupStore = create<StartupState>((set, get) => {
         }
       })
       // 模型加载卡死/未配置的兜底：超时按跳过处理，不让她永远睡下去
-      window.setTimeout(() => get().reportLive2d('skipped', '未加载'), LIVE2D_TIMEOUT_MS)
+      window.setTimeout(() => {
+        const current = get().steps.find((s) => s.id === 'live2d')
+        if (current && (current.status === 'pending' || current.status === 'running')) {
+          get().reportLive2d('skipped', '未加载')
+        }
+      }, LIVE2D_TIMEOUT_MS)
       window.setTimeout(() => {
         if (get().phase !== 'booting') return
-        useLogsStore.getState().appendLocal('warn', 'startup', '启动自检超时，强制唤醒')
+        useLogsStore.getState().appendLocal('warn', 'startup', '启动自检超时，按当前可用状态继续')
         set((state) => ({
           steps: state.steps.map((s) =>
             s.status === 'pending' || s.status === 'running'
@@ -105,9 +118,8 @@ export const useStartupStore = create<StartupState>((set, get) => {
       }, BOOT_FORCE_WAKE_MS)
     },
     reportLive2d: (status, detail) => {
-      if (get().phase !== 'booting') return
       const cur = get().steps.find((s) => s.id === 'live2d')
-      if (!cur || (cur.status !== 'pending' && cur.status !== 'running')) return
+      if (!cur) return
       applyStep({ id: 'live2d', label: cur.label, status, detail })
     }
   }
