@@ -14,6 +14,7 @@ interface ResolvedGenieSettings {
   refAudioAbs: string
   referenceText: string
   referenceLanguage: string
+  outputLanguage: string
 }
 
 const GENIE_LANG_MAP: Record<string, string> = {
@@ -153,9 +154,10 @@ export class GenieAdapter implements TTSAdapter {
       referenceAudio: cfg.referenceAudioRelPath,
       referenceText: cfg.referenceText,
       referenceLanguage: cfg.referenceLanguage,
+      outputLanguage: cfg.outputLanguage,
     }
     if (cardVoice) {
-      for (const key of ['baseURL', 'characterName', 'onnxModelDir', 'referenceAudio', 'referenceText', 'referenceLanguage']) {
+      for (const key of ['baseURL', 'characterName', 'onnxModelDir', 'referenceAudio', 'referenceText', 'referenceLanguage', 'outputLanguage']) {
         if (cardVoice[key] !== undefined && cardVoice[key] !== null && cardVoice[key] !== '') {
           merged[key] = cardVoice[key]
         }
@@ -169,6 +171,7 @@ export class GenieAdapter implements TTSAdapter {
       if (req.overrides.referenceAudioRelPath) merged.referenceAudio = req.overrides.referenceAudioRelPath
       if (req.overrides.referenceText) merged.referenceText = req.overrides.referenceText
       if (req.overrides.referenceLanguage) merged.referenceLanguage = req.overrides.referenceLanguage
+      if (req.overrides.outputLanguage) merged.outputLanguage = req.overrides.outputLanguage
     }
 
     const baseURL = applyTtsPortShift(normalizeBaseURL(String(merged.baseURL || '')))
@@ -199,14 +202,20 @@ export class GenieAdapter implements TTSAdapter {
 
     const langRaw = String(merged.referenceLanguage || 'zh')
     const referenceLanguage = GENIE_LANG_MAP[langRaw] ?? 'zh'
+    const outputRaw = String(merged.outputLanguage || 'auto')
+    const outputLanguage = outputRaw === 'auto'
+      ? card?.language
+        ? GENIE_LANG_MAP[roleSpeechLanguage(card.language)] ?? referenceLanguage
+        : referenceLanguage
+      : GENIE_LANG_MAP[outputRaw] ?? referenceLanguage
     if (card?.language) {
       const spoken = roleSpeechLanguage(card.language)
-      if ((spoken === 'yue' ? 'zh' : spoken) !== referenceLanguage) {
-        throw new Error(`角色说话语言 ${card.language} 与 Genie 参考音频语言 ${langRaw} 不一致，请为角色配置匹配的语音模型和参考音频`)
+      if ((spoken === 'yue' ? 'zh' : spoken) !== outputLanguage) {
+        throw new Error(`角色说话语言 ${card.language} 与 Genie 目标合成语言 ${outputRaw} 不一致，请调整 outputLanguage`)
       }
     }
 
-    return { baseURL, characterName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage }
+    return { baseURL, characterName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage, outputLanguage }
   }
 
   private async ensureCharacterLoaded(settings: ResolvedGenieSettings, signal?: AbortSignal): Promise<void> {
@@ -224,7 +233,7 @@ export class GenieAdapter implements TTSAdapter {
     const loadBody = {
       character_name: settings.characterName,
       onnx_model_dir: settings.onnxModelAbs,
-      language: settings.referenceLanguage,
+      language: settings.outputLanguage,
     }
     const loadRes = await fetchReadable(
       `${settings.baseURL}/load_character`,
