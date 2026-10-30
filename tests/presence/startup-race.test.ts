@@ -24,7 +24,9 @@ vi.mock('../../src/renderer/src/features/character/characterRuntimeStore', () =>
   useCharacterRuntimeStore: { getState: () => ({ byId: state.byId }) },
 }))
 vi.mock('../../src/renderer/src/features/character/characterStore', () => ({
-  useCharacterStore: { getState: () => ({ activeId: state.activeId }) },
+  useCharacterStore: {
+    getState: () => ({ activeId: state.activeId, list: [{ id: 'a', language: 'ja' }, { id: 'b', language: 'ja' }] }),
+  },
 }))
 
 async function loadStore() {

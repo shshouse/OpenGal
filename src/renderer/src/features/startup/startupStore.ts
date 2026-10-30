@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { BootStep } from '@shared/types'
 import { isCharacterRunning } from '@shared/characterRuntime'
+import { speechLanguageLabel } from '@shared/subtitles'
 import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useChatStore } from '@/features/chat/chatStore'
@@ -57,7 +58,11 @@ export async function maybeGreet(): Promise<void> {
     const currentId = useCharacterStore.getState().activeId
     if (currentId !== activeId || !isCharacterRunning(useCharacterRuntimeStore.getState().byId, currentId)) return
     greeted = true
-    const nudge = `（现在是${timeBucket()}。请用一两句符合角色设定的话向用户打招呼，自然简短，可以结合当前时间，不要提到系统或启动。）`
+    // 问候语是中文指令，模型容易顺着说中文；角色语言必须在这里再钉一次，
+    // 否则中文台词喂给非中文音色模型会被读成参考音频
+    const card = useCharacterStore.getState().list.find((c) => c.id === activeId)
+    const label = card?.language ? speechLanguageLabel(card.language) : null
+    const nudge = `（现在是${timeBucket()}。请用一两句符合角色设定的话向用户打招呼，自然简短，可以结合当前时间，不要提到系统或启动。${label ? `台词必须使用${label}，不要用其他语言。` : ''}）`
     useChatStore.getState().setSending(true)
     pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })
   } catch (err) {

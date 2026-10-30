@@ -24,7 +24,7 @@ vi.mock('../../src/renderer/src/features/character/characterRuntimeStore', () =>
   useCharacterRuntimeStore: { getState: () => ({ byId: { sonetto: state.running } }) },
 }))
 vi.mock('../../src/renderer/src/features/character/characterStore', () => ({
-  useCharacterStore: { getState: () => ({ activeId: 'sonetto' }) },
+  useCharacterStore: { getState: () => ({ activeId: 'sonetto', list: [{ id: 'sonetto', language: 'en' }] }) },
 }))
 
 async function boot(): Promise<void> {
@@ -85,5 +85,6 @@ describe('startup boundary', () => {
     expect(state.inputs).toHaveLength(1)
     expect(state.inputs[0].text).not.toContain('主人')
     expect(state.inputs[0].text).toContain('符合角色设定')
+    expect(state.inputs[0].text).toContain('台词必须使用英语')
   })
 })

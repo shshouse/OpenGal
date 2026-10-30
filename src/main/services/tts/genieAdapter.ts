@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { roleSpeechLanguage } from '@shared/subtitles'
+import { roleSpeechLanguage, scriptLanguage, speechLanguageLabel, speechLanguageSupported } from '@shared/subtitles'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
@@ -21,6 +21,76 @@ const GENIE_LANG_MAP: Record<string, string> = {
   zh: 'zh', en: 'en', ja: 'ja', ko: 'ko', yue: 'zh',
   auto: 'zh', auto_yue: 'zh',
   all_zh: 'zh', all_ja: 'ja', all_yue: 'zh', all_ko: 'ko',
+}
+
+const SYNTH_ATTEMPTS = 2
+const PCM_SAMPLE_RATE = 32_000
+const PCM_BYTES_PER_SAMPLE = 2
+
+const wavDurationCache = new Map<string, number | null>()
+
+/** 读 WAV 头算时长；参考音可能是 24k/44.1k、单/双声道，按 fmt 里的 byteRate 统一换算 */
+export function wavDurationSeconds(file: string): number | null {
+  if (wavDurationCache.has(file)) return wavDurationCache.get(file) ?? null
+  let result: number | null = null
+  try {
+    const buf = fs.readFileSync(file)
+    if (buf.subarray(0, 4).toString('latin1') === 'RIFF' && buf.subarray(8, 12).toString('latin1') === 'WAVE') {
+      let offset = 12
+      let byteRate = 0
+      while (offset + 8 <= buf.length) {
+        const id = buf.subarray(offset, offset + 4).toString('latin1')
+        const size = buf.readUInt32LE(offset + 4)
+        const body = offset + 8
+        if (id === 'fmt ' && body + 12 <= buf.length) {
+          byteRate = buf.readUInt32LE(body + 8)
+        } else if (id === 'data' && byteRate > 0) {
+          result = size / byteRate
+          break
+        }
+        offset = body + size + (size % 2)
+      }
+    }
+  } catch {
+    result = null
+  }
+  wavDurationCache.set(file, result)
+  return result
+}
+
+/** 粗略估算这句话该有多长，只用来识别“长得离谱”的输出 */
+export function estimateSpeechSeconds(text: string): number {
+  const compact = text.replace(/\s+/g, '')
+  const perChar = scriptLanguage(text) === 'en' ? 0.085 : 0.16
+  return Math.max(0.6, compact.length * perChar)
+}
+
+// 中文 G2P（g2pM）查不到这两个字的拼音会直接抛 IndexError，整段合成变空音频
+const G2P_CHAR_FIXES: Record<string, string> = { 嗯: '恩', 呣: '母' }
+
+export function sanitizeForG2P(text: string): string {
+  return text.replace(/[嗯呣]/g, (ch) => G2P_CHAR_FIXES[ch] ?? ch)
+}
+
+/**
+ * 判定合成结果是否可用。Genie 随机解码退化成两种形态：整段变回参考音（时长贴着参考音走），
+ * 或文本前端异常导致空音频。两种都不能播出去。
+ */
+export function inspectSynthesis(
+  pcm: Buffer,
+  text: string,
+  refSeconds: number | null,
+): { bad: boolean; reason: string } {
+  const duration = pcm.length / (PCM_SAMPLE_RATE * PCM_BYTES_PER_SAMPLE)
+  if (duration < 0.2) return { bad: true, reason: `输出几乎为空（${duration.toFixed(2)}s）` }
+  const expected = estimateSpeechSeconds(text)
+  if (refSeconds && Math.abs(duration - refSeconds) <= 0.6 && duration > expected * 2.5) {
+    return {
+      bad: true,
+      reason: `输出 ${duration.toFixed(2)}s 与参考音 ${refSeconds.toFixed(2)}s 接近，判定为复读参考音`,
+    }
+  }
+  return { bad: false, reason: '' }
 }
 
 function wrapPcmAsWav(buffer: Buffer): Buffer {
@@ -91,9 +161,11 @@ export class GenieAdapter implements TTSAdapter {
     await this.ensureCharacterLoaded(settings, req.signal)
     req.signal?.throwIfAborted()
 
+    // 中文音色模型走中文 G2P，先把会让它崩掉的字换掉；其他语种按原文送
+    const spoken = settings.outputLanguage === 'zh' ? sanitizeForG2P(text) : text
     const body = {
       character_name: settings.characterName,
-      text,
+      text: spoken,
       split_sentence: true,
     }
 
@@ -114,25 +186,42 @@ export class GenieAdapter implements TTSAdapter {
     req.signal?.addEventListener('abort', stopServer, { once: true })
     controller.signal.addEventListener('abort', stopServer, { once: true })
     try {
-      const res = await fetchReadable(
-        `${settings.baseURL}/tts`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: req.signal ? AbortSignal.any([controller.signal, req.signal]) : controller.signal,
-        },
-        settings.baseURL,
-      )
-      if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(`TTS error ${res.status}: ${errText.slice(0, 500)}`)
+      const refSeconds = wavDurationSeconds(settings.refAudioAbs)
+      let lastReason = ''
+      // Genie 是随机解码的零样本模型：同一句台词会有小概率整段退化成复读参考音频，
+      // 或直接吐空音频。重试一次基本能拿到正常结果，两次都不正常就放弃这段语音。
+      for (let attempt = 1; attempt <= SYNTH_ATTEMPTS; attempt++) {
+        req.signal?.throwIfAborted()
+        const res = await fetchReadable(
+          `${settings.baseURL}/tts`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: req.signal ? AbortSignal.any([controller.signal, req.signal]) : controller.signal,
+          },
+          settings.baseURL,
+        )
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`TTS error ${res.status}: ${errText.slice(0, 500)}`)
+        }
+        const raw = Buffer.from(await res.arrayBuffer())
+        const check = inspectSynthesis(raw, spoken, refSeconds)
+        if (!check.bad) {
+          return {
+            audioBase64: wrapPcmAsWav(raw).toString('base64'),
+            mimeType: 'audio/wav',
+          }
+        }
+        lastReason = check.reason
+        logBus.warn(
+          'tts',
+          `Genie 合成结果异常（第 ${attempt}/${SYNTH_ATTEMPTS} 次）：${check.reason}`,
+          `文本=${text.slice(0, 60)}`,
+        )
       }
-      const buffer = wrapPcmAsWav(Buffer.from(await res.arrayBuffer()))
-      return {
-        audioBase64: buffer.toString('base64'),
-        mimeType: 'audio/wav',
-      }
+      throw new Error(`语音合成结果异常：${lastReason}；已跳过本段语音`)
     } finally {
       req.signal?.removeEventListener('abort', stopServer)
       controller.signal.removeEventListener('abort', stopServer)
@@ -213,6 +302,12 @@ export class GenieAdapter implements TTSAdapter {
       if ((spoken === 'yue' ? 'zh' : spoken) !== outputLanguage) {
         throw new Error(`角色说话语言 ${card.language} 与 Genie 目标合成语言 ${outputRaw} 不一致，请调整 outputLanguage`)
       }
+    }
+    if (!speechLanguageSupported(outputLanguage, req.text)) {
+      throw new Error(
+        `台词是${speechLanguageLabel(scriptLanguage(req.text)) ?? '其他语言'}，但当前音色模型只支持 ${outputLanguage}；` +
+          'Genie 会把这段读成参考音频。请让角色用同语种说话，或换用该语种的音色模型。',
+      )
     }
 
     return { baseURL, characterName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage, outputLanguage }

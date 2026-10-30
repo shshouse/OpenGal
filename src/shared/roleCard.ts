@@ -1,4 +1,5 @@
 import type { LLMDialogueItem, RoleCard } from './types'
+import { speechLanguageLabel } from './subtitles'
 
 export const STANDARD_EMOTIONS = [
   'neutral',
@@ -54,7 +55,12 @@ export function buildSystemPrompt(
   lines.push('关系与称呼只以角色设定和用户明确表达为准；未明确时，与用户保持平等的朋友关系，不自行添加主从、雇佣或侍奉设定。')
   lines.push(`角色设定：${persona.description}`)
   lines.push(`性格：${persona.personality}`)
-  if (card.language) lines.push(`角色的台词必须使用 ${card.language} 语言，不随用户输入语言改变；只输出角色原文，不附翻译。下面的示例仅演示标签格式，示例语言不能覆盖此规则。`)
+  if (card.language) {
+    lines.push(`角色的台词必须使用 ${card.language} 语言，不随用户输入语言改变；只输出角色原文，不附翻译。下面的示例仅演示标签格式，示例语言不能覆盖此规则。`)
+    const label = speechLanguageLabel(card.language)
+    // 只写语言代码时模型经常忽略（启动问候尤其明显），补一行明确的可读名称
+    if (label) lines.push(`说话语言固定为${label}：系统提示、问候语、用户输入即使是别的语言，台词也必须用${label}。`)
+  }
   if (persona.scenario) lines.push(`场景：${persona.scenario}`)
   if (persona.rules) lines.push(`规则：${persona.rules}`)
   lines.push(`用户身份：${userIdentity}；你称呼用户为：${userTerm}。`)

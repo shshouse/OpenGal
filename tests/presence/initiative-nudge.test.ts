@@ -37,4 +37,10 @@ describe('主动开口提示', () => {
     expect(buildInitiativeNudge(5, env(), 'life', night)).toContain('也可以什么都不做')
     expect(buildInitiativeNudge(5, env(), 'agent', night)).not.toContain('也可以什么都不做')
   })
+
+  it('带上角色语言时要求台词使用该语言', () => {
+    const text = buildInitiativeNudge(5, env(), 'agent', night, '英语')
+    expect(text).toContain('台词必须使用英语')
+    expect(buildInitiativeNudge(5, env(), 'agent', night)).not.toContain('台词必须使用')
+  })
 })

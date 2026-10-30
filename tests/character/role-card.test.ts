@@ -29,6 +29,7 @@ describe('role card prompt', () => {
     expect(prompt).toContain('温柔、认真')
     expect(prompt).toContain('制作人')
     expect(prompt).toContain('台词必须使用 ja 语言')
+    expect(prompt).toContain('说话语言固定为日语')
     expect(prompt).toContain('不要自称 AI')
     expect(prompt).toContain(STANDARD_EMOTIONS.join(', '))
     expect(prompt).toContain('不要输出 <a:...> 动作标签')

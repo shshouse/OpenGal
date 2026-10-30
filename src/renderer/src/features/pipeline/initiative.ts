@@ -6,6 +6,7 @@ import { useLogsStore } from '@/features/logs/logsStore'
 import { resolveInitiativePolicy } from '@shared/initiativePolicy'
 import { detectReturn } from './initiativePerception'
 import { buildInitiativeNudge } from '@shared/initiativeNudge'
+import { speechLanguageLabel } from '@shared/subtitles'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
 import { isCharacterRunning } from '@shared/characterRuntime'
@@ -63,7 +64,9 @@ export function startInitiative(): () => void {
       }
 
       lastInitiativeAt = Date.now()
-      const nudge = buildInitiativeNudge(Math.round(idleMs / 60_000), env, cfg.directorMode ?? 'agent')
+      const card = useCharacterStore.getState().list.find((c) => c.id === activeId)
+      const languageLabel = card?.language ? speechLanguageLabel(card.language) : null
+      const nudge = buildInitiativeNudge(Math.round(idleMs / 60_000), env, cfg.directorMode ?? 'agent', undefined, languageLabel)
       log('info', `主动开口: ${decision.reason}`)
       useChatStore.getState().setSending(true)
       pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })

@@ -41,7 +41,7 @@ function stubGenie(): void {
   vi.stubGlobal('fetch', (url: string, init: { body?: string } = {}) => {
     const endpoint = String(url).split('/').pop()!
     state.bodies[endpoint] = JSON.parse(init.body ?? '{}')
-    if (endpoint === 'tts') return Promise.resolve(new Response(new Uint8Array(2), { status: 200 }))
+    if (endpoint === 'tts') return Promise.resolve(new Response(new Uint8Array(Buffer.alloc(32_000 * 2)), { status: 200 }))
     return Promise.resolve(Response.json({ status: 'success' }))
   })
 }
