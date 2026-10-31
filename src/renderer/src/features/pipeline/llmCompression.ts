@@ -58,7 +58,9 @@ export async function compressHistory(
   let keepFrom = history.length
   while (keepFrom > headCount && tailTokens < tailBudget) {
     keepFrom--
-    tailTokens += estimateTokens(messageText(history[keepFrom]))
+    const message = history[keepFrom]
+    if (!message) break
+    tailTokens += estimateTokens(messageText(message))
   }
   const toCompress = history.slice(headCount, keepFrom)
   const recent = history.slice(keepFrom)

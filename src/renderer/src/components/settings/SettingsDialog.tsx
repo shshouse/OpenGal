@@ -235,12 +235,13 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
         newActive = preset.id
       } else if (editingId) {
         const idx = nextPresets.findIndex((p) => p.id === editingId)
-        if (idx >= 0) {
-          const builtin = BUILTIN_MODELS.find((p) => p.id === nextPresets[idx].id)
+        const current = idx >= 0 ? nextPresets[idx] : undefined
+        if (current) {
+          const builtin = BUILTIN_MODELS.find((p) => p.id === current.id)
           // 内置模型编辑后转为自定义条目（保留内置行不动）
           const updated: LLMPreset = builtin
             ? { ...builtin, ...llm, id: newPresetId(), label: llm.modelName ?? builtin.label }
-            : { ...nextPresets[idx], ...llm, label: llm.modelName ?? nextPresets[idx].label }
+            : { ...current, ...llm, label: llm.modelName ?? current.label }
           nextPresets[idx] = updated
           if (activePresetId === editingId) newActive = updated.id
         }

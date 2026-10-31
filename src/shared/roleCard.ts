@@ -244,7 +244,7 @@ export class SpeechStreamParser {
           this.buffer = this.buffer.slice(lt)
           continue
         }
-        this.applyTag('a', inlineAction[1])
+        this.applyTag('a', inlineAction[1] ?? '')
         this.buffer = this.buffer.slice(0, lt) + this.buffer.slice(lt + inlineAction[0].length)
         continue
       }
@@ -258,7 +258,7 @@ export class SpeechStreamParser {
         if (gt === -1) break
         const tag = SPEECH_TAG_RE.exec(this.buffer)
         if (tag) {
-          this.applyTag(tag[1], tag[2])
+          this.applyTag(tag[1] ?? '', tag[2] ?? '')
           this.buffer = this.buffer.slice(tag[0].length)
         } else {
           this.buffer = this.buffer.slice(gt + 1)
@@ -273,7 +273,7 @@ export class SpeechStreamParser {
 
       // 只有表情标签强制切段；动作标签随句子一起切，避免多一次 TTS 合成
       const pendingTag = rest ? SPEECH_TAG_RE.exec(rest) : null
-      const forceCut = pendingTag ? pendingTag[1].toLowerCase() === 'e' : false
+      const forceCut = pendingTag?.[1]?.toLowerCase() === 'e'
       const cut = this.findCut(text, final, forceCut)
       if (cut <= 0) break
       const item = this.makeItem(text.slice(0, cut))
@@ -336,14 +336,16 @@ export class SpeechStreamParser {
 
 function firstIndexMatch(text: string, re: RegExp): number {
   for (let i = 0; i < text.length; i++) {
-    if (re.test(text[i])) return i
+    const ch = text[i]
+    if (ch !== undefined && re.test(ch)) return i
   }
   return -1
 }
 
 function lastIndexMatch(text: string, re: RegExp): number {
   for (let i = text.length - 1; i >= 0; i--) {
-    if (re.test(text[i])) return i
+    const ch = text[i]
+    if (ch !== undefined && re.test(ch)) return i
   }
   return -1
 }
@@ -403,7 +405,7 @@ function tryParseJson(text: string): unknown {
 
 function stripMarkdownFence(text: string): string {
   const match = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  return match ? match[1].trim() : text
+  return match?.[1]?.trim() ?? text
 }
 
 function extractJsonSubstring(text: string): string {

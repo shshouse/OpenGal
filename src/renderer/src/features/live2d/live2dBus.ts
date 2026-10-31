@@ -197,8 +197,10 @@ export function resetPose(): void {
   const core = currentModel?.internalModel?.coreModel
   if (!core?.setParameterValueByIndex || !initialPose) return
   for (let i = 0; i < initialPose.length; i++) {
+    const value = initialPose[i]
+    if (value === undefined) continue
     try {
-      core.setParameterValueByIndex(i, initialPose[i])
+      core.setParameterValueByIndex(i, value)
     } catch {
       // ignore
     }

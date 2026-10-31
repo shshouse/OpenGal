@@ -151,7 +151,9 @@ export function offerUtterance(text: string): void {
   if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
   buffer.push({ text: t, at: Date.now() })
   if (silenceTimer) clearTimeout(silenceTimer)
-  const wait = Math.min(SILENCE_WINDOW_MS, Math.max(0, buffer[0].at + MAX_BUFFER_WAIT_MS - Date.now()))
+  const oldest = buffer[0]
+  if (!oldest) return
+  const wait = Math.min(SILENCE_WINDOW_MS, Math.max(0, oldest.at + MAX_BUFFER_WAIT_MS - Date.now()))
   silenceTimer = setTimeout(() => {
     void evaluate()
   }, wait)

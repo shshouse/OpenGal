@@ -49,12 +49,17 @@ export default function App() {
   React.useEffect(() => {
     const onMouseUp = (e: MouseEvent) => {
       const idx = VIEW_ORDER.indexOf(view)
-      if (e.button === 3 && idx > 0) {
+      if (idx < 0) return
+      if (e.button === 3) {
+        const prev = VIEW_ORDER[idx - 1]
+        if (!prev) return
         e.preventDefault()
-        setView(VIEW_ORDER[idx - 1])
-      } else if (e.button === 4 && idx < VIEW_ORDER.length - 1) {
+        setView(prev)
+      } else if (e.button === 4) {
+        const next = VIEW_ORDER[idx + 1]
+        if (!next) return
         e.preventDefault()
-        setView(VIEW_ORDER[idx + 1])
+        setView(next)
       }
     }
     window.addEventListener('mouseup', onMouseUp)

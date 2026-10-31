@@ -246,7 +246,8 @@ export function startLLMWorker(): () => void {
         return
       }
 
-      const prevToolCalls = messagesForLLM[messagesForLLM.length - 1].tool_calls ?? []
+      const lastMessage = messagesForLLM[messagesForLLM.length - 1]
+      const prevToolCalls = lastMessage?.tool_calls ?? []
       const roundSigs = prevToolCalls
         .map((tc) => `${tc.function.name}:${tc.function.arguments}`)
         .join('|')

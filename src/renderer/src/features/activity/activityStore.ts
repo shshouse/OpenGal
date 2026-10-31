@@ -23,7 +23,9 @@ const MAX_PER_CHARACTER = 200
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
 
 export function selectActivities(state: { byCharacter: Record<string, ActivityEntry[]> }, characterId: string): ActivityEntry[] {
-  return Object.prototype.hasOwnProperty.call(state.byCharacter, characterId) ? state.byCharacter[characterId] : EMPTY_ACTIVITIES
+  // hasOwnProperty 是安全边界：角色 ID 可能是 "constructor" / "__proto__"，直接索引会沿原型链取到值
+  if (!Object.prototype.hasOwnProperty.call(state.byCharacter, characterId)) return EMPTY_ACTIVITIES
+  return state.byCharacter[characterId] ?? EMPTY_ACTIVITIES
 }
 
 export const useActivityStore = create<ActivityState>()(persist((set) => ({

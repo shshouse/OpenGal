@@ -46,8 +46,8 @@ export function startActivityBridge(): () => void {
     })
   })
   const offTools = useToolCallsStore.subscribe((state, previous) => {
-    if (state.records.length <= previous.records.length) return
     const record = state.records[state.records.length - 1]
+    if (!record || state.records.length <= previous.records.length) return
     add(useChatStore.getState().sessionId, {
       id: id('tool'),
       kind: 'tool',

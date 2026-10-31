@@ -132,7 +132,7 @@ export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Eleme
   }, [levelsKey, source, query, setFollow])
 
   // 新日志到达：跟随状态下钉在顶部，否则只累计未读数
-  const newestId = entries.length > 0 ? entries[entries.length - 1].id : null
+  const newestId = entries[entries.length - 1]?.id ?? null
   const prevNewestId = React.useRef<string | null>(newestId)
   React.useEffect(() => {
     if (newestId === prevNewestId.current) return

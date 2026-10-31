@@ -30,7 +30,7 @@ export function Waveform() {
       ctx.fillStyle = style.color
       const step = Math.floor(buf.length / BAR_COUNT)
       for (let i = 0; i < BAR_COUNT; i++) {
-        const v = buf[i * step] / 255
+        const v = (buf[i * step] ?? 0) / 255
         const h = Math.max(2, v * HEIGHT)
         const x = i * (BAR_WIDTH + BAR_GAP)
         const y = (HEIGHT - h) / 2

@@ -31,7 +31,7 @@ export class CorpusBuffer {
 
   // 快照：返回当前全部条目与最大序号。调用方在异步提取成功后用 maxSeq 精确删除。
   snapshot(): { entries: CorpusEntry[]; maxSeq: number } {
-    const maxSeq = this.items.length > 0 ? this.items[this.items.length - 1].seq : 0
+    const maxSeq = this.items[this.items.length - 1]?.seq ?? 0
     return { entries: this.items.slice(), maxSeq }
   }
 
