@@ -58,7 +58,7 @@ export async function warmupTTS(): Promise<boolean> {
   speechRequests.add(controller)
   try {
     await adapter.generateSpeech({
-      text: WARMUP_TEXT[lang] ?? WARMUP_TEXT.zh,
+      text: WARMUP_TEXT[lang] ?? '你好',
       globalConfig: config,
       card,
       signal: controller.signal,

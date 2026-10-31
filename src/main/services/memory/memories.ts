@@ -154,7 +154,8 @@ export function bootstrapCursor(characterId: string, lookback: number): number {
     'SELECT ts FROM messages WHERE character_id = ? ORDER BY ts DESC LIMIT 1 OFFSET ?',
     [characterId, Math.max(0, lookback)],
   )
-  return found.length > 0 ? Number(found[0].ts) : 0
+  const first = found[0]
+  return first ? Number(first.ts) : 0
 }
 
 // 一批记忆对应的原文消息 id：用于回查“这条记忆是从哪句话来的”

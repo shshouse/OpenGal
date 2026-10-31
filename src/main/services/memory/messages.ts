@@ -105,11 +105,13 @@ export function saveChatMessages(characterId: string, items: Array<{ role: strin
   const ids: number[] = []
   withTx(() => {
     for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (!item) continue
       const info = db!
         .prepare('INSERT INTO messages(character_id, role, content, ts, archived, kind) VALUES(?, ?, ?, ?, 0, ?)')
-        .run(characterId, items[i].role, JSON.stringify(items[i]), base + i, 'chat')
+        .run(characterId, item.role, JSON.stringify(item), base + i, 'chat')
       ids.push(Number(info.lastInsertRowid))
-      indexMessage(Number(info.lastInsertRowid), JSON.stringify(items[i]))
+      indexMessage(Number(info.lastInsertRowid), JSON.stringify(item))
     }
   })
   return ids

@@ -111,7 +111,7 @@ function parseBingResults(html: string): BingResult[] {
   let m: RegExpExecArray | null
   while ((m = h2Re.exec(html)) !== null) {
     const url = m[1]
-    const title = stripTags(m[2])
+    const title = stripTags(m[2] ?? '')
     if (!url || !title || seen.has(url)) continue
     seen.add(url)
     const rest = html.slice(m.index + m[0].length, m.index + m[0].length + 3000)
@@ -119,7 +119,7 @@ function parseBingResults(html: string): BingResult[] {
     results.push({
       url,
       title,
-      snippet: pMatch ? stripTags(pMatch[1]).slice(0, MAX_SNIPPET_CHARS) : '',
+      snippet: pMatch ? stripTags(pMatch[1] ?? '').slice(0, MAX_SNIPPET_CHARS) : '',
     })
   }
   return results.slice(0, 10)

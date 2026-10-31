@@ -141,10 +141,12 @@ export class WindowManager {
 
   dragPetMove(): void {
     if (!this.pet || this.pet.isDestroyed() || !this.petDragCursor || !this.petDragPos) return
+    const [originX, originY] = this.petDragPos
+    if (originX === undefined || originY === undefined) return
     const now = screen.getCursorScreenPoint()
     this.pet.setPosition(
-      this.petDragPos[0] + now.x - this.petDragCursor.x,
-      this.petDragPos[1] + now.y - this.petDragCursor.y
+      originX + now.x - this.petDragCursor.x,
+      originY + now.y - this.petDragCursor.y
     )
   }
 

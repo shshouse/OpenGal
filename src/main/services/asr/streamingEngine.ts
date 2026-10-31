@@ -53,7 +53,8 @@ function resolveStreamingModelPath(configured: string): string {
         .readdirSync(root, { withFileTypes: true })
         .filter((d) => d.isDirectory() && d.name.startsWith(MODEL_PREFIX))
         .map((d) => path.join(root, d.name))
-      if (found.length > 0) return found[0]
+      const first = found[0]
+      if (first) return first
     } catch {
       /* try next root */
     }
@@ -65,19 +66,21 @@ export async function startStreamingASR(): Promise<void> {
   if (running) return
   const config = readConfig().asr
   const modelPath = resolveStreamingModelPath(config.modelPath)
-  const python = resolveSherpaPython()
+  const [pythonCommand, ...pythonArgs] = resolveSherpaPython()
+  if (!pythonCommand) throw new Error('未找到可用的 Python 解释器')
   const script = writeWorkerScript()
   const threads = String(Math.max(2, Math.min(8, Math.floor(os.cpus().length / 2))))
 
-  child = spawn(python[0], [...python.slice(1), '-u', script, modelPath, String(config.sampleRate), String(config.vadSilenceMs), threads], {
+  // 用 spawn 的局部返回值发起监听：模块级 child 可被其他分支置空，收窄会失效
+  const launched = spawn(pythonCommand, [...pythonArgs, '-u', script, modelPath, String(config.sampleRate), String(config.vadSilenceMs), threads], {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   })
-  const launched = child
+  child = launched
   let stderrBuf = ''
   lineBuf = ''
 
-  child.stdout!.on('data', (chunk: Buffer) => {
+  launched.stdout.on('data', (chunk: Buffer) => {
     if (child !== launched) return
     lineBuf += chunk.toString()
     const lines = lineBuf.split('\n')
@@ -112,14 +115,14 @@ export async function startStreamingASR(): Promise<void> {
     }
   })
 
-  child.stderr!.on('data', (chunk: Buffer) => {
+  launched.stderr.on('data', (chunk: Buffer) => {
     if (child !== launched) return
     const text = chunk.toString().trim()
     stderrBuf += text + '\n'
     if (text) logBus.warn('asr', text)
   })
 
-  child.on('exit', (code) => {
+  launched.on('exit', (code) => {
     if (child !== launched) return
     if (startup) {
       startup.reject(new Error(`流式 ASR 启动失败 (code=${code}): ${stderrBuf.slice(-300).trim() || '无错误输出'}`))

@@ -70,9 +70,11 @@ function cosineSimilarity(a: number[], b: number[]): number {
   let magA = 0
   let magB = 0
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    magA += a[i] * a[i]
-    magB += b[i] * b[i]
+    const ai = a[i] ?? 0
+    const bi = b[i] ?? 0
+    dot += ai * bi
+    magA += ai * ai
+    magB += bi * bi
   }
   const denom = Math.sqrt(magA) * Math.sqrt(magB)
   return denom > 0 ? dot / denom : 0

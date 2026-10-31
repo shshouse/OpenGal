@@ -27,8 +27,10 @@ export function resolveSherpaPython(): string[] {
     ['python'], ['py', '-3.12'], ['py', '-3.11'], ['py', '-3.10']
   ]
   for (const cmd of candidates) {
+    const [command, ...rest] = cmd
+    if (!command) continue
     try {
-      execFileSync(cmd[0], [...cmd.slice(1), '-c', 'import sherpa_onnx'], { stdio: 'ignore', windowsHide: true })
+      execFileSync(command, [...rest, '-c', 'import sherpa_onnx'], { stdio: 'ignore', windowsHide: true })
       return cmd
     } catch { /* try next */ }
   }
@@ -118,18 +120,19 @@ export async function startASR(): Promise<void> {
   ]
   const exe = portableWorkerExe()
   const python = exe ? null : resolveSherpaPython()
-  const program = exe ?? python![0]
+  const program = exe ?? python?.[0]
+  if (!program) throw new Error('无法确定 ASR 解释器路径')
   const args = exe
     ? workerArgv
-    : [...python!.slice(1), '-u', writeWorkerScript(), ...workerArgv]
+    : [...(python?.slice(1) ?? []), '-u', writeWorkerScript(), ...workerArgv]
   let stderrBuf = ''
-  child = spawn(program, args, {
+  const launchedChild = spawn(program, args, {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true
   })
-  const launchedChild = child
+  child = launchedChild
   lineBuf = ''
-  child.stdout!.on('data', (chunk: Buffer) => {
+  launchedChild.stdout.on('data', (chunk: Buffer) => {
     if (child !== launchedChild) return
     lineBuf += chunk.toString()
     const lines = lineBuf.split('\n')
@@ -162,13 +165,13 @@ export async function startASR(): Promise<void> {
       } catch { /* skip malformed */ }
     }
   })
-  child.stderr!.on('data', (chunk: Buffer) => {
+  launchedChild.stderr.on('data', (chunk: Buffer) => {
     if (child !== launchedChild) return
     const text = chunk.toString().trim()
     stderrBuf += text + '\n'
     if (text) logBus.warn('asr', text)
   })
-  child.on('exit', (code) => {
+  launchedChild.on('exit', (code) => {
     if (child !== launchedChild) return
     if (startup) {
       startup.reject(new Error(`ASR 子进程启动失败 (code=${code}): ${stderrBuf.slice(-300).trim() || '无错误输出'}`))

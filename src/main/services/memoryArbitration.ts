@@ -122,7 +122,8 @@ export function resolveCurrent<T extends FactLike>(facts: T[]): SlotState<T>[] {
 
   const states: SlotState<T>[] = []
   for (const [slot, rows] of buckets) {
-    const attribute = rows[0].attribute ?? ''
+    const firstRow = rows[0]
+    const attribute = firstRow?.attribute ?? ''
     const cardinality: Cardinality = slot.startsWith('legacy:') ? 'multi' : cardinalityOf(attribute)
     const sorted = [...rows].sort((a, b) => atOf(a) - atOf(b))
     const current: T[] = []

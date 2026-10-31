@@ -71,7 +71,8 @@ export function run(query: string, params: SQLInputValue[] = []): void {
 
 export function getMeta(key: string): string | null {
   const found = rows('SELECT value FROM meta WHERE key = ?', [key])
-  return found.length > 0 ? String(found[0].value) : null
+  const first = found[0]
+  return first ? String(first.value) : null
 }
 
 export function setMeta(key: string, value: string): void {

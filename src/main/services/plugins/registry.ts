@@ -183,6 +183,7 @@ export function rescanPlugins(): PluginInfo[] {
   const ids = new Set(scanPlugins().map((p) => p.id))
   for (const key of [...sessions.keys()]) {
     const pid = key.split('/')[0]
+    if (!pid) continue
     if (!ids.has(pid)) {
       stopPluginSessions(pid)
       logBus.warn('plugins', `插件 ${pid} 目录已不存在，停止其工具服务`)

@@ -26,7 +26,8 @@ export function getModRoot(): string {
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
   }
-  return candidates[0]
+  // 都不存在时返回首选路径，由调用方按「尚未创建」处理
+  return candidates[0] ?? path.join(exeDir, 'mods')
 }
 let cachedDataRoot: string | null = null
 
@@ -146,7 +147,7 @@ export function getGenieTTSRoot(): string {
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
   }
-  return candidates[0]
+  return candidates[0] ?? path.join(getResourceRoot(), 'tts', 'genie')
 }
 
 export function getGeniePythonExe(): string {
