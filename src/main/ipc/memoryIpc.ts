@@ -1,6 +1,6 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
-import type { ChatMessage, MemoryApplyPayload, MemoryFact } from '@shared/types'
+import type { ChatMessage } from '@shared/types'
 import {
   loadFacts,
   loadStories,
@@ -28,7 +28,16 @@ import {
   commitCompression,
   memoryEvidence,
 } from '../services/memoryDb'
+import {
+  characterIdSchema,
+  chatMessageSchema,
+  memoryApplyPayloadSchema,
+  memoryEntitySchema,
+  summarySchema,
+} from '@shared/schemas'
+import { handleValidated, handleValidatedWithEvent } from './validated'
 import { wrap } from './wrap'
+import { z } from 'zod'
 
 export function registerMemoryIpc(): void {
   // 消息 content 列存完整消息对象 JSON；兼容旧 JSON 导入的裸 content 格式
@@ -51,32 +60,36 @@ export function registerMemoryIpc(): void {
       return listUnarchivedMessages(characterId).map(rowToChatMessage)
     })
   )
-  ipcMain.handle(IpcChannels.chatHistory.append, (_, characterId: string, messages: ChatMessage[]) =>
-    wrap<number[]>(async () => {
+  handleValidated(
+    IpcChannels.chatHistory.append,
+    [characterIdSchema, z.array(chatMessageSchema)],
+    async (characterId, messages) => {
       await memoryDbReady()
       return saveChatMessages(characterId, messages)
-    })
+    },
   )
-  ipcMain.handle(
+  handleValidated(
     IpcChannels.chatHistory.replaceAll,
-    (_, characterId: string, messages: ChatMessage[]) =>
-      wrap<boolean>(() => {
-        replaceUnarchivedMessages(
-          characterId,
-          messages.map((m) => ({
-            id: (m as ChatMessage & { dbId?: number }).dbId,
-            character_id: characterId,
-            role: m.role,
-            content: JSON.stringify(m),
-            ts: (m as ChatMessage & { ts?: number }).ts ?? Date.now(),
-            archived: 0,
-          }))
-        )
-        return true
-      })
+    [characterIdSchema, z.array(chatMessageSchema)],
+    (characterId, messages) => {
+      replaceUnarchivedMessages(
+        characterId,
+        messages.map((m) => ({
+          id: m.dbId,
+          character_id: characterId,
+          role: m.role,
+          content: JSON.stringify(m),
+          ts: m.ts ?? Date.now(),
+          archived: 0,
+        })),
+      )
+      return true
+    },
   )
-  ipcMain.handle(IpcChannels.chatHistory.archiveRange, (_, characterId: string, fromId: number, toId: number) =>
-    wrap<number>(() => archiveMessagesRange(characterId, fromId, toId))
+  handleValidated(
+    IpcChannels.chatHistory.archiveRange,
+    [characterIdSchema, z.number().int(), z.number().int()],
+    (characterId, fromId, toId) => archiveMessagesRange(characterId, fromId, toId),
   )
   ipcMain.handle(IpcChannels.chatHistory.latestMessageId, (_, characterId: string) =>
     wrap<number | null>(() => latestMessageId(characterId))
@@ -84,24 +97,19 @@ export function registerMemoryIpc(): void {
   ipcMain.handle(IpcChannels.chatHistory.summaries, (_, characterId: string) =>
     wrap(() => listSummaries(characterId))
   )
-  ipcMain.handle(
+  handleValidated(
     IpcChannels.chatHistory.summaryAdd,
-    (_, characterId: string, s: { start_ts: number; end_ts: number; text: string; message_count: number }) =>
-      wrap<boolean>(() => {
-        addSummary(characterId, s)
-        return true
-      })
+    [characterIdSchema, summarySchema],
+    (characterId, s) => {
+      addSummary(characterId, s)
+      return true
+    },
   )
 
-  ipcMain.handle(
+  handleValidated(
     IpcChannels.chatHistory.commitCompression,
-    (
-      _,
-      characterId: string,
-      fromId: number,
-      toId: number,
-      s: { start_ts: number; end_ts: number; text: string; message_count: number }
-    ) => wrap<{ archived: number }>(() => commitCompression(characterId, fromId, toId, s))
+    [characterIdSchema, z.number().int(), z.number().int(), summarySchema],
+    (characterId, fromId, toId, s) => commitCompression(characterId, fromId, toId, s),
   )
 
   ipcMain.handle(IpcChannels.memory.get, (_, characterId: string) =>
@@ -111,13 +119,19 @@ export function registerMemoryIpc(): void {
       block: await getMemoryBlock(characterId)
     }))
   )
-  ipcMain.handle(IpcChannels.memory.apply, (_, characterId: string, payload: MemoryApplyPayload) =>
-    wrap(() => applyCandidates(characterId, payload))
+  handleValidated(
+    IpcChannels.memory.apply,
+    [characterIdSchema, memoryApplyPayloadSchema],
+    (characterId, payload) => applyCandidates(characterId, payload),
   )
-  ipcMain.handle(IpcChannels.memory.manualAdd, (_, characterId: string, text: string, entity?: MemoryFact['entity']) =>
-    wrap(() => manualAddFact(characterId, text, entity))
+  handleValidated(
+    IpcChannels.memory.manualAdd,
+    [characterIdSchema, z.string().min(1), memoryEntitySchema.optional()],
+    (characterId, text, entity) => manualAddFact(characterId, text, entity),
   )
-  ipcMain.handle(IpcChannels.memory.clear, (_, characterId: string) => wrap(() => clearMemory(characterId)))
+  handleValidated(IpcChannels.memory.clear, [characterIdSchema], (characterId) =>
+    clearMemory(characterId),
+  )
   ipcMain.handle(IpcChannels.memory.prune, (_, characterId: string) =>
     wrap(() => pruneOverflow(characterId))
   )
@@ -130,8 +144,10 @@ export function registerMemoryIpc(): void {
   ipcMain.handle(IpcChannels.memory.advanceCursor, (_, characterId: string, ts: number) =>
     wrap(() => advanceCursor(characterId, ts))
   )
-  ipcMain.handle(IpcChannels.memory.rebuild, (event, characterId: string, confirm: string) =>
-    wrap(async () => {
+  handleValidatedWithEvent(
+    IpcChannels.memory.rebuild,
+    [characterIdSchema, z.string().min(1)],
+    async (event, characterId, confirm) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       const { response } = await dialog.showMessageBox(win!, {
         type: 'warning',
@@ -144,16 +160,16 @@ export function registerMemoryIpc(): void {
       })
       if (response !== 0) throw new Error('已取消重建')
       return rebuildMemory(characterId, confirm)
-    })
+    },
   )
-  ipcMain.handle(IpcChannels.memory.freezeFact, (_, characterId: string, factId: string) =>
-    wrap(() => freezeFact(characterId, factId))
+  handleValidated(IpcChannels.memory.freezeFact, [characterIdSchema, z.string().min(1)], (characterId, factId) =>
+    freezeFact(characterId, factId),
   )
-  ipcMain.handle(IpcChannels.memory.unfreezeFact, (_, characterId: string, factId: string) =>
-    wrap(() => unfreezeFact(characterId, factId))
+  handleValidated(IpcChannels.memory.unfreezeFact, [characterIdSchema, z.string().min(1)], (characterId, factId) =>
+    unfreezeFact(characterId, factId),
   )
-  ipcMain.handle(IpcChannels.memory.deleteFact, (_, characterId: string, factId: string) =>
-    wrap(() => deleteFact(characterId, factId))
+  handleValidated(IpcChannels.memory.deleteFact, [characterIdSchema, z.string().min(1)], (characterId, factId) =>
+    deleteFact(characterId, factId),
   )
   ipcMain.handle(IpcChannels.memory.getRelevant, (_, characterId: string, context: string) =>
     wrap(async () => ({

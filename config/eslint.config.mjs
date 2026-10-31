@@ -34,6 +34,22 @@ export default tseslint.config(
     files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'src/shared/**/*.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
+  {
+    files: ['src/shared/ports/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['node:*', 'fs', 'path', 'os', 'crypto', 'electron', '@main/*'],
+              message: '端口层不得依赖平台 API',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // 类型感知规则：只作用于 tsconfig 覆盖的源码，lint 从 3s 升到约 12s
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
