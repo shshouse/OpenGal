@@ -1,9 +1,15 @@
 import { desktopCapturer, app } from 'electron'
 import path from 'node:path'
 import fg from 'fast-glob'
-import type { ToolDefinition } from '@shared/types'
 import { registerTool } from './registry'
-import { optionalString, requireString } from './args'
+import { defineTool, type DefinedTool } from './defineTool'
+import {
+  localFileSearchSchema,
+  readWebPageSchema,
+  recallMemorySchema,
+  screenshotSchema,
+  webSearchSchema,
+} from './schemas'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
 import { readConfig } from '../configStore'
 import { getMemoryBlock, recallVerbatim } from '../memoryStore'
@@ -17,8 +23,6 @@ async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
 }
 
 export const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
-
-type ToolHandler = (args: Record<string, unknown>) => Promise<string>
 
 const SCREENSHOT_COOLDOWN_MS = 10_000
 let lastShotAt = 0
@@ -48,13 +52,7 @@ function fileSearchRoots(): string[] {
   return [...new Set([...defaults, ...extra].filter((d) => d))]
 }
 
-async function handleLocalFileSearch(args: Record<string, unknown>): Promise<string> {
-  const query = requireString(args, 'query')
-  const rawMax = args.maxResults
-  const maxResults =
-    typeof rawMax === 'number' && Number.isFinite(rawMax)
-      ? Math.min(50, Math.max(1, Math.trunc(rawMax)))
-      : 20
+async function handleLocalFileSearch(query: string, maxResults: number): Promise<string> {
   const hasGlob = /[*?]/.test(query)
   const pattern = hasGlob ? query : `**/*${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}*`
   const results: string[] = []
@@ -163,8 +161,7 @@ async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
   }))
 }
 
-async function handleWebSearch(args: Record<string, unknown>): Promise<string> {
-  const query = requireString(args, 'query')
+async function handleWebSearch(query: string): Promise<string> {
   const cfg = readConfig().tools.webSearch
   let results: BingResult[]
   if (cfg.provider === 'tavily' && cfg.tavilyKey) {
@@ -181,9 +178,8 @@ async function handleWebSearch(args: Record<string, unknown>): Promise<string> {
   )
 }
 
-async function handleReadWebPage(args: Record<string, unknown>): Promise<string> {
-  const url = requireString(args, 'url')
-  if (!/^https:\/\//i.test(url)) throw new Error('仅支持 https:// 链接')
+async function handleReadWebPage(url: string): Promise<string> {
+  // https 约束由 schemas.readWebPageSchema 的 refine 保证
   const res = await withRetry(
     () => fetch(`https://r.jina.ai/${url}`, { signal: AbortSignal.timeout(30_000) }),
     1,
@@ -195,14 +191,11 @@ async function handleReadWebPage(args: Record<string, unknown>): Promise<string>
 
 const RECALL_CHAR_CAP = 1200
 
-async function handleRecallMemory(args: Record<string, unknown>): Promise<string> {
-  const query = requireString(args, 'query')
+async function handleRecallMemory(query: string, from?: string, to?: string): Promise<string> {
   const characterId = readConfig().activeCharacterId
   if (!characterId) throw new Error('当前没有激活角色')
-  const fromRaw = optionalString(args, 'from')
-  const toRaw = optionalString(args, 'to')
-  const fromTs = fromRaw ? Date.parse(fromRaw) : NaN
-  const toTs = toRaw ? Date.parse(toRaw) : NaN
+  const fromTs = from ? Date.parse(from) : NaN
+  const toTs = to ? Date.parse(to) : NaN
   const range = Number.isFinite(fromTs) && Number.isFinite(toTs) ? { fromTs, toTs } : undefined
   const [block, verbatim] = await Promise.all([
     getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP),
@@ -213,95 +206,52 @@ async function handleRecallMemory(args: Record<string, unknown>): Promise<string
 }
 
 export function registerBuiltinTools(): void {
-  const defs: Array<{ def: ToolDefinition; handle: ToolHandler }> = [
-    {
-      def: {
-        type: 'function',
-        function: {
-          name: 'screenshot',
-          description:
-            '拍摄用户屏幕截图并返回图片，让你看到用户当前屏幕内容。限 10 秒一次。适合用户提到"屏幕上/这个画面"时使用。',
-          parameters: { type: 'object', properties: {}, required: [] },
-        },
+  const tools: DefinedTool[] = [
+    defineTool(
+      {
+        name: 'screenshot',
+        description:
+          '拍摄用户屏幕截图并返回图片，让你看到用户当前屏幕内容。限 10 秒一次。适合用户提到"屏幕上/这个画面"时使用。',
+        schema: screenshotSchema,
       },
-      handle: () => handleScreenshot(),
-    },
-    {
-      def: {
-        type: 'function',
-        function: {
-          name: 'local_file_search',
-          description:
-            '按文件名在用户的文档/下载/桌面目录搜索文件（只读，不读取文件内容）。query 支持文件名关键词或 glob 通配符（* ?）。',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', description: '文件名关键词或 glob 模式' },
-              maxResults: { type: 'number', description: '最多返回条数，默认 20' },
-            },
-            required: ['query'],
-          },
-        },
+      async () => handleScreenshot(),
+    ),
+    defineTool(
+      {
+        name: 'local_file_search',
+        description:
+          '按文件名在用户的文档/下载/桌面目录搜索文件（只读，不读取文件内容）。query 支持文件名关键词或 glob 通配符（* ?）。',
+        schema: localFileSearchSchema,
       },
-      handle: (args) => handleLocalFileSearch(args),
-    },
-    {
-      def: {
-        type: 'function',
-        function: {
-          name: 'web_search',
-          description: '联网搜索。返回带标题、链接、摘要的结果列表。用户问时效性问题或你不确定的事实时使用。',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', description: '搜索关键词' },
-            },
-            required: ['query'],
-          },
-        },
+      async (args) => handleLocalFileSearch(args.query, args.maxResults),
+    ),
+    defineTool(
+      {
+        name: 'web_search',
+        description:
+          '联网搜索。返回带标题、链接、摘要的结果列表。用户问时效性问题或你不确定的事实时使用。',
+        schema: webSearchSchema,
       },
-      handle: (args) => handleWebSearch(args),
-    },
-    {
-      def: {
-        type: 'function',
-        function: {
-          name: 'read_web_page',
-          description: '读取一个网页的正文内容（转成纯文本）。配合 web_search 的链接使用，逐次读取。',
-          parameters: {
-            type: 'object',
-            properties: {
-              url: { type: 'string', description: 'https:// 开头的网页链接' },
-            },
-            required: ['url'],
-          },
-        },
+      async (args) => handleWebSearch(args.query),
+    ),
+    defineTool(
+      {
+        name: 'read_web_page',
+        description: '读取一个网页的正文内容（转成纯文本）。配合 web_search 的链接使用，逐次读取。',
+        schema: readWebPageSchema,
       },
-      handle: (args) => handleReadWebPage(args),
-    },
-    {
-      def: {
-        type: 'function',
-        function: {
-          name: 'recall_memory',
-          description:
-            '检索长期记忆（过去的事实、约定、偏好、共同经历）和相关历史原话。用户提到"以前/上次/你还记得"、或问某句话具体怎么说的时使用。返回记忆片段，以及带时间戳和相邻对话的原话；用户限定时间段时用 from/to 传入日期。',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: { type: 'string', description: '要回忆的主题或关键词' },
-              from: { type: 'string', description: '可选，起始日期（YYYY-MM-DD），用于只回溯某段时间' },
-              to: { type: 'string', description: '可选，结束日期（YYYY-MM-DD）' },
-            },
-            required: ['query'],
-          },
-        },
+      async (args) => handleReadWebPage(args.url),
+    ),
+    defineTool(
+      {
+        name: 'recall_memory',
+        description:
+          '检索长期记忆（过去的事实、约定、偏好、共同经历）和相关历史原话。用户提到"以前/上次/你还记得"、或问某句话具体怎么说的时使用。返回记忆片段，以及带时间戳和相邻对话的原话；用户限定时间段时用 from/to 传入日期。',
+        schema: recallMemorySchema,
       },
-      handle: (args) => handleRecallMemory(args),
-    },
+      async (args) => handleRecallMemory(args.query, args.from, args.to),
+    ),
   ]
-  for (const { def, handle } of defs) {
-    registerTool(def, handle)
-  }
-  logBus.info('tools', `内置工具已注册: ${defs.map((d) => d.def.function.name).join(', ')}`)
+  for (const tool of tools) registerTool(tool.def, tool.handle)
+  logBus.info('tools', `内置工具已注册: ${tools.map((t) => t.def.function.name).join(', ')}`)
 }
