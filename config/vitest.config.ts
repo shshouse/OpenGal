@@ -19,16 +19,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],
-      include: [
-        'src/shared/**/*.ts',
-        'src/main/services/memoryStore.ts',
-        'src/main/services/memoryDb.ts',
-        'src/main/services/memory/**/*.ts',
-        'src/main/services/ttsPort.ts',
-        'src/main/services/plugins/manifest.ts',
-        'src/renderer/src/features/pipeline/contextAssembler.ts',
-        'src/renderer/src/features/pipeline/subtitles.ts',
-        'src/renderer/src/features/memory/corpusBuffer.ts',
+      // 全量统计：分母是全部源码行，不是「测试恰好加载过的文件」。
+      // 白名单会让未测试的模块根本不出现在报告里，数字虚高。
+      all: true,
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/renderer/public/**',
+        'src/scripts/**',
+        'src/main/types/**',
+        '**/*.d.ts',
       ],
     },
   },
