@@ -137,28 +137,34 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
   )
 
   const probeHealth = React.useCallback(async () => {
-    const statusResult = await window.opengal.tts.serverStatus()
-    const pidAlive = statusResult.success && statusResult.data?.running === true
-    setServerPort(statusResult.success ? statusResult.data?.port ?? null : null)
-    if (!pidAlive) {
+    try {
+      const statusResult = await window.opengal.tts.serverStatus()
+      const pidAlive = statusResult.success && statusResult.data?.running === true
+      setServerPort(statusResult.success ? statusResult.data?.port ?? null : null)
+      if (!pidAlive) {
+        setHealth('stopped')
+        setHealthDetail(null)
+        return
+      }
+      const pingResult = await window.opengal.tts.ping()
+      const portReachable = pingResult.success && pingResult.data?.ok === true
+      if (portReachable) {
+        setHealth('ready')
+        setHealthDetail(null)
+      } else {
+        setHealth('starting')
+        setHealthDetail(pingResult.data?.message || pingResult.error || '端口暂不可达')
+      }
+    } catch (err) {
+      // 定时器每 3 秒调用一次，异常必须落地而不是变成 unhandledRejection
       setHealth('stopped')
-      setHealthDetail(null)
-      return
-    }
-    const pingResult = await window.opengal.tts.ping()
-    const portReachable = pingResult.success && pingResult.data?.ok === true
-    if (portReachable) {
-      setHealth('ready')
-      setHealthDetail(null)
-    } else {
-      setHealth('starting')
-      setHealthDetail(pingResult.data?.message || pingResult.error || '端口暂不可达')
+      setHealthDetail(`健康检查失败：${(err as Error).message}`)
     }
   }, [])
 
   React.useEffect(() => {
     void probeHealth()
-    const id = setInterval(probeHealth, 3000)
+    const id = setInterval(() => void probeHealth(), 3000)
     return () => clearInterval(id)
   }, [probeHealth])
 

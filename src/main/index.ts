@@ -65,6 +65,9 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     windows.createMainWindow()
   })
+}).catch((err: Error) => {
+  console.error('[fatal] 应用启动失败:', err.stack ?? err.message)
+  app.exit(1)
 })
 
 app.on('window-all-closed', () => {

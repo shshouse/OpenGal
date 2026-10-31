@@ -277,6 +277,7 @@ if (import.meta.env.DEV) {
       try {
         paramTK = core.getParameterValueById?.('ParamTK')
       } catch {
+        // 模型可能没有 ParamTK 参数，保持 undefined
       }
       return {
         paramCount: count,

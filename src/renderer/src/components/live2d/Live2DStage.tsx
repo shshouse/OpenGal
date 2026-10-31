@@ -121,7 +121,7 @@ export function Live2DStage({
     setStatus('loading')
     setErrorMessage(null)
     useLogsStore.getState().appendLocal('info', 'live2d', `开始加载模型: ${model.modelUrl}`)
-    ;(async () => {
+    void (async () => {
       try {
         const cubismOk = !!(window as unknown as Record<string, unknown>).Live2DCubismCore
         useLogsStore.getState().appendLocal('info', 'live2d', `CubismCore 可用: ${cubismOk}`)
@@ -492,7 +492,7 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
       'error',
       'live2d',
       `动作加载失败（该动作已被拉黑，不会再重试）: ${String(args[0])} [${String(args[1])}]`,
-      String(args[2] ?? '')
+      typeof args[2] === 'string' ? args[2] : ''
     )
   })
   if (!mm || !mm.isFinished || !mm.startRandomMotion) return () => {}

@@ -30,7 +30,9 @@ export function applyTtsPortShift(url: string): string {
       u.port = String(shift.to)
       return u.toString().replace(/\/+$/, '')
     }
-  } catch {}
+  } catch {
+    // 非法 URL 原样返回，由调用方的 assertLocalBaseURL 决定怎么报错
+  }
   return url
 }
 

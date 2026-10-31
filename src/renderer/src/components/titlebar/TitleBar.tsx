@@ -9,20 +9,20 @@ export function TitleBar() {
   )
 
   React.useEffect(() => {
-    window.opengal.window.isMaximized().then(setMaximized)
+    void window.opengal.window.isMaximized().then(setMaximized)
   }, [])
 
   function handleMinimize() {
-    window.opengal.window.minimize()
+    void window.opengal.window.minimize()
   }
 
   function handleMaximize() {
-    window.opengal.window.maximize()
+    void window.opengal.window.maximize()
     setMaximized((v) => !v)
   }
 
   function handleClose() {
-    window.opengal.window.close()
+    void window.opengal.window.close()
   }
 
   return (

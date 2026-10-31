@@ -277,7 +277,9 @@ export function registerTTSServerCleanup(): void {
         } else {
           childProcess.kill('SIGTERM')
         }
-      } catch {}
+      } catch {
+        // 进程可能已自行退出，kill 失败无需处理
+      }
     }
   }
   process.on('exit', cleanup)

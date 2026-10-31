@@ -62,7 +62,7 @@ export class WindowManager {
       this.main?.hide()
     })
     this.main.webContents.setWindowOpenHandler((details) => {
-      shell.openExternal(details.url)
+      void shell.openExternal(details.url)
       return { action: 'deny' }
     })
     this.main.on('closed', () => {
