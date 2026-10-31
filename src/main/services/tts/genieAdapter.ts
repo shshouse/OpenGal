@@ -7,6 +7,9 @@ import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
 import { logBus } from '../logBus'
 import type { TTSAdapter, TTSGenerateRequest, TTSGenerateResponse } from './types'
 import { pickString } from './configValue'
+import { fetchReadable, normalizeBaseURL, type TtsEndpoint } from './http'
+
+const GENIE_ENDPOINT: TtsEndpoint = { service: 'Genie-TTS' }
 import { getErrorMessage } from '@shared/errors'
 
 interface ResolvedGenieSettings {
@@ -137,7 +140,7 @@ export class GenieAdapter implements TTSAdapter {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 3_000)
     try {
-      const res = await fetchReadable(`${base}/openapi.json`, { signal: controller.signal }, base)
+      const res = await fetchReadable(`${base}/openapi.json`, { signal: controller.signal }, GENIE_ENDPOINT)
       return { ok: true, message: `Genie API OK (HTTP ${res.status})` }
     } catch (err) {
       return { ok: false, message: getErrorMessage(err) }
@@ -204,7 +207,7 @@ export class GenieAdapter implements TTSAdapter {
             body: JSON.stringify(body),
             signal: req.signal ? AbortSignal.any([controller.signal, req.signal]) : controller.signal,
           },
-          settings.baseURL,
+          GENIE_ENDPOINT,
         )
         if (!res.ok) {
           const errText = await res.text()
@@ -337,7 +340,7 @@ export class GenieAdapter implements TTSAdapter {
     const loadRes = await fetchReadable(
       `${settings.baseURL}/load_character`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loadBody), signal: setupSignal },
-      settings.baseURL,
+      GENIE_ENDPOINT,
     )
     if (!loadRes.ok) {
       throw new Error(`load_character failed (${loadRes.status}): ${await loadRes.text()}`)
@@ -352,7 +355,7 @@ export class GenieAdapter implements TTSAdapter {
     const refRes = await fetchReadable(
       `${settings.baseURL}/set_reference_audio`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(refBody), signal: setupSignal },
-      settings.baseURL,
+      GENIE_ENDPOINT,
     )
     if (!refRes.ok) {
       throw new Error(`set_reference_audio failed (${refRes.status}): ${await refRes.text()}`)
@@ -362,30 +365,5 @@ export class GenieAdapter implements TTSAdapter {
   }
 }
 
-function normalizeBaseURL(url: string): string {
-  return (url || '').replace(/\/+$/, '')
-}
 
-async function fetchReadable(
-  input: string,
-  init: RequestInit,
-  _baseURL: string,
-): Promise<Response> {
-  try {
-    return await fetch(input, init)
-  } catch (err) {
-    const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } }
-    if (e.name === 'AbortError') throw err
-    const code = e.cause?.code
-    if (code === 'ECONNREFUSED') {
-      throw new Error('无法连接 Genie-TTS 服务，请确认服务已启动且端口一致')
-    }
-    if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') {
-      throw new Error('连接 Genie-TTS 服务超时，请检查网络')
-    }
-    if (code === 'ENOTFOUND') {
-      throw new Error('Genie-TTS 地址无法解析，请检查网络')
-    }
-    throw new Error(`请求 Genie-TTS 失败: ${code ?? e.message ?? 'unknown'}`)
-  }
-}
+

@@ -10,6 +10,7 @@ import type {
   TTSGenerateResponse,
 } from './types'
 import { pickString } from './configValue'
+import { fetchReadable, normalizeBaseURL, type TtsEndpoint } from './http'
 import { getErrorMessage } from '@shared/errors'
 
 interface ResolvedTTSSettings {
@@ -32,6 +33,14 @@ export class GptSovitsAdapter implements TTSAdapter {
     this.appliedWeights.clear()
   }
 
+  private endpoint(baseURL: string): TtsEndpoint {
+    return {
+      service: 'GPT-SoVITS',
+      baseURL,
+      startHint: '请到「设置 → TTS → 启动服务」启动后端，或确认 baseURL 端口与服务一致。',
+    }
+  }
+
   async ping(req: { globalConfig: TTSConfig; card?: RoleCardEntry | null }): Promise<{ ok: boolean; message?: string }> {
     const cfg = req.globalConfig
     if (!cfg.enabled) return { ok: false, message: 'TTS 未启用' }
@@ -47,7 +56,7 @@ export class GptSovitsAdapter implements TTSAdapter {
       const res = await fetchReadable(
         `${base}/control?command=ping`,
         { signal: controller.signal },
-        base,
+        this.endpoint(base),
       )
       return { ok: true, message: `GPT-SoVITS API OK (HTTP ${res.status})` }
     } catch (err) {
@@ -101,7 +110,7 @@ export class GptSovitsAdapter implements TTSAdapter {
           body: JSON.stringify(body),
           signal: req.signal ? AbortSignal.any([controller.signal, req.signal]) : controller.signal,
         },
-        settings.baseURL,
+        this.endpoint(settings.baseURL),
       )
       if (!res.ok) {
         const errText = await res.text()
@@ -205,7 +214,7 @@ export class GptSovitsAdapter implements TTSAdapter {
     const current = this.appliedWeights.get(settings.baseURL) ?? {}
     if (current.gpt !== settings.gptModelAbs) {
       const url = `${settings.baseURL}/set_gpt_weights?weights_path=${encodeURIComponent(settings.gptModelAbs)}`
-      const res = await fetchReadable(url, { method: 'GET' }, settings.baseURL)
+      const res = await fetchReadable(url, { method: 'GET' }, this.endpoint(settings.baseURL))
       if (!res.ok) {
         throw new Error(`set_gpt_weights failed (${res.status}): ${await res.text()}`)
       }
@@ -213,7 +222,7 @@ export class GptSovitsAdapter implements TTSAdapter {
     }
     if (current.sovits !== settings.sovitsModelAbs) {
       const url = `${settings.baseURL}/set_sovits_weights?weights_path=${encodeURIComponent(settings.sovitsModelAbs)}`
-      const res = await fetchReadable(url, { method: 'GET' }, settings.baseURL)
+      const res = await fetchReadable(url, { method: 'GET' }, this.endpoint(settings.baseURL))
       if (!res.ok) {
         throw new Error(`set_sovits_weights failed (${res.status}): ${await res.text()}`)
       }
@@ -223,38 +232,3 @@ export class GptSovitsAdapter implements TTSAdapter {
   }
 }
 
-function normalizeBaseURL(url: string): string {
-  return (url || '').replace(/\/+$/, '')
-}
-async function fetchReadable(
-  input: string,
-  init: RequestInit,
-  baseURL: string,
-): Promise<Response> {
-  try {
-    return await fetch(input, init)
-  } catch (err) {
-    const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } }
-    if (e.name === 'AbortError') throw err
-    const code = e.cause?.code
-    const causeMsg = e.cause?.message
-    if (code === 'ECONNREFUSED') {
-      throw new Error(
-        `无法连接 GPT-SoVITS 服务（${baseURL}）：连接被拒绝。请到「设置 → TTS → 启动服务」启动后端，或确认 baseURL 端口与服务一致。`,
-      )
-    }
-    if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') {
-      throw new Error(
-        `连接 GPT-SoVITS 服务超时（${baseURL}）：服务可能未就绪或网络不通。`,
-      )
-    }
-    if (code === 'ENOTFOUND') {
-      throw new Error(
-        `无法解析 GPT-SoVITS 主机（${baseURL}）：DNS 查询失败，请检查 baseURL。`,
-      )
-    }
-    throw new Error(
-      `请求 GPT-SoVITS 失败（${baseURL}）：${code ?? e.message ?? 'unknown'}${causeMsg ? ' - ' + causeMsg : ''}`,
-    )
-  }
-}

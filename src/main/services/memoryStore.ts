@@ -18,6 +18,7 @@ import {
   setFactEmbeddingRow,
   deleteFactRow,
   searchMessages,
+  visibleMessageText,
   getMemoryCursor,
   setMemoryCursor,
   listMessagesAfter,
@@ -538,28 +539,6 @@ export function buildMemoryBlock(
   )
 }
 
-function messageText(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (typeof parsed === 'string') return parsed
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ''
-    const content = (parsed as { content?: unknown }).content
-    if (typeof content === 'string') return content
-    if (Array.isArray(content)) {
-      return content
-        .map((part) => {
-          if (part && typeof part === 'object' && 'text' in part) return String(part.text)
-          if (part && typeof part === 'object' && 'image_url' in part) return '[图片]'
-          return ''
-        })
-        .filter(Boolean)
-        .join(' ')
-    }
-    return ''
-  } catch {
-    return raw
-  }
-}
 
 const BOOTSTRAP_LOOKBACK = 200
 
@@ -583,7 +562,7 @@ export async function pendingFromArchive(
   }
   const entries: PendingEntry[] = []
   for (const row of listMessagesAfter(characterId, cursor, limit)) {
-    const text = messageText(row.content).trim()
+    const text = visibleMessageText(row.content).trim()
     if (!text) continue
     const role: PendingEntry['role'] = row.role === 'user' ? 'user' : 'assistant'
     entries.push({ role, text: text.slice(0, role === 'user' ? 500 : 300), at: row.ts })
@@ -636,7 +615,7 @@ async function recallFromMemoryVectors(
   let used = 0
   for (const hit of hits) {
     for (const row of memoryEvidence(characterId, hit.fact.id, 2)) {
-      const text = messageText(row.content).trim()
+      const text = visibleMessageText(row.content).trim()
       if (!text) continue
       const line = `[${formatMessageTime(row.ts)}] ${row.role}: ${text}`
       if (used + line.length > charCap) break
@@ -663,7 +642,7 @@ export async function recallVerbatim(
   const lines: string[] = []
   let used = 0
   for (const row of rows) {
-    const text = messageText(row.content).trim()
+    const text = visibleMessageText(row.content).trim()
     if (!text) continue
     const line = `[${formatMessageTime(row.ts)}] ${row.role}: ${text}`
     if (used + line.length > charCap) break

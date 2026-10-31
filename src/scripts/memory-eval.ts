@@ -6,6 +6,7 @@ import {
   memoryDbReady,
   closeMemoryDb,
   searchMessages,
+  visibleMessageText,
   type MessageRow,
 } from '../main/services/memoryDb.ts'
 
@@ -35,22 +36,11 @@ function parseArgs(argv: string[]): { data: string; questions: string } {
   return { data, questions }
 }
 
-function messageText(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (typeof parsed === 'string') return parsed
-    if (!parsed || typeof parsed !== 'object') return raw
-    const content = (parsed as { content?: unknown }).content
-    return typeof content === 'string' ? content : raw
-  } catch {
-    return raw
-  }
-}
 
 function render(rows: MessageRow[]): string | null {
   if (rows.length === 0) return null
   return rows
-    .map((row) => `[${new Date(row.ts).toISOString().slice(0, 10)}] ${row.role}: ${messageText(row.content)}`)
+    .map((row) => `[${new Date(row.ts).toISOString().slice(0, 10)}] ${row.role}: ${visibleMessageText(row.content)}`)
     .join('\n')
 }
 
