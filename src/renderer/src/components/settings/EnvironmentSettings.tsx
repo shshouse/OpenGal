@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { AppConfig } from '@shared/types'
+import { getErrorMessage } from '@shared/errors'
 
 interface EnvironmentSettingsProps {
   config: AppConfig | null
@@ -50,7 +51,7 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
       })
       setStatus('已保存')
     } catch (err) {
-      setStatus(`保存失败: ${(err as Error).message}`)
+      setStatus(`保存失败: ${getErrorMessage(err)}`)
     } finally {
       setSaving(false)
     }

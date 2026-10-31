@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { MemoryDbLogger } from './types'
+import { getErrorMessage } from '@shared/errors'
 
 export let logger: MemoryDbLogger = {
   info: () => {},
@@ -38,7 +39,7 @@ export function checkpoint(): void {
   try {
     db?.exec('PRAGMA wal_checkpoint(TRUNCATE)')
   } catch (err) {
-    logger.warn('memory', `checkpoint 失败: ${(err as Error).message}`)
+    logger.warn('memory', `checkpoint 失败: ${getErrorMessage(err)}`)
   }
 }
 

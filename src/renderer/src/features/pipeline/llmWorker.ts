@@ -14,6 +14,7 @@ import { getActiveRoleCard } from './activeCard'
 import { calibratePromptTokens, computeContextUsage, estimateTokens, messageText, promptRawTokens, type ContextUsage } from './llmContext'
 import { compressHistory, getCachedSummariesText } from './llmCompression'
 import { fetchEnvBlock } from './llmEnv'
+import { getErrorMessage } from '@shared/errors'
 
 let counter = 0
 let currentStreamId: string | null = null
@@ -37,7 +38,7 @@ async function fetchRelevantMemory(characterId: string, context: string): Promis
       useLogsStore.getState().appendLocal('warn', 'memory', `向量记忆检索失败: ${res.error ?? 'unknown'}`)
     }
   } catch (err) {
-    useLogsStore.getState().appendLocal('warn', 'memory', `向量记忆检索异常: ${(err as Error).message}`)
+    useLogsStore.getState().appendLocal('warn', 'memory', `向量记忆检索异常: ${getErrorMessage(err)}`)
   }
   return getMemorySnapshot(characterId) ?? null
 }

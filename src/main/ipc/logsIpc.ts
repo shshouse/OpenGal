@@ -7,6 +7,7 @@ import type { LogEntry } from '@shared/log'
 import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
 import { getDataRoot } from '../services/paths'
 import { wrap } from './wrap'
+import { getErrorMessage } from '@shared/errors'
 
 export function registerLogsIpc(): void {
   ipcMain.on(IpcChannels.director.log, (_, entry: Record<string, unknown>) => {
@@ -16,7 +17,7 @@ export function registerLogsIpc(): void {
     fs.promises
       .mkdir(dir, { recursive: true })
       .then(() => fs.promises.appendFile(file, `${JSON.stringify(entry)}\n`, 'utf-8'))
-      .catch((err) => logBus.warn('director', `决策日志写入失败: ${(err as Error).message}`))
+      .catch((err) => logBus.warn('director', `决策日志写入失败: ${getErrorMessage(err)}`))
   })
 
   ipcMain.handle(IpcChannels.logs.list, (event) => {

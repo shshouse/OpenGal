@@ -2,6 +2,7 @@ import { checkpoint, db, dbFile, logger, openMemoryDb, prepareMemoryDb, readyPro
 import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './memory/backup'
 import { SCHEMA, migrateFactsSchema, migrateMessagesSchema } from './memory/schema'
 import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './memory/legacy'
+import { getErrorMessage } from '@shared/errors'
 
 export type {
   MessageRow,
@@ -41,7 +42,7 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
     await syncChatHistoryFromJson(dataRoot)
     logger.info('memory', `记忆库已就绪(WAL): ${dbFile}`)
   })().catch((err) => {
-    logger.error('memory', `记忆库初始化失败: ${(err as Error).message}`)
+    logger.error('memory', `记忆库初始化失败: ${getErrorMessage(err)}`)
     throw err
   })
   setReadyPromise(promise)

@@ -5,6 +5,7 @@ import { getEnvSnapshot } from '../services/envContext'
 import { runBootSequence, recheckTts } from '../services/bootService'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
+import { getErrorMessage } from '@shared/errors'
 
 export function registerSystemIpc(windows: WindowManager): void {
   ipcMain.handle(IpcChannels.pet.open, () => wrap(() => windows.openPetWindow()))
@@ -64,7 +65,7 @@ export function registerSystemIpc(windows: WindowManager): void {
       if (!primary) return { success: false, error: 'no screen source' }
       return { success: true, data: primary.thumbnail.toPNG().toString('base64') }
     } catch (err) {
-      return { success: false, error: (err as Error).message }
+      return { success: false, error: getErrorMessage(err) }
     }
   })
 

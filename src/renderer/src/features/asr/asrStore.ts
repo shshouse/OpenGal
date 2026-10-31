@@ -3,6 +3,7 @@ import { startMicCapture, stopMicCapture } from './micCapture'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import type { ASRConfig } from '@shared/types'
 import { needsASRRestart } from '@shared/asrSettings'
+import { getErrorMessage } from '@shared/errors'
 
 interface ASRState {
   running: boolean
@@ -65,7 +66,7 @@ export const useASRStore = create<ASRState>((set, get) => ({
     await serialize(async () => {
       set({ applying: true, error: null })
       try { await startCapture() } catch (error) {
-        if (wanted) { wanted = false; set({ error: (error as Error).message }) }
+        if (wanted) { wanted = false; set({ error: getErrorMessage(error) }) }
       }
       finally { set({ applying: false }) }
     })
@@ -75,7 +76,7 @@ export const useASRStore = create<ASRState>((set, get) => ({
     stopMicCapture()
     set({ running: false, partial: '' })
     await serialize(async () => {
-      try { await stopCapture() } catch (error) { set({ error: (error as Error).message }) }
+      try { await stopCapture() } catch (error) { set({ error: getErrorMessage(error) }) }
     })
   },
   applySettings: async (settings) => {
@@ -88,7 +89,7 @@ export const useASRStore = create<ASRState>((set, get) => ({
       if (!wanted) return
       set({ applying: true, error: null })
       try { await stopCapture(); await startCapture() }
-      catch (error) { set({ error: (error as Error).message }); throw error }
+      catch (error) { set({ error: getErrorMessage(error) }); throw error }
       finally { set({ applying: false }) }
     })
   },

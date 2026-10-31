@@ -4,6 +4,7 @@ import type { BrowserWindow } from 'electron'
 import { readConfig } from './configStore'
 import { chooseAdapter } from './llm/factory'
 import { logBus } from './logBus'
+import { getErrorMessage, getErrorStack, isAbortError } from '@shared/errors'
 
 // 只发送协议字段：dbId/ts/contextTag 是本地辅助信息，不能进入 API 请求体
 function toApiMessages(messages: ChatMessage[]): ChatMessage[] {
@@ -90,7 +91,7 @@ export async function callLLM(request: LLMRequest): Promise<LLMResponse> {
     return await callLLMOnce(request)
   } catch (err) {
     if (subLaneDistinct(request)) {
-      logBus.warn('llm', `副手模型调用失败，降级主模型重试: ${(err as Error).message}`)
+      logBus.warn('llm', `副手模型调用失败，降级主模型重试: ${getErrorMessage(err)}`)
       return callLLMOnce({ ...request, slot: 'main' })
     }
     throw err
@@ -118,7 +119,7 @@ async function callLLMOnce(request: LLMRequest): Promise<LLMResponse> {
     logBus.info('llm', `请求完成 (non-stream) 回复=${res.content.length}字`, res.content.slice(0, 300))
     return res
   } catch (err) {
-    logBus.error('llm', `请求失败 (non-stream): ${(err as Error).message}`, (err as Error).stack)
+    logBus.error('llm', `请求失败 (non-stream): ${getErrorMessage(err)}`, getErrorStack(err))
     throw err
   } finally {
     clearTimeout(timer)
@@ -205,15 +206,15 @@ export async function callLLMStream(
       contentBuf.join('').slice(0, 300),
     )
   } catch (err) {
-    if ((err as Error).name === 'AbortError') {
+    if (isAbortError(err)) {
       sender.send('llm:stream:done', streamId)
       logBus.warn('llm', `请求中断 (stream id=${streamId})`)
     } else {
-      sender.send('llm:stream:error', streamId, (err as Error).message)
+      sender.send('llm:stream:error', streamId, getErrorMessage(err))
       logBus.error(
         'llm',
-        `请求失败 (stream id=${streamId}): ${(err as Error).message}`,
-        (err as Error).stack,
+        `请求失败 (stream id=${streamId}): ${getErrorMessage(err)}`,
+        getErrorStack(err),
       )
     }
   } finally {

@@ -43,6 +43,7 @@ import {
   slotOf,
   wantsHistory,
 } from './memoryArbitration.ts'
+import { getErrorMessage } from '@shared/errors'
 
 let config: MemoryConfig = {
   injectCharCap: 900,
@@ -708,7 +709,7 @@ export async function buildMemoryBlockVector(
     }
     vectorHits = await searchSimilarAsync(actives, context, 10, 0.2)
   } catch (err) {
-    console.warn(`[memory] 向量检索失败，降级到关键词: ${(err as Error).message}`)
+    console.warn(`[memory] 向量检索失败，降级到关键词: ${getErrorMessage(err)}`)
   }
   const hitMap = new Map(vectorHits.map((h) => [h.fact.id, h.similarity]))
 

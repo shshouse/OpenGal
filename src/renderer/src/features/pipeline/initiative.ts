@@ -10,6 +10,7 @@ import { speechLanguageLabel } from '@shared/subtitles'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
 import { isCharacterRunning } from '@shared/characterRuntime'
+import { getErrorMessage } from '@shared/errors'
 
 const TICK_MS = 60_000
 /** 主动开口后多久内不再尝试 */
@@ -71,7 +72,7 @@ export function startInitiative(): () => void {
       useChatStore.getState().setSending(true)
       pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })
     } catch (err) {
-      log('warn', `主动时刻判定失败: ${(err as Error).message}`)
+      log('warn', `主动时刻判定失败: ${getErrorMessage(err)}`)
     } finally {
       running = false
     }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
+import { getErrorMessage } from '@shared/errors'
 
 const DEFAULTS = {
   scale: 1,
@@ -81,7 +82,7 @@ export function CharacterDisplaySettings({
     } catch (err) {
       useLogsStore
         .getState()
-        .appendLocal('warn', 'settings', `显示设置保存失败：${(err as Error).message}`)
+        .appendLocal('warn', 'settings', `显示设置保存失败：${getErrorMessage(err)}`)
     }
   }
 

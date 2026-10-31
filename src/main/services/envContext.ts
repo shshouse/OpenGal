@@ -1,6 +1,7 @@
 import { powerMonitor, screen } from 'electron'
 import { readConfig } from './configStore'
 import type { EnvSnapshot } from '@shared/types'
+import { getErrorMessage } from '@shared/errors'
 
 const POLL_MS = 30_000
 const AWAY_THRESHOLD_SEC = 600
@@ -53,7 +54,7 @@ function sampleForeground(): void {
     }
   } catch (err) {
     nativeBroken = true
-    console.warn(`[env] get-windows 不可用，前台检测停用: ${(err as Error).message}`)
+    console.warn(`[env] get-windows 不可用，前台检测停用: ${getErrorMessage(err)}`)
   }
 }
 

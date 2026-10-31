@@ -1,6 +1,7 @@
 import type { LLMDialogMessage, TTSOutputMessage } from '@shared/messages'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from './pipelineBus'
+import { getErrorMessage } from '@shared/errors'
 
 let bound = false
 let unsubscribers: Array<() => void> = []
@@ -159,7 +160,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
       reportTTSError(result.error)
     }
   } catch (err) {
-    reportTTSError((err as Error).message)
+    reportTTSError(getErrorMessage(err))
   }
 
   return {

@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { AppConfig, LLMProvider, LLMPreset } from '@shared/types'
+import { getErrorMessage } from '@shared/errors'
 
 interface SettingsDialogProps {
   config: AppConfig | null
@@ -193,7 +194,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
         setModelFetchError(res.error || '拉取失败')
       }
     } catch (e) {
-      setModelFetchError((e as Error).message)
+      setModelFetchError(getErrorMessage(e))
     } finally {
       setLoadingModels(false)
     }
@@ -262,7 +263,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
       setEditingId(null)
       setStatus('已保存')
     } catch (error) {
-      setStatus(`保存失败: ${(error as Error).message}`)
+      setStatus(`保存失败: ${getErrorMessage(error)}`)
     } finally {
       setSaving(false)
     }

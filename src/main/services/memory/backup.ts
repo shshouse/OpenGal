@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { backupRootDir, db, dbFile, logger, rows } from './core'
+import { getErrorMessage } from '@shared/errors'
 
 // 旧版备份留在 data/backups：首次启动时复制到新备份目录，原文件保留不动
 export function migrateLegacyBackups(dataRoot: string): void {
@@ -15,7 +16,7 @@ export function migrateLegacyBackups(dataRoot: string): void {
     }
     logger.info('memory', `旧备份已复制到 ${backupRootDir}（原文件保留）`)
   } catch (err) {
-    logger.warn('memory', `旧备份迁移失败（不影响主库）: ${(err as Error).message}`)
+    logger.warn('memory', `旧备份迁移失败（不影响主库）: ${getErrorMessage(err)}`)
   }
 }
 
@@ -56,7 +57,7 @@ export function sqliteSnapshot(target: string, requiredTable?: string): boolean 
     }
     return true
   } catch (err) {
-    logger.error('memory', `备份生成失败: ${(err as Error).message}`)
+    logger.error('memory', `备份生成失败: ${getErrorMessage(err)}`)
     fs.rmSync(target, { force: true })
     return false
   }
@@ -75,7 +76,7 @@ export function preUpgradeBackup(): boolean {
     logger.info('memory', `已创建升级前备份: ${target}`)
     return true
   } catch (err) {
-    logger.error('memory', `升级前备份失败: ${(err as Error).message}`)
+    logger.error('memory', `升级前备份失败: ${getErrorMessage(err)}`)
     return false
   }
 }
@@ -95,6 +96,6 @@ export function snapshotBackup(): void {
       .sort()
     while (all.length > 7) fs.rmSync(path.join(backupRootDir, all.shift() as string), { force: true })
   } catch (err) {
-    logger.error('memory', `备份失败: ${(err as Error).message}`)
+    logger.error('memory', `备份失败: ${getErrorMessage(err)}`)
   }
 }

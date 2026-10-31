@@ -6,6 +6,7 @@ import { registerLive2DModel, playMotionGroup, resetPose, setEyesClosed } from '
 import { getHeadCrop } from '@shared/characterRuntime'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
+import { getErrorMessage } from '@shared/errors'
 
 ;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
 
@@ -165,7 +166,7 @@ export function Live2DStage({
       } catch (err) {
         console.error('Live2D load failed', err)
         if (!cancelled) {
-          const msg = (err as Error).message || 'Live2D 加载失败'
+          const msg = getErrorMessage(err) || 'Live2D 加载失败'
           useLogsStore.getState().appendLocal('error', 'live2d', `模型加载失败: ${msg}`)
           setErrorMessage(msg)
           setStatus('error')
@@ -509,7 +510,7 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
     idleWarnAt = now
     useLogsStore
       .getState()
-      .appendLocal('warn', 'live2d', `idle 动作重启失败：${(err as Error).message}`)
+      .appendLocal('warn', 'live2d', `idle 动作重启失败：${getErrorMessage(err)}`)
   }
   mm.on?.('motionFinish', () => {
     try {

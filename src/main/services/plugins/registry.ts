@@ -5,6 +5,7 @@ import { McpSession } from './mcpHost'
 import { validateManifest } from './manifest'
 import { registerTool, unregisterTool } from '../tools'
 import { logBus } from '../logBus'
+import { getErrorMessage } from '@shared/errors'
 
 let dataRoot = ''
 let enabledMap: Record<string, boolean> = {}
@@ -165,7 +166,7 @@ export async function setPluginEnabled(pluginId: string, enabled: boolean): Prom
     } catch (err) {
       for (const s of started) s.stop()
       for (const cfg of servers) sessions.delete(`${pluginId}/${cfg.id}`)
-      runtimeErrors.set(pluginId, (err as Error).message)
+      runtimeErrors.set(pluginId, getErrorMessage(err))
       saveState()
       throw err
     }

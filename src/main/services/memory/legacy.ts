@@ -3,6 +3,7 @@ import path from 'node:path'
 import { getMeta, logger, setMeta, withTx } from './core'
 import { insertMemoryRowRaw, isoToMs } from './memoryRows'
 import { appendMissingMessages } from './messages'
+import { getErrorMessage } from '@shared/errors'
 
 // ---- 旧 JSON 记忆一次性迁移（JSON 原地保留，只读） ----
 
@@ -113,7 +114,7 @@ export function syncLegacyMemoryFromJson(dataRoot: string): void {
       }
     }
   } catch (err) {
-    logger.warn('memory', `旧记忆迁移失败（原文件未动，下次启动重试）: ${(err as Error).message}`)
+    logger.warn('memory', `旧记忆迁移失败（原文件未动，下次启动重试）: ${getErrorMessage(err)}`)
   }
 }
 
@@ -151,6 +152,6 @@ export async function syncChatHistoryFromJson(dataRoot: string): Promise<void> {
       logger.info('memory', `已同步会话历史到记忆库: ${characterId}（${items.length} 条）`)
     }
   } catch (err) {
-    logger.warn('memory', `会话历史同步失败（原文件未动）: ${(err as Error).message}`)
+    logger.warn('memory', `会话历史同步失败（原文件未动）: ${getErrorMessage(err)}`)
   }
 }

@@ -4,6 +4,7 @@ import { memoryDbReady } from './memoryDb'
 import { startTTSServer } from './ttsServer'
 import { checkTTSCompat, warmupTTS } from './ttsClient'
 import { logBus } from './logBus'
+import { getErrorMessage } from '@shared/errors'
 
 // 启动自检：记忆库就绪检查 + TTS 服务拉起与预热，逐步通过 IPC 推给渲染进程
 type MainStepId = 'memory' | 'tts'
@@ -38,7 +39,7 @@ async function runStep(step: BootStep & { id: MainStepId }, send: (step: BootSte
     step.detail = done.detail
     send(done)
   } catch (err) {
-    logBus.error('boot', `${step.label} 启动失败: ${(err as Error).message}`)
+    logBus.error('boot', `${step.label} 启动失败: ${getErrorMessage(err)}`)
     step.status = 'failed'
     step.detail = '启动失败，请查看日志'
     send({ ...step })

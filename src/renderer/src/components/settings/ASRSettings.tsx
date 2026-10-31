@@ -14,6 +14,7 @@ import {
 import { listAudioInputs } from '@/features/asr/micCapture'
 import { detectSherpaKind, normalizeAsrEngine, normalizeAsrMode } from '@shared/asrKinds'
 import type { AppConfig, ASRConfig } from '@shared/types'
+import { getErrorMessage } from '@shared/errors'
 
 const LANG_OPTIONS: Array<{ value: ASRConfig['language']; label: string }> = [
   { value: 'auto', label: '自动检测' },
@@ -125,7 +126,7 @@ export function ASRSettings({ config, onSave }: ASRSettingsProps) {
           await save.current({ asr: next })
           if (mounted.current && !pending.current) setStatus('已应用；运行中的识别已同步，无需手动重开')
         } catch (error) {
-          if (mounted.current) setStatus(`应用失败：${(error as Error).message}`)
+          if (mounted.current) setStatus(`应用失败：${getErrorMessage(error)}`)
         }
       }
     } finally {

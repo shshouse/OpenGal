@@ -5,6 +5,7 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { setMemorySnapshot } from './snapshot'
 import { CorpusBuffer, type CorpusEntry } from './corpusBuffer'
+import { getErrorMessage } from '@shared/errors'
 
 async function refreshSnapshot(characterId: string): Promise<void> {
   try {
@@ -149,7 +150,7 @@ async function runExtract(force = false): Promise<void> {
       try {
         candidates = parseCandidates(res.data.content)
       } catch (err) {
-        log('warn', `提取输出无法解析（${characterId}），语料保留：${(err as Error).message}`)
+        log('warn', `提取输出无法解析（${characterId}），语料保留：${getErrorMessage(err)}`)
         continue
       }
       candidates.evidence = {
@@ -210,7 +211,7 @@ async function seedLoop(characterId: string): Promise<void> {
       cursor = res.data.cursor
       entries = res.data.entries.filter((e) => e.at > cursor)
     } catch (err) {
-      log('warn', `补记失败：${(err as Error).message}`)
+      log('warn', `补记失败：${getErrorMessage(err)}`)
       return
     }
     if (entries.length === 0) return

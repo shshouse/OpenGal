@@ -5,6 +5,7 @@ import { sqliteSnapshot } from './backup'
 import { indexMessage } from './search'
 import { factRowToMemory, insertMemoryRowRaw, storyRowToMemory } from './memoryRows'
 import type { FactRow, StoryRow } from './types'
+import { getErrorMessage } from '@shared/errors'
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -112,7 +113,7 @@ export function migrateMessagesSchema(): void {
       logger.info('memory', `已补建全文索引: ${pending.length} 条消息`)
     }
   } catch (err) {
-    logger.error('memory', `messages schema 迁移失败: ${(err as Error).message}`)
+    logger.error('memory', `messages schema 迁移失败: ${getErrorMessage(err)}`)
     throw err
   }
 }
@@ -142,7 +143,7 @@ function migrateLegacyMemoryTables(): void {
     })
     if (migrated > 0) logger.info('memory', `旧 facts/stories 已迁移到 memories: ${migrated} 条`)
   } catch (err) {
-    logger.warn('memory', `旧记忆表迁移失败（原表保留，不影响启动）: ${(err as Error).message}`)
+    logger.warn('memory', `旧记忆表迁移失败（原表保留，不影响启动）: ${getErrorMessage(err)}`)
   }
 }
 
@@ -199,7 +200,7 @@ export function migrateFactsSchema(): void {
       setMeta('facts_schema_migrated', new Date().toISOString())
     })
   } catch (err) {
-    logger.error('memory', `facts schema 迁移失败: ${(err as Error).message}`)
+    logger.error('memory', `facts schema 迁移失败: ${getErrorMessage(err)}`)
     throw err
   }
 }

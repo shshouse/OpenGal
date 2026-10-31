@@ -7,6 +7,7 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
+import { getErrorMessage } from '@shared/errors'
 
 export type BootPhase = 'booting' | 'waking' | 'awake'
 
@@ -66,7 +67,7 @@ export async function maybeGreet(): Promise<void> {
     useChatStore.getState().setSending(true)
     pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })
   } catch (err) {
-    useLogsStore.getState().appendLocal('warn', 'startup', `唤醒问候发送失败: ${(err as Error).message}`)
+    useLogsStore.getState().appendLocal('warn', 'startup', `唤醒问候发送失败: ${getErrorMessage(err)}`)
   } finally {
     greetingPending = false
   }

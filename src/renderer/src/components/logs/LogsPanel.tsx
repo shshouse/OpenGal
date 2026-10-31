@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { LOG_LEVELS, formatLogTimestamp, type LogEntry, type LogLevel } from '@shared/log'
+import { getErrorMessage } from '@shared/errors'
 
 const LEVEL_META: Record<LogLevel, { label: string; short: string; text: string; dot: string }> = {
   error: { label: '错误', short: 'ERR', text: 'text-red-400', dot: 'bg-red-400' },
@@ -205,7 +206,7 @@ export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Eleme
       if (!res.success) flashFor(res.error ?? '导出失败')
       else if (res.data) flashFor('已导出日志文件')
     } catch (error) {
-      flashFor(`导出失败：${(error as Error).message}`)
+      flashFor(`导出失败：${getErrorMessage(error)}`)
     }
   }
 
@@ -214,7 +215,7 @@ export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Eleme
       const res = await window.opengal.logs.reveal()
       if (!res.success) flashFor(res.error ?? '打开日志目录失败')
     } catch (error) {
-      flashFor(`打开日志目录失败：${(error as Error).message}`)
+      flashFor(`打开日志目录失败：${getErrorMessage(error)}`)
     }
   }
 
@@ -226,7 +227,7 @@ export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Eleme
       setExpanded(new Set())
       flashFor('已清空当前日志（磁盘文件保留）')
     } catch (error) {
-      flashFor(`清空失败：${(error as Error).message}`)
+      flashFor(`清空失败：${getErrorMessage(error)}`)
     }
   }
 

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import type { AppConfig, TTSConfig } from '@shared/types'
 import { useCharacterStore } from '@/features/character/characterStore'
+import { getErrorMessage } from '@shared/errors'
 
 const REF_LANG_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'zh', label: '中英混合' },
@@ -158,7 +159,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
     } catch (err) {
       // 定时器每 3 秒调用一次，异常必须落地而不是变成 unhandledRejection
       setHealth('stopped')
-      setHealthDetail(`健康检查失败：${(err as Error).message}`)
+      setHealthDetail(`健康检查失败：${getErrorMessage(err)}`)
     }
   }, [])
 
@@ -190,7 +191,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
       setStatus(`服务已就绪 (pid=${r.data?.pid})`)
       void probeHealth()
     } catch (err) {
-      setStatus(`启动失败: ${(err as Error).message}`)
+      setStatus(`启动失败: ${getErrorMessage(err)}`)
       void probeHealth()
     } finally {
       setServerBusy(false)
@@ -227,7 +228,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
       void window.opengal.boot.recheckTts()
       setStatus('已保存')
     } catch (error) {
-      setStatus(`保存失败: ${(error as Error).message}`)
+      setStatus(`保存失败: ${getErrorMessage(error)}`)
     } finally {
       setSaving(false)
     }
@@ -260,7 +261,7 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
       await audio.play()
       setStatus('测试成功')
     } catch (error) {
-      setStatus(`测试失败: ${(error as Error).message}`)
+      setStatus(`测试失败: ${getErrorMessage(error)}`)
     }
   }
 

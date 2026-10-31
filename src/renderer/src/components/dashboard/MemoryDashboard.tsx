@@ -3,6 +3,7 @@ import { Brain, CalendarClock, Milestone, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { MemoryFact, MemoryStory } from '@shared/types'
 import { summarizeMemories } from './memorySummary'
+import { getErrorMessage } from '@shared/errors'
 
 const ENTITY_LABELS = { user: '关于你', character: '关于角色', relationship: '关于关系' } as const
 
@@ -21,7 +22,7 @@ export function MemoryDashboard({ characterId }: { characterId: string }): React
       setFacts(res.data.facts)
       setStories(res.data.stories)
     } catch (err) {
-      setError((err as Error).message)
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }

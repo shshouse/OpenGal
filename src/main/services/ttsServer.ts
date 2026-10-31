@@ -7,6 +7,7 @@ import { readConfig } from './configStore'
 import { getRoleCard, readRoleVoiceConfig } from './roleCardLoader'
 import { logBus } from './logBus'
 import { clearTtsPortShift, getTtsPortShift, parseTtsPort, setTtsPortShift } from './ttsPort'
+import { getErrorMessage } from '@shared/errors'
 
 const GPTSOVITS_DIR = path.join('TTS', 'GPT-SoVITS-v2pro-20250604')
 
@@ -262,7 +263,7 @@ export async function stopTTSServer(): Promise<TTSServerStatus> {
       proc.kill('SIGTERM')
     }
   } catch (err) {
-    appendLog(`Stop error: ${(err as Error).message}`)
+    appendLog(`Stop error: ${getErrorMessage(err)}`)
   }
   childProcess = null
   return { running: false }

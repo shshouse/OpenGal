@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '@shared/types'
 import { logBus } from '../logBus'
+import { getErrorMessage } from '@shared/errors'
 
 export type ToolHandler = (args: Record<string, unknown>) => Promise<string>
 
@@ -32,14 +33,14 @@ export async function executeTool(
   try {
     args = JSON.parse(argsJson) as Record<string, unknown>
   } catch (err) {
-    return { ok: false, error: `Invalid tool args JSON: ${(err as Error).message}` }
+    return { ok: false, error: `Invalid tool args JSON: ${getErrorMessage(err)}` }
   }
   try {
     const result = await entry.handle(args)
     logBus.info('tools', `执行 ${name} 成功`, result.slice(0, 1500))
     return { ok: true, result }
   } catch (err) {
-    const msg = (err as Error).message
+    const msg = getErrorMessage(err)
     logBus.error('tools', `执行 ${name} 失败: ${msg}`)
     return { ok: false, error: msg }
   }

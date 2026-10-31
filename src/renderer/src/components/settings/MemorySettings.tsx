@@ -6,6 +6,7 @@ import { useCharacterStore } from '@/features/character/characterStore'
 import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
 import type { MemoryFact, MemoryStory } from '@shared/types'
+import { getErrorMessage } from '@shared/errors'
 
 function sourceText(content: string): string {
   try {
@@ -51,7 +52,7 @@ export function MemorySettings() {
         setError(res.error ?? '加载失败')
       }
     } catch (e) {
-      setError((e as Error).message)
+      setError(getErrorMessage(e))
     } finally {
       setLoading(false)
     }

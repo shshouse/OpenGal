@@ -4,6 +4,7 @@ import { getRoleCard } from './roleCardLoader'
 import { chooseTTSAdapter, resetAllTTSAdapters } from './tts/factory'
 import { startGptSovitsServer } from './ttsServer'
 import { logBus } from './logBus'
+import { getErrorMessage, getErrorStack } from '@shared/errors'
 
 export interface TTSSpeakRequest {
   text: string
@@ -70,7 +71,7 @@ export async function warmupTTS(): Promise<boolean> {
       logBus.info('tts', 'Genie 预热已取消')
       return false
     }
-    logBus.warn('tts', `Genie 预热失败（不影响后续使用）: ${(err as Error).message}`)
+    logBus.warn('tts', `Genie 预热失败（不影响后续使用）: ${getErrorMessage(err)}`)
     return false
   } finally {
     speechRequests.delete(controller)
@@ -128,7 +129,7 @@ async function speakRequest(request: TTSSpeakRequest, signal: AbortSignal): Prom
     return res
   } catch (err) {
     if (signal.aborted) return { audioBase64: '', mimeType: '', skipped: true }
-    const msg = (err as Error).message
+    const msg = getErrorMessage(err)
    const connRefused = /连接被拒绝|ECONNREFUSED/.test(msg)
     if (connRefused && provider === 'gpt-sovits' && !autoStartBusy) {
       autoStartBusy = true
@@ -146,13 +147,13 @@ async function speakRequest(request: TTSSpeakRequest, signal: AbortSignal): Prom
         logBus.info('tts', `自动拉起后合成成功 长度=${res.audioBase64.length}B64`)
         return res
       } catch (retryErr) {
-        logBus.error('tts', `自动拉起后合成仍失败: ${(retryErr as Error).message}`, (retryErr as Error).stack)
+        logBus.error('tts', `自动拉起后合成仍失败: ${getErrorMessage(retryErr)}`, getErrorStack(retryErr))
         throw retryErr
       } finally {
         autoStartBusy = false
       }
     }
-    logBus.error('tts', `合成失败: ${msg}`, (err as Error).stack)
+    logBus.error('tts', `合成失败: ${msg}`, getErrorStack(err))
     throw err
   }
 }

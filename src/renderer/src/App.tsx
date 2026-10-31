@@ -23,6 +23,7 @@ import { isCharacterRunning } from '@shared/characterRuntime'
 import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
 import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
+import { getErrorMessage } from '@shared/errors'
 
 type View = 'home' | 'chat' | 'market' | 'settings' | 'logs'
 const VIEW_ORDER: View[] = ['home', 'chat', 'market', 'settings', 'logs']
@@ -155,7 +156,7 @@ export default function App() {
     setConfig(res.data)
     if (patch.asr) {
       try { await useASRStore.getState().applySettings(res.data.asr) }
-      catch (error) { throw new Error(`设置已保存，但识别重载失败：${(error as Error).message}`) }
+      catch (error) { throw new Error(`设置已保存，但识别重载失败：${getErrorMessage(error)}`) }
     }
     if (patch.model && model) {
       setModel({
@@ -211,7 +212,7 @@ export default function App() {
       await saveConfig({ showLive2D: next })
       setActionError('')
     } catch (err) {
-      setActionError(`显示设置保存失败：${(err as Error).message}`)
+      setActionError(`显示设置保存失败：${getErrorMessage(err)}`)
     }
   }
 

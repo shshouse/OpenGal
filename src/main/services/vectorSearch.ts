@@ -2,6 +2,7 @@ import type { MemoryFact } from '@shared/types'
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers'
 import path from 'node:path'
 import fs from 'node:fs'
+import { getErrorMessage } from '@shared/errors'
 
 export interface VectorSearchResult {
   fact: MemoryFact
@@ -58,7 +59,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
     extractor = await extractorPromise
     return extractor
   } catch (err) {
-    modelError = (err as Error).message
+    modelError = getErrorMessage(err)
     extractorPromise = null
     throw new Error(`ONNX 模型加载失败: ${modelError}`)
   }

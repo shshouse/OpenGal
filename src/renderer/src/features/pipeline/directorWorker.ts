@@ -22,6 +22,7 @@ import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
 import { buildInitiativePerception } from './initiativePerception'
 import { pipelineBus } from './pipelineBus'
 import { parsePerformance } from '@shared/performance'
+import { getErrorMessage } from '@shared/errors'
 
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2
@@ -325,7 +326,7 @@ async function evaluate(): Promise<void> {
       backlog = [...backlog, ...utterances]
       resetWaitState()
     }
-    log('warn', `导演判定失败，保持沉默: ${(err as Error).message}`)
+    log('warn', `导演判定失败，保持沉默: ${getErrorMessage(err)}`)
   } finally {
     if (generation === decisionGeneration) evaluatingSince = 0
     if (buffer.length > 0) {

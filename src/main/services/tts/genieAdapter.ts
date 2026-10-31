@@ -7,6 +7,7 @@ import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
 import { logBus } from '../logBus'
 import type { TTSAdapter, TTSGenerateRequest, TTSGenerateResponse } from './types'
 import { pickString } from './configValue'
+import { getErrorMessage } from '@shared/errors'
 
 interface ResolvedGenieSettings {
   baseURL: string
@@ -139,7 +140,7 @@ export class GenieAdapter implements TTSAdapter {
       const res = await fetchReadable(`${base}/openapi.json`, { signal: controller.signal }, base)
       return { ok: true, message: `Genie API OK (HTTP ${res.status})` }
     } catch (err) {
-      return { ok: false, message: (err as Error).message }
+      return { ok: false, message: getErrorMessage(err) }
     } finally {
       clearTimeout(timer)
     }
@@ -150,7 +151,7 @@ export class GenieAdapter implements TTSAdapter {
       this.resolveSettings({ text: '', globalConfig: req.globalConfig, card: req.card ?? null })
       return { ok: true }
     } catch (err) {
-      return { ok: false, reason: (err as Error).message }
+      return { ok: false, reason: getErrorMessage(err) }
     }
   }
 
