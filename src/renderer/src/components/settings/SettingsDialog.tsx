@@ -68,7 +68,7 @@ function providerLabel(baseURL: string): string {
 }
 
 function newPresetId(): string {
-  return `preset_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+  return `preset_${crypto.randomUUID()}`
 }
 
 function Toggle({ on, onClick, title }: { on: boolean; onClick: () => void; title: string }): React.ReactElement {

@@ -11,10 +11,8 @@ interface LogsState {
   clear: () => void
 }
 
-let seq = 0
 function localId(): string {
-  seq += 1
-  return `r-${Date.now().toString(36)}-${seq.toString(36)}`
+  return `r-${crypto.randomUUID()}`
 }
 
 function trim(list: LogEntry[]): LogEntry[] {

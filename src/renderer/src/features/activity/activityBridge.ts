@@ -3,10 +3,8 @@ import { useToolCallsStore } from '@/features/tools/toolCallsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { useActivityStore, type ActivityEntry } from './activityStore'
 
-let sequence = 0
 function id(prefix: string): string {
-  sequence += 1
-  return `${prefix}-${Date.now().toString(36)}-${sequence.toString(36)}`
+  return `${prefix}-${crypto.randomUUID()}`
 }
 
 function add(characterId: string | null, entry: Omit<ActivityEntry, 'characterId'>): void {

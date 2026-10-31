@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { LogEntry, LogLevel } from '@shared/log'
 
@@ -9,7 +10,6 @@ const MAX_LOG_FILES = 14
 
 const buffer: LogEntry[] = []
 const subscribers = new Set<WebContents>()
-let seq = 0
 let logDir: string | null = null
 
 // 日志落盘到 <dataRoot>/logs/app-YYYYMMDD.ndjson，保留最近 14 天；
@@ -39,8 +39,7 @@ function appendToFile(entry: LogEntry): void {
 }
 
 function nextId(): string {
-  seq += 1
-  return `${Date.now().toString(36)}-${seq.toString(36)}`
+  return randomUUID()
 }
 
 function broadcast(entry: LogEntry): void {

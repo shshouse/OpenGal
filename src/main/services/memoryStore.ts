@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   MemoryCandidateFact,
   MemoryApplyPayload,
@@ -200,7 +201,7 @@ function nowIso(): string {
 }
 
 function newId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+  return `${prefix}_${randomUUID()}`
 }
 
 export function retentionScore(f: MemoryFact): number {
