@@ -24,7 +24,9 @@
     "lint": "eslint . --config config/eslint.config.mjs",
     "lint:fix": "eslint . --config config/eslint.config.mjs --fix",
     "build:app": "electron-vite build",
-    "release:win": "electron-vite build && electron-builder --win zip --publish never"
+    "release:win": "electron-vite build && electron-builder --win zip --publish never",
+    "check:complexity": "node src/scripts/check-complexity.mjs",
+    "check:complexity:update": "node src/scripts/check-complexity.mjs --update"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^3.0.0",

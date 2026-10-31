@@ -67,6 +67,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  complexity:
+    name: Complexity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:complexity
+
   build:
     name: Build
     runs-on: ubuntu-latest
