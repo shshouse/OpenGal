@@ -6,6 +6,7 @@ import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
 import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
 import { logBus } from '../logBus'
 import type { TTSAdapter, TTSGenerateRequest, TTSGenerateResponse } from './types'
+import { pickString } from './configValue'
 
 interface ResolvedGenieSettings {
   baseURL: string
@@ -127,7 +128,9 @@ export class GenieAdapter implements TTSAdapter {
     const cfg = req.globalConfig
     if (!cfg.enabled) return { ok: false, message: 'TTS 未启用' }
     const cardVoice = req.card ? readRoleVoiceConfig(req.card) : null
-    const base = applyTtsPortShift(normalizeBaseURL(String(cardVoice?.baseURL || cfg.baseURL)))
+    const base = applyTtsPortShift(
+      normalizeBaseURL(pickString(cardVoice ?? {}, 'baseURL') || cfg.baseURL),
+    )
     if (!base) return { ok: false, message: 'TTS baseURL is not configured' }
     assertLocalBaseURL(base)
     const controller = new AbortController()
@@ -263,15 +266,15 @@ export class GenieAdapter implements TTSAdapter {
       if (req.overrides.outputLanguage) merged.outputLanguage = req.overrides.outputLanguage
     }
 
-    const baseURL = applyTtsPortShift(normalizeBaseURL(String(merged.baseURL || '')))
+    const baseURL = applyTtsPortShift(normalizeBaseURL(pickString(merged, 'baseURL')))
     if (!baseURL) throw new Error('TTS baseURL is not configured')
     assertLocalBaseURL(baseURL)
 
-    const characterName = String(merged.characterName || '').trim()
+    const characterName = pickString(merged, 'characterName').trim()
     if (!characterName) throw new Error('Genie characterName is not configured')
 
-    const onnxRel = String(merged.onnxModelDir || '')
-    const refRel = String(merged.referenceAudio || '')
+    const onnxRel = pickString(merged, 'onnxModelDir')
+    const refRel = pickString(merged, 'referenceAudio')
     if (!onnxRel) throw new Error('ONNX model directory is not configured')
     if (!refRel) throw new Error('Reference audio is not configured')
 
@@ -281,7 +284,7 @@ export class GenieAdapter implements TTSAdapter {
     if (!fs.existsSync(onnxAbs)) throw new Error(`ONNX model directory not found: ${onnxAbs}`)
     if (!fs.existsSync(refAbs)) throw new Error(`Reference audio not found: ${refAbs}`)
 
-    const referenceText = String(merged.referenceText || '')
+    const referenceText = pickString(merged, 'referenceText')
     if (!referenceText) {
       throw new Error(
         'Genie 需要参考音频的准确转写：请在角色卡 voice 配置里补 referenceText' +
@@ -289,9 +292,9 @@ export class GenieAdapter implements TTSAdapter {
       )
     }
 
-    const langRaw = String(merged.referenceLanguage || 'zh')
+    const langRaw = pickString(merged, 'referenceLanguage') || 'zh'
     const referenceLanguage = GENIE_LANG_MAP[langRaw] ?? 'zh'
-    const outputRaw = String(merged.outputLanguage || 'auto')
+    const outputRaw = pickString(merged, 'outputLanguage') || 'auto'
     const outputLanguage = outputRaw === 'auto'
       ? card?.language
         ? GENIE_LANG_MAP[roleSpeechLanguage(card.language)] ?? referenceLanguage

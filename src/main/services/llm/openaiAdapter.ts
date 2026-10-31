@@ -74,7 +74,11 @@ async function fetchLLM(
     return await fetch(url, init)
   } catch (err) {
     const e = err as Error & { cause?: unknown }
-    const cause = e.cause instanceof Error ? e.cause.message : String(e.cause ?? '')
+    const cause = e.cause instanceof Error
+      ? e.cause.message
+      : typeof e.cause === 'string'
+        ? e.cause
+        : ''
     logBus.warn('llm', `LLM 请求失败: ${e.message} ${cause}`)
     throw new Error('无法连接 LLM 服务，请检查网络与 API 地址')
   }

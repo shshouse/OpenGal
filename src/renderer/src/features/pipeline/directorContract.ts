@@ -121,9 +121,9 @@ export function parseDirectorDecision(raw: string): DirectorDecision {
     return silent('invalid-json')
   }
 
-  const rawAction = String(parsed.action ?? '').trim()
+  const rawAction = typeof parsed.action === 'string' ? parsed.action.trim() : ''
   const actionType = LEGACY_ACTION[rawAction] ?? rawAction
-  const reason = String(parsed.reason ?? '').slice(0, 200)
+  const reason = typeof parsed.reason === 'string' ? parsed.reason.slice(0, 200) : ''
   const urgency = parsed.urgency === 'high' || parsed.urgency === 'low' ? parsed.urgency : 'normal'
 
   switch (actionType) {

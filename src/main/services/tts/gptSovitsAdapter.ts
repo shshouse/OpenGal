@@ -9,6 +9,7 @@ import type {
   TTSGenerateRequest,
   TTSGenerateResponse,
 } from './types'
+import { pickString } from './configValue'
 
 interface ResolvedTTSSettings {
   baseURL: string
@@ -34,7 +35,9 @@ export class GptSovitsAdapter implements TTSAdapter {
     const cfg = req.globalConfig
     if (!cfg.enabled) return { ok: false, message: 'TTS 未启用' }
     const cardVoice = req.card ? readRoleVoiceConfig(req.card) : null
-    const base = applyTtsPortShift(normalizeBaseURL(String(cardVoice?.baseURL || cfg.baseURL)))
+    const base = applyTtsPortShift(
+      normalizeBaseURL(pickString(cardVoice ?? {}, 'baseURL') || cfg.baseURL),
+    )
     if (!base) return { ok: false, message: 'TTS baseURL is not configured' }
     assertLocalBaseURL(base)
     const controller = new AbortController()
@@ -161,13 +164,13 @@ export class GptSovitsAdapter implements TTSAdapter {
       if (req.overrides.textSplitMethod) merged.textSplitMethod = req.overrides.textSplitMethod
     }
 
-    const baseURL = applyTtsPortShift(normalizeBaseURL(String(merged.baseURL || '')))
+    const baseURL = applyTtsPortShift(normalizeBaseURL(pickString(merged, 'baseURL')))
     if (!baseURL) throw new Error('TTS baseURL is not configured')
     assertLocalBaseURL(baseURL)
 
-    const gptRel = String(merged.gptModel || '')
-    const sovitsRel = String(merged.sovitsModel || '')
-    const refRel = String(merged.referenceAudio || '')
+    const gptRel = pickString(merged, 'gptModel')
+    const sovitsRel = pickString(merged, 'sovitsModel')
+    const refRel = pickString(merged, 'referenceAudio')
     if (!gptRel) throw new Error('GPT model path is not configured')
     if (!sovitsRel) throw new Error('SoVITS model path is not configured')
     if (!refRel) throw new Error('Reference audio is not configured')
@@ -180,7 +183,7 @@ export class GptSovitsAdapter implements TTSAdapter {
     if (!fs.existsSync(sovitsAbs)) throw new Error(`SoVITS weights not found: ${sovitsAbs}`)
     if (!fs.existsSync(refAbs)) throw new Error(`Reference audio not found: ${refAbs}`)
 
-    const referenceText = String(merged.referenceText || '')
+    const referenceText = pickString(merged, 'referenceText')
 
     return {
       baseURL,
@@ -188,10 +191,12 @@ export class GptSovitsAdapter implements TTSAdapter {
       sovitsModelAbs: sovitsAbs,
       refAudioAbs: refAbs,
       referenceText,
-      referenceLanguage: String(merged.referenceLanguage || 'zh'),
-      outputLanguage: card?.language ? roleSpeechLanguage(card.language) : String(merged.outputLanguage || 'auto'),
+      referenceLanguage: pickString(merged, 'referenceLanguage') || 'zh',
+      outputLanguage: card?.language
+        ? roleSpeechLanguage(card.language)
+        : pickString(merged, 'outputLanguage') || 'auto',
       speedFactor: typeof merged.speedFactor === 'number' ? (merged.speedFactor as number) : 1,
-      textSplitMethod: String(merged.textSplitMethod || 'cut5'),
+      textSplitMethod: pickString(merged, 'textSplitMethod') || 'cut5',
     }
   }
 

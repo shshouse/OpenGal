@@ -3,6 +3,7 @@ import path from 'node:path'
 import fg from 'fast-glob'
 import type { ToolDefinition } from '@shared/types'
 import { registerTool } from './registry'
+import { optionalString, requireString } from './args'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
 import { readConfig } from '../configStore'
 import { getMemoryBlock, recallVerbatim } from '../memoryStore'
@@ -48,9 +49,12 @@ function fileSearchRoots(): string[] {
 }
 
 async function handleLocalFileSearch(args: Record<string, unknown>): Promise<string> {
-  const query = String(args.query ?? '').trim()
-  if (!query) throw new Error('query 不能为空')
-  const maxResults = Math.min(50, Math.max(1, Number(args.maxResults) || 20))
+  const query = requireString(args, 'query')
+  const rawMax = args.maxResults
+  const maxResults =
+    typeof rawMax === 'number' && Number.isFinite(rawMax)
+      ? Math.min(50, Math.max(1, Math.trunc(rawMax)))
+      : 20
   const hasGlob = /[*?]/.test(query)
   const pattern = hasGlob ? query : `**/*${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}*`
   const results: string[] = []
@@ -160,8 +164,7 @@ async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
 }
 
 async function handleWebSearch(args: Record<string, unknown>): Promise<string> {
-  const query = String(args.query ?? '').trim()
-  if (!query) throw new Error('query 不能为空')
+  const query = requireString(args, 'query')
   const cfg = readConfig().tools.webSearch
   let results: BingResult[]
   if (cfg.provider === 'tavily' && cfg.tavilyKey) {
@@ -179,7 +182,7 @@ async function handleWebSearch(args: Record<string, unknown>): Promise<string> {
 }
 
 async function handleReadWebPage(args: Record<string, unknown>): Promise<string> {
-  const url = String(args.url ?? '').trim()
+  const url = requireString(args, 'url')
   if (!/^https:\/\//i.test(url)) throw new Error('仅支持 https:// 链接')
   const res = await withRetry(
     () => fetch(`https://r.jina.ai/${url}`, { signal: AbortSignal.timeout(30_000) }),
@@ -193,12 +196,13 @@ async function handleReadWebPage(args: Record<string, unknown>): Promise<string>
 const RECALL_CHAR_CAP = 1200
 
 async function handleRecallMemory(args: Record<string, unknown>): Promise<string> {
-  const query = String(args.query ?? '').trim()
-  if (!query) throw new Error('query 不能为空')
+  const query = requireString(args, 'query')
   const characterId = readConfig().activeCharacterId
   if (!characterId) throw new Error('当前没有激活角色')
-  const fromTs = typeof args.from === 'string' ? Date.parse(args.from) : NaN
-  const toTs = typeof args.to === 'string' ? Date.parse(args.to) : NaN
+  const fromRaw = optionalString(args, 'from')
+  const toRaw = optionalString(args, 'to')
+  const fromTs = fromRaw ? Date.parse(fromRaw) : NaN
+  const toTs = toRaw ? Date.parse(toRaw) : NaN
   const range = Number.isFinite(fromTs) && Number.isFinite(toTs) ? { fromTs, toTs } : undefined
   const [block, verbatim] = await Promise.all([
     getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP),
