@@ -501,10 +501,20 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
     const audioPlaying = !!(mm.currentAudio && !mm.currentAudio.ended)
     return mm.startRandomMotion?.('Idle', audioPlaying ? 1 : 3)
   }
+  // motionFinish 与定时器都可能高频触发，失败按分钟节流，避免刷掉日志面板其他条目
+  let idleWarnAt = 0
+  const warnIdleFailure = (err: unknown): void => {
+    const now = Date.now()
+    if (now - idleWarnAt < 60_000) return
+    idleWarnAt = now
+    useLogsStore
+      .getState()
+      .appendLocal('warn', 'live2d', `idle 动作重启失败：${(err as Error).message}`)
+  }
   mm.on?.('motionFinish', () => {
     try {
       resetPose()
-      void restartIdle()?.catch(() => {})
+      void restartIdle()?.catch(warnIdleFailure)
     } catch {
       // ignore
     }
@@ -520,7 +530,7 @@ function keepIdleAlive(model: Parameters<typeof registerLive2DModel>[0]): () => 
             useLogsStore.getState().appendLocal('info', 'live2d', 'idle 动作已停止，自动重启')
           }
         },
-        () => {}
+        warnIdleFailure
       )
     } catch {
       stopped = true

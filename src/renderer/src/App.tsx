@@ -202,19 +202,26 @@ export default function App() {
 
   async function toggleLive2D(): Promise<void> {
     const next = !(config?.showLive2D ?? true)
-    await saveConfig({ showLive2D: next })
+    try {
+      await saveConfig({ showLive2D: next })
+      setActionError('')
+    } catch (err) {
+      setActionError(`显示设置保存失败：${(err as Error).message}`)
+    }
   }
 
   const handleModelChange = React.useCallback(
     (next: { scale: number; xRatio: number; yRatio: number }) => {
       if (!model) return
-      void saveConfig({
+      saveConfig({
         model: {
           ...model,
           scale: next.scale,
           xRatio: next.xRatio,
           canvasYRatio: next.yRatio
         }
+      }).catch((err: Error) => {
+        setActionError(`模型设置保存失败：${err.message}`)
       })
     },
     [model]

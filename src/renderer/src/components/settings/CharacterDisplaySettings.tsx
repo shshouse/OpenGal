@@ -2,6 +2,7 @@ import * as React from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
+import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 
 const DEFAULTS = {
@@ -73,6 +74,17 @@ export function CharacterDisplaySettings({
     if (config) setGreetingEnabled(config.startup.greetingEnabled)
   }, [config?.startup.greetingEnabled])
 
+  // 滑块拖动会高频调用，失败只写日志不弹提示，避免连续打扰
+  async function save(patch: Partial<AppConfig>): Promise<void> {
+    try {
+      await onSave(patch)
+    } catch (err) {
+      useLogsStore
+        .getState()
+        .appendLocal('warn', 'settings', `显示设置保存失败：${(err as Error).message}`)
+    }
+  }
+
   async function persist(
     nextScale: number,
     nextX: number,
@@ -88,7 +100,7 @@ export function CharacterDisplaySettings({
     }
     setSaving(true)
     try {
-      await onSave({ model: updated })
+      await save({ model: updated })
     } finally {
       setSaving(false)
     }
@@ -166,7 +178,7 @@ export function CharacterDisplaySettings({
             disabled={saving}
             onChange={(e) => {
               setGreetingEnabled(e.target.checked)
-              void onSave({ startup: { greetingEnabled: e.target.checked } })
+              void save({ startup: { greetingEnabled: e.target.checked } })
             }}
           />
           <CheckboxIndicator />
