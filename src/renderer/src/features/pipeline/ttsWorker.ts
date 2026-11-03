@@ -153,7 +153,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
     const result = await window.opengal.tts.speak({ text: speech, roleCardId: msg.characterId })
     if (result.success && result.data) {
       if (!result.data.skipped) {
-        audioUrl = `data:${result.data.mimeType};base64,${result.data.audioBase64}`
+        audioUrl = URL.createObjectURL(new Blob([result.data.audio], { type: result.data.mimeType }))
       }
       hasWarnedThisSession = false
     } else if (result.error && !/disabled/i.test(result.error)) {

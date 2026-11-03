@@ -217,7 +217,7 @@ export class GenieAdapter implements TTSAdapter {
         const check = inspectSynthesis(raw, spoken, refSeconds)
         if (!check.bad) {
           return {
-            audioBase64: wrapPcmAsWav(raw).toString('base64'),
+            audio: new Uint8Array(wrapPcmAsWav(raw)),
             mimeType: 'audio/wav',
           }
         }

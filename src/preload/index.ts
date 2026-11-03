@@ -192,7 +192,10 @@ const api = {
   tts: {
     cancel: () => invoke(IpcChannels.tts.cancel),
     speak: (request: { text: string; roleCardId?: string; overrides?: Record<string, unknown> }) =>
-      invoke<{ audioBase64: string; mimeType: string; skipped?: boolean }>(IpcChannels.tts.speak, request),
+      invoke<{ audio: Uint8Array<ArrayBuffer>; mimeType: string; skipped?: boolean }>(
+        IpcChannels.tts.speak,
+        request
+      ),
     ping: () => invoke<{ ok: boolean; message?: string }>(IpcChannels.tts.ping),
     reset: () => invoke(IpcChannels.tts.reset),
     serverStart: () =>

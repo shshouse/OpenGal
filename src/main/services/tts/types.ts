@@ -9,7 +9,7 @@ export interface TTSGenerateRequest {
 }
 
 export interface TTSGenerateResponse {
-  audioBase64: string
+  audio: Uint8Array<ArrayBuffer>
   mimeType: string
   // 模型格式与引擎不匹配等场景：合成被跳过，调用方按无语音处理
   skipped?: boolean

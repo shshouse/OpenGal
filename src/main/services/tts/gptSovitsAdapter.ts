@@ -118,7 +118,7 @@ export class GptSovitsAdapter implements TTSAdapter {
       }
       const buffer = Buffer.from(await res.arrayBuffer())
       return {
-        audioBase64: buffer.toString('base64'),
+        audio: new Uint8Array(buffer),
         mimeType: 'audio/wav',
       }
     } finally {

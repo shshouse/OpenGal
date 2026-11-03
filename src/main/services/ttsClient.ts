@@ -13,7 +13,8 @@ export interface TTSSpeakRequest {
 }
 
 export interface TTSSpeakResponse {
-  audioBase64: string
+  /** WAV 原始字节，经 IPC 以 structured clone 传递；不再转 base64。 */
+  audio: Uint8Array<ArrayBuffer>
   mimeType: string
   skipped?: boolean
 }
@@ -112,7 +113,7 @@ async function speakRequest(request: TTSSpeakRequest, signal: AbortSignal): Prom
   const compat = checkTTSCompat(request.roleCardId)
   if (!compat.ok) {
     logBus.warn('tts', `TTS 不可用，已跳过语音: ${compat.reason}`)
-    return { audioBase64: '', mimeType: '', skipped: true }
+    return { audio: new Uint8Array(), mimeType: '', skipped: true }
   }
   const adapter = chooseTTSAdapter(provider)
   const preview = request.text.slice(0, 80) + (request.text.length > 80 ? '...' : '')
@@ -125,10 +126,10 @@ async function speakRequest(request: TTSSpeakRequest, signal: AbortSignal): Prom
       overrides: request.overrides,
       signal,
     })
-    logBus.info('tts', `合成完成 长度=${res.audioBase64.length}B64 type=${res.mimeType}`)
+    logBus.info('tts', `合成完成 字节=${res.audio.byteLength} type=${res.mimeType}`)
     return res
   } catch (err) {
-    if (signal.aborted) return { audioBase64: '', mimeType: '', skipped: true }
+    if (signal.aborted) return { audio: new Uint8Array(), mimeType: '', skipped: true }
     const msg = getErrorMessage(err)
    const connRefused = /连接被拒绝|ECONNREFUSED/.test(msg)
     if (connRefused && provider === 'gpt-sovits' && !autoStartBusy) {
@@ -144,7 +145,7 @@ async function speakRequest(request: TTSSpeakRequest, signal: AbortSignal): Prom
           overrides: request.overrides,
           signal,
         })
-        logBus.info('tts', `自动拉起后合成成功 长度=${res.audioBase64.length}B64`)
+        logBus.info('tts', `自动拉起后合成成功 字节=${res.audio.byteLength}`)
         return res
       } catch (retryErr) {
         logBus.error('tts', `自动拉起后合成仍失败: ${getErrorMessage(retryErr)}`, getErrorStack(retryErr))

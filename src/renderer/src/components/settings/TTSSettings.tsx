@@ -256,10 +256,13 @@ export function TTSSettings({ config, onSave }: TTSSettingsProps) {
         setStatus('已跳过：当前角色模型与所选引擎不匹配')
         return
       }
-      const { audioBase64, mimeType } = result.data
-      const audio = new Audio(`data:${mimeType};base64,${audioBase64}`)
-      await audio.play()
-      setStatus('测试成功')
+      const url = URL.createObjectURL(new Blob([result.data.audio], { type: result.data.mimeType }))
+      try {
+        await new Audio(url).play()
+        setStatus('测试成功')
+      } finally {
+        URL.revokeObjectURL(url)
+      }
     } catch (error) {
       setStatus(`测试失败: ${getErrorMessage(error)}`)
     }

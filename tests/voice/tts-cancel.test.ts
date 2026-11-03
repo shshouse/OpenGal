@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({
   signal: null as AbortSignal | null,
   adapter: null as null | {
     checkAvailability: () => { ok: boolean }
-    generateSpeech: (args: { signal: AbortSignal }) => Promise<{ audioBase64: string; mimeType: string }>
+    generateSpeech: (args: { signal: AbortSignal }) => Promise<{ audio: Uint8Array<ArrayBuffer>; mimeType: string }>
   },
 }))
 
@@ -39,8 +39,8 @@ describe('ttsClient cancellation', () => {
     expect(state.signal?.aborted).toBe(true)
     expect((await request).skipped).toBe(true)
 
-    state.adapter.generateSpeech = async () => ({ audioBase64: 'new', mimeType: 'audio/wav' })
-    expect((await speak({ text: 'new speech' })).audioBase64).toBe('new')
+    state.adapter.generateSpeech = async () => ({ audio: new TextEncoder().encode('new'), mimeType: 'audio/wav' })
+    expect(Buffer.from((await speak({ text: 'new speech' })).audio).toString()).toBe('new')
   })
 
   it('取消也能中止 warmup', async () => {

@@ -86,7 +86,7 @@ describe('Genie 台词语言守卫', () => {
       globalConfig: config(),
       card: null,
     })
-    expect(res.audioBase64).toBeTruthy()
+    expect(res.audio.byteLength).toBeGreaterThan(0)
     expect(state.fetched.some((url) => url.endsWith('/tts'))).toBe(true)
   })
 })

@@ -108,7 +108,7 @@ describe('Genie 合成结果校验', () => {
     const res = await adapter.generateSpeech({ text: '你好呀，维尔汀。', globalConfig: config(), card: null })
     expect(state.ttsCalls).toBe(2)
     // 返回的是第二次的 1.2 秒音频（44 字节头 + PCM）
-    const bytes = Buffer.from(res.audioBase64, 'base64')
+    const bytes = Buffer.from(res.audio)
     expect(bytes.length).toBe(44 + pcmOfSeconds(1.2).length)
   })
 
@@ -126,7 +126,7 @@ describe('Genie 合成结果校验', () => {
     const adapter = new GenieAdapter()
     const res = await adapter.generateSpeech({ text: '午饭吃了没？', globalConfig: config(), card: null })
     expect(state.ttsCalls).toBe(2)
-    expect(res.audioBase64).toBeTruthy()
+    expect(res.audio.byteLength).toBeGreaterThan(0)
   })
 
   it('正常时长的音频不触发重试', async () => {

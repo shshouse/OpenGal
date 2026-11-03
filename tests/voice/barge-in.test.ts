@@ -68,7 +68,7 @@ describe('voice barge-in and playback cancellation', () => {
     turnStartedAt: 0,
   })
   const finishTTS = (index: number): void => {
-    state.pending[index].resolve({ success: true, data: { audioBase64: 'test', mimeType: 'audio/wav' } })
+    state.pending[index].resolve({ success: true, data: { audio: new Uint8Array(), mimeType: 'audio/wav' } })
   }
 
   beforeAll(async () => {
@@ -200,14 +200,14 @@ describe('voice barge-in and playback cancellation', () => {
     const playedBefore = state.audioInstances.length
     pipelineBus.emit('llm:dialog', { name: 'role', text: '无声段' })
     await flush()
-    state.pending[state.pending.length - 1].resolve({ success: true, data: { skipped: true, audioBase64: '', mimeType: '' } })
+    state.pending[state.pending.length - 1].resolve({ success: true, data: { skipped: true, audio: new Uint8Array(), mimeType: '' } })
     await flush()
     await flush()
     pipelineBus.emit('pipeline:abort', undefined)
     const abortAt = Date.now()
     pipelineBus.emit('llm:dialog', { name: 'role', text: '插话后的新段' })
     await flush()
-    state.pending[state.pending.length - 1].resolve({ success: true, data: { audioBase64: 'after-abort', mimeType: 'audio/wav' } })
+    state.pending[state.pending.length - 1].resolve({ success: true, data: { audio: new Uint8Array(), mimeType: 'audio/wav' } })
     await flush()
     await flush()
     expect(state.audioInstances.length).toBe(playedBefore + 1)

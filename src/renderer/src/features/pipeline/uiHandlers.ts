@@ -98,6 +98,8 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
       audio?.removeEventListener('playing', onPlaying)
       audio?.removeEventListener('ended', onEnded)
       audio?.removeEventListener('error', onError)
+      // 音频已结束或取消，blob URL 不再需要；不释放会随对话轮数持续占用内存
+      if (audioUrl.startsWith('blob:')) URL.revokeObjectURL(audioUrl)
       resolve()
     }
     const cancel = (): void => {
