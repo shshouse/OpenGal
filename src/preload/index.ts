@@ -6,14 +6,13 @@ import type {
   IpcResult,
   LLMRequest,
   LLMResponse,
-  LLMUsage,
+  LlmStreamEvent,
   Live2DModelConfig,
   MemoryApplyPayload,
   MemoryFact,
   MemoryStory,
   PluginInfo,
   RoleCardEntry,
-  ToolCall,
   ToolDefinition
 } from '@shared/types'
 import type { LogEntry } from '@shared/log'
@@ -31,35 +30,10 @@ const api = {
     chat: (request: LLMRequest) => invoke<LLMResponse>(IpcChannels.llm.chat, request),
     chatStream: (request: LLMRequest, streamId: string) =>
       invoke(IpcChannels.llm.chatStream, request, streamId),
-    onStreamChunk: (listener: (streamId: string, chunk: string) => void) => {
-      const handler = (_: unknown, id: string, chunk: string) => listener(id, chunk)
-      ipcRenderer.on(IpcChannels.llm.streamChunk, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamChunk, handler)
-    },
-    onStreamReasoning: (listener: (streamId: string, delta: string) => void) => {
-      const handler = (_: unknown, id: string, delta: string) => listener(id, delta)
-      ipcRenderer.on(IpcChannels.llm.streamReasoning, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamReasoning, handler)
-    },
-    onStreamDone: (listener: (streamId: string) => void) => {
-      const handler = (_: unknown, id: string) => listener(id)
-      ipcRenderer.on(IpcChannels.llm.streamDone, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamDone, handler)
-    },
-    onStreamError: (listener: (streamId: string, error: string) => void) => {
-      const handler = (_: unknown, id: string, error: string) => listener(id, error)
-      ipcRenderer.on(IpcChannels.llm.streamError, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamError, handler)
-    },
-    onToolCalls: (listener: (streamId: string, calls: ToolCall[]) => void) => {
-      const handler = (_: unknown, id: string, calls: ToolCall[]) => listener(id, calls)
-      ipcRenderer.on(IpcChannels.llm.streamToolCalls, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamToolCalls, handler)
-    },
-    onStreamUsage: (listener: (streamId: string, usage: LLMUsage) => void) => {
-      const handler = (_: unknown, id: string, usage: LLMUsage) => listener(id, usage)
-      ipcRenderer.on(IpcChannels.llm.streamUsage, handler)
-      return () => ipcRenderer.off(IpcChannels.llm.streamUsage, handler)
+    onStream: (listener: (event: LlmStreamEvent) => void) => {
+      const handler = (_: unknown, event: LlmStreamEvent) => listener(event)
+      ipcRenderer.on(IpcChannels.llm.stream, handler)
+      return () => ipcRenderer.off(IpcChannels.llm.stream, handler)
     },
     abortStream: (streamId: string) => invoke(IpcChannels.llm.streamAbort, streamId),
     listModels: (baseURL: string, apiKey: string) =>

@@ -1,4 +1,5 @@
-import type { ChatMessage, LLMConfig, LLMRequest, LLMResponse } from '@shared/types'
+import type { ChatMessage, LLMConfig, LLMRequest, LLMResponse, LlmStreamEvent } from '@shared/types'
+import { IpcChannels } from '@shared/ipc-channels'
 import { resolveSlotConfig } from '@shared/llmSlot'
 import type { BrowserWindow } from 'electron'
 import { readConfig } from './configStore'
@@ -168,6 +169,10 @@ export async function callLLMStream(
     describeRequest(request),
   )
 
+  const emit = (event: LlmStreamEvent): void => {
+    sender.send(IpcChannels.llm.stream, event)
+  }
+
   let contentChars = 0
   let reasoningChars = 0
   const contentBuf: string[] = []
@@ -180,26 +185,26 @@ export async function callLLMStream(
           armIdle()
           contentChars += delta.length
           contentBuf.push(delta)
-          sender.send('llm:stream:chunk', streamId, delta)
+          emit({ type: 'chunk', streamId, delta })
         },
         onReasoning: (delta) => {
           armIdle()
           reasoningChars += delta.length
-          sender.send('llm:stream:reasoning', streamId, delta)
+          emit({ type: 'reasoning', streamId, delta })
         },
         onToolCalls: (calls) => {
           armIdle()
-          sender.send('llm:stream:tool_calls', streamId, calls)
+          emit({ type: 'tool_calls', streamId, calls })
         },
         onWarning: (msg) => {
           logBus.warn('llm', msg)
         },
         onUsage: (usage) => {
-          sender.send('llm:stream:usage', streamId, usage)
+          emit({ type: 'usage', streamId, usage })
         },
       },
     )
-    sender.send('llm:stream:done', streamId)
+    emit({ type: 'done', streamId })
     logBus.info(
       'llm',
       `请求完成 (stream id=${streamId}) content=${contentChars}字 reasoning=${reasoningChars}字 耗时=${Math.round((Date.now() - startedAt) / 1000)}s`,
@@ -207,10 +212,10 @@ export async function callLLMStream(
     )
   } catch (err) {
     if (isAbortError(err)) {
-      sender.send('llm:stream:done', streamId)
+      emit({ type: 'done', streamId })
       logBus.warn('llm', `请求中断 (stream id=${streamId})`)
     } else {
-      sender.send('llm:stream:error', streamId, getErrorMessage(err))
+      emit({ type: 'error', streamId, error: getErrorMessage(err) })
       logBus.error(
         'llm',
         `请求失败 (stream id=${streamId}): ${getErrorMessage(err)}`,

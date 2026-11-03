@@ -74,3 +74,12 @@ export interface LLMDialogueItem {
   action?: string
   [key: string]: unknown
 }
+
+/** 一次 LLM 请求的全部流事件，按 type 判别；同一 streamId 的事件保证按序到达。 */
+export type LlmStreamEvent =
+  | { type: 'chunk'; streamId: string; delta: string }
+  | { type: 'reasoning'; streamId: string; delta: string }
+  | { type: 'tool_calls'; streamId: string; calls: ToolCall[] }
+  | { type: 'usage'; streamId: string; usage: LLMUsage }
+  | { type: 'done'; streamId: string }
+  | { type: 'error'; streamId: string; error: string }

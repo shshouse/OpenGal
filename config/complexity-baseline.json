@@ -5,11 +5,10 @@
     "lines": 60,
     "params": 5
   },
-  "total": 89,
+  "total": 88,
   "files": {
     "src/renderer/src/components/live2d/Live2DStage.tsx": 5,
     "src/renderer/src/components/settings/ASRSettings.tsx": 3,
-    "src/renderer/src/features/pipeline/llmWorker.ts": 3,
     "src/renderer/src/features/pipeline/subtitles.ts": 3,
     "src/shared/roleCard.ts": 3,
     "src/shared/roleCardSchema.ts": 3,
@@ -25,6 +24,7 @@
     "src/renderer/src/features/memory/memoryService.ts": 2,
     "src/renderer/src/features/pipeline/directorWorker.ts": 2,
     "src/renderer/src/features/pipeline/initiative.ts": 2,
+    "src/renderer/src/features/pipeline/llmWorker.ts": 2,
     "src/renderer/src/features/pipeline/uiHandlers.ts": 2,
     "src/main/ipc/llmIpc.ts": 1,
     "src/main/ipc/logsIpc.ts": 1,

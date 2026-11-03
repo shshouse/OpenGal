@@ -465,32 +465,30 @@ export function startLLMWorker(): () => void {
     pipelineBus.emit('llm:done', { ok: true, displayText: displayTextThisTurn })
   }
 
-  const offChunk = window.opengal.llm.onStreamChunk((id, chunk) => {
-    if (id !== currentStreamId) return
-    if (!firstTokenLogged) {
-      firstTokenLogged = true
-      logLatency('firstToken')
+  const offStream = window.opengal.llm.onStream((event) => {
+    if (event.streamId !== currentStreamId) return
+    switch (event.type) {
+      case 'chunk': {
+        if (!firstTokenLogged) {
+          firstTokenLogged = true
+          logLatency('firstToken')
+        }
+        accumulatedRaw += event.delta
+        for (const item of parser.feed(event.delta)) emitDialog(item)
+        break
+      }
+      case 'reasoning':
+        accumulatedReasoning += event.delta
+        pipelineBus.emit('llm:reasoning', { delta: event.delta, accumulated: accumulatedReasoning })
+        break
+      case 'usage':
+        calibratePromptTokens(event.usage.promptTokens, pendingPromptRawTokens)
+        pendingPromptRawTokens = 0
+        break
+      case 'error':
+        useLogsStore.getState().appendLocal('error', 'llm-worker', `LLM 流错误: ${event.error}`)
+        break
     }
-    accumulatedRaw += chunk
-    const items = parser.feed(chunk)
-    for (const item of items) emitDialog(item)
-  })
-
-  const offReasoning = window.opengal.llm.onStreamReasoning((id, delta) => {
-    if (id !== currentStreamId) return
-    accumulatedReasoning += delta
-    pipelineBus.emit('llm:reasoning', { delta, accumulated: accumulatedReasoning })
-  })
-
-  const offUsage = window.opengal.llm.onStreamUsage((id, usage) => {
-    if (id !== currentStreamId) return
-    calibratePromptTokens(usage.promptTokens, pendingPromptRawTokens)
-    pendingPromptRawTokens = 0
-  })
-
-  const offError = window.opengal.llm.onStreamError((id, error) => {
-   if (id !== currentStreamId) return
-    useLogsStore.getState().appendLocal('error', 'llm-worker', `LLM 流错误: ${error}`)
   })
 
   const offAbort = pipelineBus.on('pipeline:abort', () => {
@@ -510,7 +508,7 @@ export function startLLMWorker(): () => void {
     }
   })
 
-  unsubscribers = [offUserInput, offChunk, offReasoning, offUsage, offError, offAbort]
+  unsubscribers = [offUserInput, offStream, offAbort]
   return stopLLMWorker
 }
 
@@ -528,35 +526,26 @@ async function runStreamRound(
 
     const startId = currentStreamId
 
-    const onChunk = (streamId: string, chunk: string): void => {
-      if (streamId !== startId) return
-      assistantContent += chunk
-    }
-    const offChunk = window.opengal.llm.onStreamChunk(onChunk)
-    localUnsubs.push(offChunk)
-
-    const onToolCalls = (streamId: string, calls: ToolCall[]): void => {
-      if (streamId !== startId) return
-      capturedToolCalls = calls
-    }
-    const offToolCalls = window.opengal.llm.onToolCalls(onToolCalls)
-    localUnsubs.push(offToolCalls)
-
-    const onDone = (streamId: string): void => {
-      if (streamId !== startId) return
-      cleanup()
-      resolve({ ok: true, assistantContent, toolCalls: capturedToolCalls })
-    }
-    const offDone = window.opengal.llm.onStreamDone(onDone)
-    localUnsubs.push(offDone)
-
-    const onError = (streamId: string, error: string): void => {
-      if (streamId !== startId) return
-      cleanup()
-      resolve({ ok: false, error })
-    }
-    const offError = window.opengal.llm.onStreamError(onError)
-    localUnsubs.push(offError)
+    const offStream = window.opengal.llm.onStream((event) => {
+      if (event.streamId !== startId) return
+      switch (event.type) {
+        case 'chunk':
+          assistantContent += event.delta
+          break
+        case 'tool_calls':
+          capturedToolCalls = event.calls
+          break
+        case 'done':
+          cleanup()
+          resolve({ ok: true, assistantContent, toolCalls: capturedToolCalls })
+          break
+        case 'error':
+          cleanup()
+          resolve({ ok: false, error: event.error })
+          break
+      }
+    })
+    localUnsubs.push(offStream)
 
     function cleanup(): void {
       for (const off of localUnsubs) off()

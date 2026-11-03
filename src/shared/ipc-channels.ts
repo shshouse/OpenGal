@@ -6,13 +6,8 @@ export const IpcChannels = {
   llm: {
     chat: 'llm:chat',
     chatStream: 'llm:chatStream',
-    streamChunk: 'llm:stream:chunk',
-    streamReasoning: 'llm:stream:reasoning',
-    streamDone: 'llm:stream:done',
-    streamError: 'llm:stream:error',
+    stream: 'llm:stream',
     streamAbort: 'llm:stream:abort',
-    streamToolCalls: 'llm:stream:tool_calls',
-    streamUsage: 'llm:stream:usage',
     listModels: 'llm:listModels'
   },
   tools: {
