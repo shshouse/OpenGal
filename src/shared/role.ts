@@ -14,7 +14,7 @@ export type EmotionTag =
   | 'excited'
   | 'worried'
 
-export type WindowMode = 'pet' | 'theater'
+export type WindowMode = 'mate' | 'theater'
 
 export type PerformanceMode = 'live2d' | 'sprite' | 'auto'
 

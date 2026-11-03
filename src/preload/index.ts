@@ -16,9 +16,18 @@ import type {
   ToolDefinition
 } from '@shared/types'
 import type { LogEntry } from '@shared/log'
+import type { MateControl, MateStatePayload } from '@shared/mate'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, ...args) as Promise<IpcResult<T>>
+}
+
+function mateControl(type: MateControl): Promise<IpcResult<unknown>> {
+  return invoke(IpcChannels.mate.control, type)
+}
+
+function mateSync(payload: MateStatePayload): void {
+  ipcRenderer.send(IpcChannels.mate.sync, payload)
 }
 
 const api = {
@@ -149,43 +158,22 @@ const api = {
         s
       )
   },
-  pet: {
-    open: () => invoke(IpcChannels.pet.open),
-    close: () => invoke(IpcChannels.pet.close),
-    dragStart: () => invoke(IpcChannels.pet.dragStart),
-    dragMove: () => invoke(IpcChannels.pet.dragMove),
-    setBubble: (text: string) => ipcRenderer.send(IpcChannels.pet.setBubble, text),
-    onBubble: (listener: (text: string) => void) => {
-      const handler = (_: unknown, text: string) => listener(text)
-      ipcRenderer.on(IpcChannels.pet.bubble, handler)
-      return () => {
-        ipcRenderer.off(IpcChannels.pet.bubble, handler)
-      }
-    },
+  mate: {
+    open: () => mateControl('open'),
+    close: () => mateControl('close'),
+    dragStart: () => mateControl('dragStart'),
+    dragMove: () => mateControl('dragMove'),
+    setBubble: (text: string) => mateSync({ type: 'bubble', text }),
     emitPerformance: (payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) =>
-      ipcRenderer.send(IpcChannels.pet.emitPerformance, payload),
+      mateSync({ type: 'performance', ...payload }),
     emitRuntime: (payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) =>
-      ipcRenderer.send(IpcChannels.pet.emitRuntime, payload),
-    onRuntime: (listener: (payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) => void) => {
-      const handler = (_: unknown, payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) => listener(payload)
-      ipcRenderer.on(IpcChannels.pet.runtime, handler)
+      mateSync({ type: 'runtime', ...payload }),
+    emitAvatar: (dataUrl: string) => mateSync({ type: 'avatar', dataUrl }),
+    onUpdate: (listener: (payload: MateStatePayload) => void) => {
+      const handler = (_: unknown, payload: MateStatePayload) => listener(payload)
+      ipcRenderer.on(IpcChannels.mate.update, handler)
       return () => {
-        ipcRenderer.off(IpcChannels.pet.runtime, handler)
-      }
-    },
-    emitAvatar: (dataUrl: string) => ipcRenderer.send(IpcChannels.pet.emitAvatar, dataUrl),
-    onAvatar: (listener: (dataUrl: string) => void) => {
-      const handler = (_: unknown, dataUrl: string) => listener(dataUrl)
-      ipcRenderer.on(IpcChannels.pet.avatar, handler)
-      return () => {
-        ipcRenderer.off(IpcChannels.pet.avatar, handler)
-      }
-    },
-    onPerformance: (listener: (payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) => void) => {
-      const handler = (_: unknown, payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) => listener(payload)
-      ipcRenderer.on(IpcChannels.pet.performance, handler)
-      return () => {
-        ipcRenderer.off(IpcChannels.pet.performance, handler)
+        ipcRenderer.off(IpcChannels.mate.update, handler)
       }
     }
   },

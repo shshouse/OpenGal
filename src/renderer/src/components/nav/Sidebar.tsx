@@ -14,8 +14,8 @@ interface Props {
   onOpenSettings: () => void
   onOpenMarket: () => void
   marketActive: boolean
-  petOpen: boolean
-  onTogglePet: () => void
+  mateOpen: boolean
+  onToggleMate: () => void
   showLive2D: boolean
   onToggleLive2D: () => void
   onOpenLogs: () => void
@@ -60,8 +60,8 @@ export function Sidebar({
   onOpenSettings,
   onOpenMarket,
   marketActive,
-  petOpen,
-  onTogglePet,
+  mateOpen,
+  onToggleMate,
   showLive2D,
   onToggleLive2D,
   onOpenLogs,
@@ -137,10 +137,10 @@ export function Sidebar({
       <div className="my-2 h-px w-8 bg-border" />
 
       <RailButton
-        label="桌宠"
-        title={petOpen ? '关闭桌宠' : '打开桌宠'}
-        active={petOpen}
-        onClick={onTogglePet}
+        label="相伴"
+        title={mateOpen ? '关闭相伴' : '开启相伴'}
+        active={mateOpen}
+        onClick={onToggleMate}
       >
         <Cat className="size-5" />
       </RailButton>

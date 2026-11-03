@@ -7,7 +7,9 @@ const MAX_TEXT = 20_000
 const MAX_NAME = 64
 const COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
-const WINDOW_MODES: WindowMode[] = ['pet', 'theater']
+const WINDOW_MODES: WindowMode[] = ['mate', 'theater']
+// 旧角色卡写的是 pet，读入时归一化，避免存量卡被判为非法
+const LEGACY_WINDOW_MODES: Record<string, WindowMode> = { pet: 'mate' }
 const PERFORMANCE_MODES: PerformanceMode[] = ['live2d', 'sprite', 'auto']
 
 const KNOWN_KEYS = new Set([
@@ -92,6 +94,12 @@ function enumValue<T extends string>(
     severity: 'error',
   })
   return fallback
+}
+
+function normalizeWindowMode(value: unknown): unknown {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_WINDOW_MODES, value)
+    ? LEGACY_WINDOW_MODES[value]
+    : value
 }
 
 function relativePath(
@@ -314,7 +322,13 @@ export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidat
   const card: RoleCard = {
     id,
     name: name.trim(),
-    windowMode: enumValue(raw.windowMode, WINDOW_MODES, 'windowMode', issues, 'pet'),
+    windowMode: enumValue(
+      normalizeWindowMode(raw.windowMode),
+      WINDOW_MODES,
+      'windowMode',
+      issues,
+      'mate',
+    ),
     performance: validatePerformance(raw.performance, issues),
     persona: validatePersona(raw.persona, issues),
     ...(raw.displayName !== undefined

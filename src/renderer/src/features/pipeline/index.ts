@@ -60,7 +60,7 @@ function startChatStreamBridge(): () => void {
 }
 
 // 气泡跟音频段走：文字和语音同时出现；聊天记录仍按 LLM 流即时追加
-function startPetBubbleBridge(): () => void {
+function startMateBubbleBridge(): () => void {
   let text = ''
   let last = ''
   let shown: Array<{ id: string; text: string }> = []
@@ -70,7 +70,7 @@ function startPetBubbleBridge(): () => void {
     const t = (segments.length ? subtitleText(segments, state.preferences.mode) : text).trim()
     if (!t || t === last) return
     last = t
-    window.opengal.pet.setBubble(t)
+    window.opengal.mate.setBubble(t)
   }
   const offSegment = pipelineBus.on('tts:segmentStart', (msg) => {
     text += msg.text
@@ -81,7 +81,7 @@ function startPetBubbleBridge(): () => void {
     text = ''
     last = ''
     shown = []
-    window.opengal.pet.setBubble('')
+    window.opengal.mate.setBubble('')
   }
   const offUser = pipelineBus.on('user:input', reset)
   const offAbort = pipelineBus.on('pipeline:abort', reset)
@@ -111,7 +111,7 @@ export function startPipeline(): PipelineHandle {
   const stopMemory = startMemoryService()
   const stopBridge = startChatStreamBridge()
   const stopASR = startASRBridge()
-  const stopPetBubble = startPetBubbleBridge()
+  const stopMateBubble = startMateBubbleBridge()
   const stopInitiative = startInitiative()
   return {
     dispose: () => {
@@ -120,7 +120,7 @@ export function startPipeline(): PipelineHandle {
       stopInitiative()
       stopBargeIn()
       stopSubtitles()
-      stopPetBubble()
+      stopMateBubble()
       stopASR()
       stopBridge()
       stopMemory()

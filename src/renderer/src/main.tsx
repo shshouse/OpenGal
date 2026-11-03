@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import PetView from './components/pet/PetView'
+import MateView from './components/mate/MateView'
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 import './styles/globals.css'
@@ -42,11 +42,11 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-// 桌宠窗加载 #pet 路由，挂载精简视图而非完整 App（不起管线/侧栏/设置）
-const isPet = window.location.hash === '#pet'
+// 相伴窗加载 #mate 路由，挂载精简视图而非完整 App（不起管线/侧栏/设置）
+const isMate = window.location.hash === '#mate'
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <RootErrorBoundary>{isPet ? <PetView /> : <App />}</RootErrorBoundary>
+    <RootErrorBoundary>{isMate ? <MateView /> : <App />}</RootErrorBoundary>
   </React.StrictMode>
 )

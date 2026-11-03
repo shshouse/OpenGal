@@ -28,8 +28,15 @@ describe('validateRoleCard', () => {
     const result = validateRoleCard(baseCard(), 'my-card')
     expect(result.ok).toBe(true)
     expect(result.card?.id).toBe('my-card')
-    expect(result.card?.windowMode).toBe('pet')
+    expect(result.card?.windowMode).toBe('mate')
     expect(result.card?.name).toBe('测试角色')
+    expect(result.issues.filter((i) => i.severity === 'error')).toHaveLength(0)
+  })
+
+  it('旧卡里的 windowMode=pet 归一化为 mate，不记错误', () => {
+    const result = validateRoleCard(baseCard({ windowMode: 'pet' }), 'legacy-card')
+    expect(result.ok).toBe(true)
+    expect(result.card?.windowMode).toBe('mate')
     expect(result.issues.filter((i) => i.severity === 'error')).toHaveLength(0)
   })
 

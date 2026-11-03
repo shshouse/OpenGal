@@ -30,7 +30,7 @@ describe('buildSystemPrompt', () => {
       id: 'test',
       name: 'test',
       language: 'ja',
-      windowMode: 'pet',
+      windowMode: 'mate',
       performance: { mode: 'auto' },
       persona: { description: 'test', personality: 'test' },
     } as Parameters<typeof buildSystemPrompt>[0])

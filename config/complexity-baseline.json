@@ -52,7 +52,7 @@
     "src/renderer/src/components/market/ModCard.tsx": 1,
     "src/renderer/src/components/market/ModDetail.tsx": 1,
     "src/renderer/src/components/nav/Sidebar.tsx": 1,
-    "src/renderer/src/components/pet/PetView.tsx": 1,
+    "src/renderer/src/components/mate/MateView.tsx": 1,
     "src/renderer/src/components/settings/CharacterDisplaySettings.tsx": 1,
     "src/renderer/src/components/settings/CharacterSettings.tsx": 1,
     "src/renderer/src/components/settings/EnvironmentSettings.tsx": 1,

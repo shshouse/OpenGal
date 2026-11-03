@@ -36,8 +36,8 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
         this.lastEmotion = msg.emotion
         applyEmotion(msg.emotion)
       }
-      // 同一次表演同步给桌宠，主窗口与桌宠不会出现两套情绪
-      window.opengal.pet?.emitPerformance?.({
+      // 同一次表演同步给相伴窗口，主窗口与相伴窗口不会出现两套情绪
+      window.opengal.mate?.emitPerformance?.({
         emotion: msg.emotion,
         motion: msg.motion,
         characterId: msg.characterId,
@@ -77,7 +77,7 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
       started = true
       speakingCount += 1
       pipelineBus.emit('tts:playback', { speaking: true, characterId })
-      window.opengal.pet?.emitPerformance?.({ speaking: true, characterId })
+      window.opengal.mate?.emitPerformance?.({ speaking: true, characterId })
       onStart()
     }
     const onPlaying = (): void => start()
@@ -92,7 +92,7 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
       if (started) {
         speakingCount = Math.max(0, speakingCount - 1)
         pipelineBus.emit('tts:playback', { speaking: false, characterId })
-        window.opengal.pet?.emitPerformance?.({ speaking: false, characterId })
+        window.opengal.mate?.emitPerformance?.({ speaking: false, characterId })
       }
       if (cancelPlayback === cancel) cancelPlayback = null
       audio?.removeEventListener('playing', onPlaying)

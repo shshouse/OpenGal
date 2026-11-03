@@ -114,7 +114,7 @@ export interface GameModeConfig {
 }
 
 export interface ScreenConfig {
-  /** 截图时排除桌宠自身窗口，避免角色不认识屏幕上的自己；关掉后 OBS 才能录到桌宠 */
+  /** 截图时排除相伴窗口自身，避免角色不认识屏幕上的自己；关掉后 OBS 才能录到相伴窗口 */
   excludeSelf: boolean
 }
 

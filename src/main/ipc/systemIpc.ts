@@ -1,5 +1,6 @@
 import { ipcMain, desktopCapturer } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
+import type { MateStatePayload } from '@shared/mate'
 import { fetchMarketMods, openMarketMod } from '../services/marketService'
 import { getEnvSnapshot } from '../services/envContext'
 import { runBootSequence, recheckTts } from '../services/bootService'
@@ -7,30 +8,68 @@ import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
 import { getErrorMessage } from '@shared/errors'
 
+const BUBBLE_MAX_CHARS = 500
+
+const str = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
+const bool = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined)
+
+/** mate:sync 的入口校验：只取已知字段，避免渲染层任意结构透传到另一个窗口。 */
+function parseMateState(value: unknown): MateStatePayload | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  switch (raw.type) {
+    case 'bubble': {
+      const text = str(raw.text)
+      return text === undefined ? null : { type: 'bubble', text: text.slice(0, BUBBLE_MAX_CHARS) }
+    }
+    case 'performance':
+      return {
+        type: 'performance',
+        emotion: str(raw.emotion),
+        motion: str(raw.motion),
+        characterId: str(raw.characterId),
+        speaking: bool(raw.speaking),
+      }
+    case 'runtime':
+      return {
+        type: 'runtime',
+        runningCharacters:
+          raw.runningCharacters && typeof raw.runningCharacters === 'object'
+            ? (raw.runningCharacters as Record<string, boolean>)
+            : {},
+        activeCharacterId: str(raw.activeCharacterId) ?? null,
+      }
+    case 'avatar': {
+      const dataUrl = str(raw.dataUrl)
+      return dataUrl === undefined ? null : { type: 'avatar', dataUrl }
+    }
+    default:
+      return null
+  }
+}
+
 export function registerSystemIpc(windows: WindowManager): void {
-  ipcMain.handle(IpcChannels.pet.open, () => wrap(() => windows.openPetWindow()))
-  ipcMain.handle(IpcChannels.pet.close, () => wrap(() => windows.closePetWindow()))
-  ipcMain.handle(IpcChannels.pet.dragStart, () => wrap(() => windows.dragPetStart()))
-  ipcMain.handle(IpcChannels.pet.dragMove, () => wrap(() => windows.dragPetMove()))
-  // 桌宠气泡是高频推送，走 send/on；文本截断防御
-  ipcMain.on(IpcChannels.pet.setBubble, (_, text: unknown) => {
-    if (typeof text === 'string') windows.sendPetBubble(text.slice(0, 500))
-  })
+  ipcMain.handle(IpcChannels.mate.control, (_, control: unknown) =>
+    wrap(() => {
+      switch (control) {
+        case 'open':
+          return windows.openMateWindow()
+        case 'close':
+          return windows.closeMateWindow()
+        case 'dragStart':
+          return windows.dragMateStart()
+        case 'dragMove':
+          return windows.dragMateMove()
+        default:
+          throw new Error(`未知的相伴控制指令: ${String(control)}`)
+      }
+    })
+  )
 
-  // 主窗口与桌宠共享同一次表演：表情和动作同时下发
-  ipcMain.on(IpcChannels.pet.emitPerformance, (_, payload: unknown) => {
-    if (payload && typeof payload === 'object') {
-      windows.sendPetPerformance(payload as { emotion?: string; motion?: string; characterId?: string; speaking?: boolean })
-    }
-  })
-
-  ipcMain.on(IpcChannels.pet.emitRuntime, (_, payload: unknown) => {
-    if (payload && typeof payload === 'object') {
-      windows.sendPetRuntime(payload as { runningCharacters: Record<string, boolean>; activeCharacterId: string | null })
-    }
-  })
-  ipcMain.on(IpcChannels.pet.emitAvatar, (_, dataUrl: unknown) => {
-    if (typeof dataUrl === 'string') windows.sendMainAvatar(dataUrl)
+  // 气泡是高频推送；主窗口与相伴窗口共享同一次表演，状态统一经 mate:sync 上送
+  ipcMain.on(IpcChannels.mate.sync, (_, payload: unknown) => {
+    const state = parseMateState(payload)
+    if (state) windows.dispatchMateState(state)
   })
 
   ipcMain.handle(IpcChannels.window.minimize, () => {

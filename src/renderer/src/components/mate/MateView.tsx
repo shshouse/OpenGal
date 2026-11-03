@@ -11,7 +11,7 @@ import { isCharacterRunning } from '@shared/characterRuntime'
 const DRAG_THRESHOLD_PX = 6
 
 // 拖角色=挪窗口，点按=触发动作；手势须用 screenX/Y 判定（拖窗口时窗口跟随光标，clientX 几乎不变）
-export default function PetView() {
+export default function MateView() {
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [bubble, setBubble] = React.useState<string | null>(null)
   const [spriteCard, setSpriteCard] = React.useState<import('@shared/types').RoleCardEntry | null>(null)
@@ -25,17 +25,21 @@ export default function PetView() {
     document.body.style.background = 'transparent'
   }, [])
 
-  React.useEffect(() => window.opengal.pet.onBubble((text) => setBubble(text)), [])
-
-  React.useEffect(() => window.opengal.pet.onRuntime(({ runningCharacters, activeCharacterId }) => {
-    useCharacterRuntimeStore.getState().hydrate(runningCharacters)
-    useCharacterStore.setState({ activeId: activeCharacterId })
-  }), [])
-
-  // 主窗口的表演事件同时驱动桌宠：同一角色、同一表情与动作
-  React.useEffect(() => window.opengal.pet.onPerformance(({ emotion, motion }) => {
-    if (emotion) applyEmotion(emotion)
-    if (motion) playMotionGroup(motion)
+  // 主窗口的表演事件同时驱动相伴窗口：同一角色、同一表情与动作
+  React.useEffect(() => window.opengal.mate.onUpdate((payload) => {
+    switch (payload.type) {
+      case 'bubble':
+        setBubble(payload.text)
+        break
+      case 'runtime':
+        useCharacterRuntimeStore.getState().hydrate(payload.runningCharacters)
+        useCharacterStore.setState({ activeId: payload.activeCharacterId })
+        break
+      case 'performance':
+        if (payload.emotion) applyEmotion(payload.emotion)
+        if (payload.motion) playMotionGroup(payload.motion)
+        break
+    }
   }), [])
 
   // 每条新气泡重置隐藏计时；回复停止更新后 5 秒自动消失
@@ -73,7 +77,7 @@ export default function PetView() {
     if (e.button !== 0) return
     dragRef.current = { x: e.screenX, y: e.screenY, dragging: false }
     e.currentTarget.setPointerCapture(e.pointerId)
-    void window.opengal.pet.dragStart()
+    void window.opengal.mate.dragStart()
   }
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -87,7 +91,7 @@ export default function PetView() {
       if (Math.hypot(e.screenX - s.x, e.screenY - s.y) < DRAG_THRESHOLD_PX) return
       s.dragging = true
     }
-    void window.opengal.pet.dragMove()
+    void window.opengal.mate.dragMove()
   }
 
   const endGesture = (e: React.PointerEvent<HTMLDivElement>): void => {
@@ -112,13 +116,13 @@ export default function PetView() {
           </div>
         </div>
       )}
-      {spriteCard?.spriteFrames ? <SpriteStage frames={spriteCard.spriteFrames} characterId={spriteCard.id} sleeping={sleeping} pet /> : <Live2DStage
+      {spriteCard?.spriteFrames ? <SpriteStage frames={spriteCard.spriteFrames} characterId={spriteCard.id} sleeping={sleeping} mate /> : <Live2DStage
         model={model}
         sleeping={sleeping}
         transparent
         interactive={false}
         transformGestures={false}
-        onSnapshot={(dataUrl) => window.opengal.pet.emitAvatar(dataUrl)}
+        onSnapshot={(dataUrl) => window.opengal.mate.emitAvatar(dataUrl)}
       />}
     </div>
   )

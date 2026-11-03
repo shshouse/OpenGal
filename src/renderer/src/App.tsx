@@ -31,7 +31,7 @@ const VIEW_ORDER: View[] = ['home', 'chat', 'market', 'settings', 'logs']
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
-  const [petOpen, setPetOpen] = React.useState(false)
+  const [mateOpen, setMateOpen] = React.useState(false)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const [view, setView] = React.useState<View>('home')
   const [actionError, setActionError] = React.useState('')
@@ -115,13 +115,19 @@ export default function App() {
   }, [loadCharacters])
 
   React.useEffect(() => {
-    window.opengal.pet?.emitRuntime?.({
+    window.opengal.mate?.emitRuntime?.({
       runningCharacters: runningById,
       activeCharacterId: activeId,
     })
   }, [runningById, activeId])
 
-  React.useEffect(() => window.opengal.pet?.onAvatar?.(setAvatarUrl), [])
+  React.useEffect(
+    () =>
+      window.opengal.mate?.onUpdate?.((payload) => {
+        if (payload.type === 'avatar') setAvatarUrl(payload.dataUrl)
+      }),
+    []
+  )
 
   React.useEffect(() => {
     setEyesClosed(!activeRunning)
@@ -196,13 +202,13 @@ export default function App() {
     await setRunningFor(characterId)
   }
 
-  async function togglePet(): Promise<void> {
-    if (petOpen) {
-      await window.opengal.pet.close()
-      setPetOpen(false)
+  async function toggleMate(): Promise<void> {
+    if (mateOpen) {
+      await window.opengal.mate.close()
+      setMateOpen(false)
     } else {
-      await window.opengal.pet.open()
-      setPetOpen(true)
+      await window.opengal.mate.open()
+      setMateOpen(true)
     }
   }
 
@@ -234,7 +240,7 @@ export default function App() {
   )
 
   const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
-  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, petOpen) ? activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
+  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
     <SpriteStage frames={activeCard.spriteFrames} characterId={activeCard.id} sleeping={!activeRunning} />
   ) : (
     <Live2DStage
@@ -257,8 +263,8 @@ export default function App() {
         onOpenSettings={() => setView('settings')}
         onOpenMarket={() => setView('market')}
         marketActive={view === 'market'}
-        petOpen={petOpen}
-        onTogglePet={() => void togglePet()}
+        mateOpen={mateOpen}
+        onToggleMate={() => void toggleMate()}
         showLive2D={config?.showLive2D ?? true}
         onToggleLive2D={() => void toggleLive2D()}
         onOpenLogs={() => setView('logs')}

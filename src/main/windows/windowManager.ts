@@ -2,6 +2,7 @@ import { BrowserWindow, Menu, screen, shell, Tray } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
+import type { MateStatePayload } from '@shared/mate'
 
 const windowIcon = is.dev
   ? join(process.cwd(), 'public/Logo/icon.png')
@@ -16,16 +17,16 @@ interface WindowDeps {
 
 export class WindowManager {
   private main: BrowserWindow | null = null
-  private pet: BrowserWindow | null = null
-  private petDragCursor: { x: number; y: number } | null = null
-  private petDragPos: number[] | null = null
+  private mate: BrowserWindow | null = null
+  private mateDragCursor: { x: number; y: number } | null = null
+  private mateDragPos: number[] | null = null
   private excludeSelf = true
 
   constructor(private readonly deps: WindowDeps) {}
 
   setSelfExclusion(enabled: boolean): void {
     this.excludeSelf = enabled
-    if (this.pet && !this.pet.isDestroyed()) this.pet.setContentProtection(enabled)
+    if (this.mate && !this.mate.isDestroyed()) this.mate.setContentProtection(enabled)
   }
 
   createMainWindow(): BrowserWindow {
@@ -85,16 +86,16 @@ export class WindowManager {
     return tray
   }
 
-  openPetWindow(): { success: true } {
-    if (this.pet && !this.pet.isDestroyed()) {
-      this.pet.focus()
+  openMateWindow(): { success: true } {
+    if (this.mate && !this.mate.isDestroyed()) {
+      this.mate.focus()
       return { success: true }
     }
 
     const primary = screen.getPrimaryDisplay()
     const { width, height } = primary.workAreaSize
 
-    this.pet = new BrowserWindow({
+    this.mate = new BrowserWindow({
       width: 320,
       height: 420,
       x: width - 340,
@@ -115,62 +116,46 @@ export class WindowManager {
         sandbox: true
       }
     })
-    this.pet.setAlwaysOnTop(true, 'screen-saver')
-    this.pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    this.pet.setContentProtection(this.excludeSelf)
-    this.loadRoute(this.pet, 'pet')
-    this.pet.on('closed', () => {
-      this.pet = null
+    this.mate.setAlwaysOnTop(true, 'screen-saver')
+    this.mate.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    this.mate.setContentProtection(this.excludeSelf)
+    this.loadRoute(this.mate, 'mate')
+    this.mate.on('closed', () => {
+      this.mate = null
     })
     return { success: true }
   }
 
-  closePetWindow(): { success: true } {
-    if (this.pet && !this.pet.isDestroyed()) {
-      this.pet.close()
+  closeMateWindow(): { success: true } {
+    if (this.mate && !this.mate.isDestroyed()) {
+      this.mate.close()
     }
-    this.pet = null
+    this.mate = null
     return { success: true }
   }
 
-  dragPetStart(): void {
-    if (!this.pet || this.pet.isDestroyed()) return
-    this.petDragCursor = screen.getCursorScreenPoint()
-    this.petDragPos = this.pet.getPosition()
+  dragMateStart(): void {
+    if (!this.mate || this.mate.isDestroyed()) return
+    this.mateDragCursor = screen.getCursorScreenPoint()
+    this.mateDragPos = this.mate.getPosition()
   }
 
-  dragPetMove(): void {
-    if (!this.pet || this.pet.isDestroyed() || !this.petDragCursor || !this.petDragPos) return
-    const [originX, originY] = this.petDragPos
+  dragMateMove(): void {
+    if (!this.mate || this.mate.isDestroyed() || !this.mateDragCursor || !this.mateDragPos) return
+    const [originX, originY] = this.mateDragPos
     if (originX === undefined || originY === undefined) return
     const now = screen.getCursorScreenPoint()
-    this.pet.setPosition(
-      originX + now.x - this.petDragCursor.x,
-      originY + now.y - this.petDragCursor.y
+    this.mate.setPosition(
+      originX + now.x - this.mateDragCursor.x,
+      originY + now.y - this.mateDragCursor.y
     )
   }
 
-  sendPetBubble(text: string): void {
-    if (this.pet && !this.pet.isDestroyed()) {
-      this.pet.webContents.send(IpcChannels.pet.bubble, text)
-    }
-  }
-
-  sendPetPerformance(payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }): void {
-    if (this.pet && !this.pet.isDestroyed()) {
-      this.pet.webContents.send(IpcChannels.pet.performance, payload)
-    }
-  }
-
-  sendPetRuntime(payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }): void {
-    if (this.pet && !this.pet.isDestroyed()) {
-      this.pet.webContents.send(IpcChannels.pet.runtime, payload)
-    }
-  }
-
-  sendMainAvatar(dataUrl: string): void {
-    if (this.main && !this.main.isDestroyed()) {
-      this.main.webContents.send(IpcChannels.pet.avatar, dataUrl)
+  /** avatar 反向回主窗口（相伴窗口截图给主窗口），其余状态下发给相伴窗口。 */
+  dispatchMateState(payload: MateStatePayload): void {
+    const target = payload.type === 'avatar' ? this.main : this.mate
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IpcChannels.mate.update, payload)
     }
   }
 

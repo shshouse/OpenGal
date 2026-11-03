@@ -29,7 +29,7 @@ beforeAll(() => {
       name: '十四行诗',
       displayName: '十四行诗',
       language: 'zh',
-      windowMode: 'pet',
+      windowMode: 'mate',
       color: '#C75B39',
       persona,
       performance: { mode: 'live2d', live2d: { modelPath: 'model/a.model3.json' } },

@@ -34,19 +34,10 @@ export const IpcChannels = {
     prune: 'memory:prune',
     evidence: 'memory:evidence',
   },
-  pet: {
-    open: 'pet:open',
-    close: 'pet:close',
-    dragStart: 'pet:dragStart',
-    dragMove: 'pet:dragMove',
-    setBubble: 'pet:setBubble',
-    bubble: 'pet:bubble',
-    emitPerformance: 'pet:emitPerformance',
-    performance: 'pet:performance',
-    emitRuntime: 'pet:emitRuntime',
-    runtime: 'pet:runtime',
-    emitAvatar: 'pet:emitAvatar',
-    avatar: 'pet:avatar'
+  mate: {
+    control: 'mate:control',
+    sync: 'mate:sync',
+    update: 'mate:update'
   },
   model: {
     scan: 'model:scan',
