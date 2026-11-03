@@ -19,6 +19,8 @@ import {
   type PerceptionEvent,
 } from './directorContract'
 import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
+import { gateUtterance } from '@shared/presence/gate'
+import { nextSilenceDelay } from '@shared/presence/silence'
 import { buildInitiativePerception } from './initiativePerception'
 import { pipelineBus } from './pipelineBus'
 import { parsePerformance } from '@shared/performance'
@@ -145,19 +147,34 @@ function pruneBacklog(): void {
   backlog = backlog.filter((u) => u.at >= cutoff)
 }
 
+function armSilenceTimer(): void {
+  if (silenceTimer) clearTimeout(silenceTimer)
+  const oldest = buffer[0]
+  if (!oldest) return
+  const delay = nextSilenceDelay({
+    oldestAt: oldest.at,
+    now: Date.now(),
+    silenceWindowMs: SILENCE_WINDOW_MS,
+    maxBufferWaitMs: MAX_BUFFER_WAIT_MS,
+  })
+  silenceTimer = setTimeout(() => {
+    void evaluate()
+  }, delay)
+}
+
 export function offerUtterance(text: string): void {
   const t = text.trim()
   if (!t) return
   const activeId = useCharacterStore.getState().activeId
   if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
   buffer.push({ text: t, at: Date.now() })
-  if (silenceTimer) clearTimeout(silenceTimer)
-  const oldest = buffer[0]
-  if (!oldest) return
-  const wait = Math.min(SILENCE_WINDOW_MS, Math.max(0, oldest.at + MAX_BUFFER_WAIT_MS - Date.now()))
-  silenceTimer = setTimeout(() => {
-    void evaluate()
-  }, wait)
+  armSilenceTimer()
+}
+
+/** ASR partial 到达：用户还在说，顺延判定窗口，避免半句话被提前判掉。 */
+export function noteSpeechActivity(): void {
+  if (buffer.length === 0) return
+  armSilenceTimer()
 }
 
 function plainContent(content: string | MessageContentPart[]): string {
@@ -188,7 +205,6 @@ async function evaluate(): Promise<void> {
     if (generation !== decisionGeneration) return
 
     const joined = utterances.map((u) => u.text).join(' ')
-    const compact = joined.replace(/[\s，。？！,.?！]/g, '')
 
     // 游戏模式：冷却加倍，减少打扰
     let cooldownSec = cfg.directorCooldownSec
@@ -199,20 +215,18 @@ async function evaluate(): Promise<void> {
       /* 环境信息可选 */
     }
 
-    if (cooldownSec > 0 && Date.now() - lastReplyAt < cooldownSec * 1000) {
-      log('info', `冷却中，忽略语音: ${joined.slice(0, 40)}`)
-      decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'cooldown', engine: cfg.engine })
-      resetWaitState()
-      return
-    }
-    if (compact.length < MIN_CHARS) {
-      decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'short', engine: cfg.engine })
-      resetWaitState()
-      return
-    }
-    if (useChatStore.getState().isSending) {
-      log('info', '角色正在回复，不打断')
-      decisionLog({ utterances, joined, decision: 'skip', skipWhy: 'busy', engine: cfg.engine })
+    const gate = gateUtterance({
+      text: joined,
+      now: Date.now(),
+      lastReplyAt,
+      cooldownSec,
+      isSending: useChatStore.getState().isSending,
+      minChars: MIN_CHARS,
+    })
+    if (!gate.allow) {
+      if (gate.skipWhy === 'cooldown') log('info', `冷却中，忽略语音: ${joined.slice(0, 40)}`)
+      if (gate.skipWhy === 'busy') log('info', '角色正在回复，不打断')
+      decisionLog({ utterances, joined, decision: 'skip', skipWhy: gate.skipWhy, engine: cfg.engine })
       resetWaitState()
       return
     }
@@ -278,7 +292,12 @@ async function evaluate(): Promise<void> {
       if (cfg.directorDirectSpeech && action.line) {
         speakDirect(action.line, fullText)
       } else {
-        dispatch?.({ text: fullText, source: 'voice' })
+        const brief = action.beat?.brief?.trim()
+        dispatch?.({
+          text: fullText,
+          source: 'voice',
+          ...(brief ? { systemPrompt: `本轮表演意图：${brief}` } : {}),
+        })
       }
       dispatched = true
       resetWaitState()

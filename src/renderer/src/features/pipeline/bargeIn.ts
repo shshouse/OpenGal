@@ -3,7 +3,7 @@ import { isTTSBusy } from './ttsWorker'
 import { isUIBusy } from './uiWorker'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { cancelDirectorPending } from './directorWorker'
+import { cancelDirectorPending, noteSpeechActivity } from './directorWorker'
 
 let interruptedAt = 0
 
@@ -27,5 +27,7 @@ export function startBargeInBridge(): () => void {
   })
   const offInput = pipelineBus.on('user:input', () => { interruptedAt = 0; cancelDirectorPending() })
   const offSettings = pipelineBus.on('asr:settingsChanged', cancelDirectorPending)
-  return () => { offSpeech(); offInput(); offSettings(); interruptedAt = 0 }
+  // partial 只用来顺延判定窗口：用户还在说，不要提前判半句
+  const offPartial = window.opengal.asr?.onPartial?.(() => noteSpeechActivity()) ?? (() => {})
+  return () => { offSpeech(); offInput(); offSettings(); offPartial(); interruptedAt = 0 }
 }

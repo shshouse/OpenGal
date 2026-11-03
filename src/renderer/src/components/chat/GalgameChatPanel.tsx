@@ -99,7 +99,7 @@ export function GalgameChatPanel() {
         setDraft((prev) => (prev ? prev + ' ' : '') + text.trim())
       }
     })
-    setDirectorDispatch((input) => send(input.text))
+    setDirectorDispatch((input) => send(input.text, undefined, input.systemPrompt))
     return () => {
       setASRFinalCallback(null)
       setDirectorDispatch(null)

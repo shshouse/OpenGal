@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { buildDirectorSystemPrompt } from '../../src/shared/directorPrompt'
 
 describe('导演提示词', () => {
-  it('agent 模式围绕用户，并保留默认安静', () => {
+  it('agent 模式围绕角色立场，并保留默认安静', () => {
     const prompt = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent' })
     expect(prompt).toContain('凯尔希')
+    expect(prompt).toContain('她的现场判断层')
     expect(prompt).toContain('默认是安静')
     expect(prompt).toContain('"action"')
-    expect(prompt).toContain('"line"')
+    expect(prompt).toContain('"beat"')
     expect(prompt).not.toContain('你不在等待指令')
   })
 
@@ -32,9 +33,9 @@ describe('导演提示词', () => {
     expect(direct).not.toContain('不创作任何对话内容')
   })
 
-  it('未开启直出时仍要求导演只做节奏判断', () => {
+  it('未开启直出时要求用 beat 表达意图，而不是写完整台词', () => {
     const indirect = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent' })
-    expect(indirect).toContain('不创作任何对话内容')
+    expect(indirect).toContain('beat.brief')
     expect(indirect).not.toContain('必须在 line 里')
   })
 

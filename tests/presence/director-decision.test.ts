@@ -29,4 +29,25 @@ describe('导演决策解析', () => {
   it('未知动作仍然降级为沉默', () => {
     expect(parseDirectorDecision('{"action":"dance"}').action.type).toBe('silent')
   })
+
+  it('speak 可以携带 beat 意图', () => {
+    const decision = parseDirectorDecision(
+      JSON.stringify({
+        action: 'speak',
+        beat: { intent: 'comfort', urgency: 'high', brief: '先接住他的情绪' },
+      }),
+    )
+    expect(decision.action).toMatchObject({
+      type: 'speak',
+      beat: { intent: 'comfort', urgency: 'high', brief: '先接住他的情绪' },
+    })
+  })
+
+  it('非法 beat 被忽略，但 speak 仍然成立', () => {
+    const decision = parseDirectorDecision(
+      JSON.stringify({ action: 'speak', beat: { intent: 'dance', urgency: 'high' } }),
+    )
+    expect(decision.action.type).toBe('speak')
+    expect((decision.action as { beat?: unknown }).beat).toBeUndefined()
+  })
 })

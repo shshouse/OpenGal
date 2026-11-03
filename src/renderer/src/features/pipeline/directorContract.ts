@@ -1,5 +1,7 @@
 // 导演层契约：解析失败一律 silent；外部内容强制不可信；perHour<=0 表示不限。
 
+import { parseBeat, type Beat } from '@shared/beat'
+
 // ---------------------------------------------------------------- 感知
 
 export type PerceptionKind = 'utterance' | 'screen' | 'app' | 'touch' | 'web' | 'idle'
@@ -58,7 +60,7 @@ export interface DirectorInput {
 
 export type DirectorAction =
   | { type: 'silent'; why: string }
-  | { type: 'speak'; interrupt?: boolean; line?: string }
+  | { type: 'speak'; interrupt?: boolean; line?: string; beat?: Beat }
   | { type: 'wait'; waitSec: number; why: string }
   // 以下为保留动作，当前版本按 silent 处理
   | { type: 'emote'; name: string }
@@ -129,8 +131,14 @@ export function parseDirectorDecision(raw: string): DirectorDecision {
   switch (actionType) {
     case 'speak': {
       const line = typeof parsed.line === 'string' ? parsed.line.trim().slice(0, 200) : ''
+      const beat = parseBeat(parsed.beat)
       return {
-        action: { type: 'speak', interrupt: parsed.interrupt === true, ...(line ? { line } : {}) },
+        action: {
+          type: 'speak',
+          interrupt: parsed.interrupt === true,
+          ...(line ? { line } : {}),
+          ...(beat ? { beat } : {}),
+        },
         reason,
         urgency,
       }
@@ -159,7 +167,7 @@ export function describeAction(action: DirectorAction): string {
     case 'silent':
       return `silent(${action.why})`
     case 'speak':
-      return action.interrupt ? 'speak(interrupt)' : 'speak'
+      return `${action.interrupt ? 'speak(interrupt)' : 'speak'}${action.beat ? `(${action.beat.intent})` : ''}`
     case 'wait':
       return `wait(${action.waitSec}s)`
     default:

@@ -40,6 +40,7 @@ vi.mock('../../src/renderer/src/features/pipeline/directorWorker', () => ({
   cancelDirectorPending: () => {
     state.directorCancels++
   },
+  noteSpeechActivity: () => {},
 }))
 
 describe('voice barge-in and playback cancellation', () => {

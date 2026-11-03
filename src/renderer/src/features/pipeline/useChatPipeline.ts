@@ -47,7 +47,7 @@ export function useChatPipeline() {
   }, [appendUser, finalizeStream, replaceError, setSending])
 
   return useCallback(
-    function send(userContent: string, images?: string[]): void {
+    function send(userContent: string, images?: string[], systemPrompt?: string): void {
       const trimmed = userContent.trim()
       if (!trimmed && (!images || images.length === 0)) return
       replaceError(null)
@@ -60,7 +60,11 @@ export function useChatPipeline() {
           'chat',
           `用户输入: ${trimmed.slice(0, 200)}${images && images.length > 0 ? ` [图片×${images.length}]` : ''}`
         )
-      pipelineBus.emit('user:input', { text: trimmed, source: 'user' })
+      pipelineBus.emit('user:input', {
+        text: trimmed,
+        source: 'user',
+        ...(systemPrompt ? { systemPrompt } : {}),
+      })
     },
     [appendUser, replaceError, setSending],
   )

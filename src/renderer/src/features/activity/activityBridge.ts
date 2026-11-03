@@ -2,6 +2,7 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore } from '@/features/tools/toolCallsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { useActivityStore, type ActivityEntry } from './activityStore'
+import { summarizeToolResult } from '@shared/toolSummary'
 
 function id(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`
@@ -50,7 +51,7 @@ export function startActivityBridge(): () => void {
       id: id('tool'),
       kind: 'tool',
       title: `调用 ${record.name}`,
-      detail: record.result.slice(0, 240),
+      detail: summarizeToolResult(record.name, record.result),
       ok: record.ok,
       at: Date.now(),
     })

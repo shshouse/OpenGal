@@ -27,6 +27,11 @@ export const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
 const SCREENSHOT_COOLDOWN_MS = 10_000
 let lastShotAt = 0
 
+// 同一查询短时间内只打一次搜索后端：模型换词重试时，重复 query 直接吃缓存
+const SEARCH_CACHE_TTL_MS = 120_000
+const SEARCH_CACHE_MAX = 20
+const searchCache = new Map<string, { at: number; text: string }>()
+
 async function handleScreenshot(): Promise<string> {
   if (Date.now() - lastShotAt < SCREENSHOT_COOLDOWN_MS) {
     throw new Error('截图过于频繁（限 10 秒一次）')
@@ -162,6 +167,12 @@ async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
 }
 
 async function handleWebSearch(query: string): Promise<string> {
+  const key = query.trim().replace(/\s+/g, ' ').toLowerCase()
+  const cached = searchCache.get(key)
+  if (cached && Date.now() - cached.at < SEARCH_CACHE_TTL_MS) {
+    return `${cached.text}\n\n[同一查询刚刚搜过，结果未变；不要重复搜索。换更具体的关键词，或直接基于已有结果回答。]`
+  }
+
   const cfg = readConfig().tools.webSearch
   let results: BingResult[]
   if (cfg.provider === 'tavily' && cfg.tavilyKey) {
@@ -172,10 +183,16 @@ async function handleWebSearch(query: string): Promise<string> {
   if (results.length === 0) {
     return '搜索无结果：必应返回了页面但未解析出常规结果（可能被风控或页面结构变化）。可稍后重试，或在设置→环境中切换 Tavily 搜索源。'
   }
-  return wrapWebContent(
+  const text = wrapWebContent(
     `web_search: ${query}`,
     results.map((r) => ({ text: `标题: ${r.title}\n链接: ${r.url}\n摘要: ${r.snippet}` })),
   )
+  searchCache.set(key, { at: Date.now(), text })
+  if (searchCache.size > SEARCH_CACHE_MAX) {
+    const oldest = searchCache.keys().next().value
+    if (oldest) searchCache.delete(oldest)
+  }
+  return text
 }
 
 async function handleReadWebPage(url: string): Promise<string> {
@@ -229,7 +246,7 @@ export function registerBuiltinTools(): void {
       {
         name: 'web_search',
         description:
-          '联网搜索。返回带标题、链接、摘要的结果列表。用户问时效性问题或你不确定的事实时使用。',
+          '联网搜索。返回带标题、链接、摘要的结果列表。用户问时效性问题或你不确定的事实时使用。搜索专有名词时带上上下文（例如 DeepSeek Super-agent，而不是 Super Agent）；两次结果都不相关就停下来问用户要链接，不要连续换词硬搜。',
         schema: webSearchSchema,
       },
       async (args) => handleWebSearch(args.query),
