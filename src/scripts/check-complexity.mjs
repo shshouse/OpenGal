@@ -1,5 +1,4 @@
 // 复杂度 ratchet：基线内的超标函数可以留，新增的不允许。
-// 口径与 docs/opengal/code-quality-audit-2026-10-31.md 一致：CC>=15 或 行数>=60 或 参数>=5。
 // 只比每个文件的超标函数「数量」，不比具体函数名——匿名函数多，名字不稳定。
 import fs from 'node:fs'
 import path from 'node:path'

@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-10-31",
+  "generatedAt": "2026-11-03",
   "thresholds": {
     "cc": 15,
     "lines": 60,
     "params": 5
   },
-  "total": 91,
+  "total": 89,
   "files": {
     "src/renderer/src/components/live2d/Live2DStage.tsx": 5,
     "src/renderer/src/components/settings/ASRSettings.tsx": 3,
@@ -13,7 +13,6 @@
     "src/renderer/src/features/pipeline/subtitles.ts": 3,
     "src/shared/roleCard.ts": 3,
     "src/shared/roleCardSchema.ts": 3,
-    "src/main/ipc/memoryIpc.ts": 2,
     "src/main/services/llm/openaiAdapter.ts": 2,
     "src/main/services/memory/legacy.ts": 2,
     "src/main/services/memory/search.ts": 2,
@@ -29,6 +28,7 @@
     "src/renderer/src/features/pipeline/uiHandlers.ts": 2,
     "src/main/ipc/llmIpc.ts": 1,
     "src/main/ipc/logsIpc.ts": 1,
+    "src/main/ipc/memoryIpc.ts": 1,
     "src/main/ipc/systemIpc.ts": 1,
     "src/main/services/asr/sherpaEngine.ts": 1,
     "src/main/services/asr/streamingEngine.ts": 1,
@@ -38,7 +38,6 @@
     "src/main/services/memory/schema.ts": 1,
     "src/main/services/memoryArbitration.ts": 1,
     "src/main/services/plugins/manifest.ts": 1,
-    "src/main/services/tools/builtin.ts": 1,
     "src/main/services/tts/gptSovitsAdapter.ts": 1,
     "src/main/services/ttsServer.ts": 1,
     "src/renderer/src/App.tsx": 1,

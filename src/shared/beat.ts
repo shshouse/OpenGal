@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 /** 一拍表演意图。导演决定"这一拍做什么"，表达层决定"用她的嘴怎么说"。 */
 export const BEAT_INTENTS = [
   'comfort',
@@ -29,41 +31,36 @@ export interface Beat {
   brief?: string
 }
 
-function isBeatIntent(value: string): value is BeatIntent {
-  return (BEAT_INTENTS as readonly string[]).includes(value)
+/** 模型输出不可信：字段级容错，非法值退化为缺失，不连累整个 beat。超长按上限截断，不整条丢弃。 */
+const text = (max: number) =>
+  z.string().transform((s) => s.trim().slice(0, max) || undefined).optional().catch(undefined)
+
+/** 省略值为 undefined 的键，保持与原手写解析一致的输出形状。 */
+function compact<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T
 }
 
-function parsePerformance(value: unknown): BeatPerformance | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const raw = value as Record<string, unknown>
-  const emotion = typeof raw.emotion === 'string' ? raw.emotion.trim().slice(0, 40) : ''
-  const motion = typeof raw.motion === 'string' ? raw.motion.trim().slice(0, 40) : ''
-  const pace = raw.pace === 'slow' || raw.pace === 'fast' ? raw.pace : raw.pace === 'normal' ? 'normal' : undefined
-  if (!emotion && !motion && !pace) return undefined
-  return {
-    ...(emotion ? { emotion } : {}),
-    ...(motion ? { motion } : {}),
-    ...(pace ? { pace } : {}),
-  }
-}
+const performanceSchema = z
+  .object({
+    emotion: text(40),
+    motion: text(40),
+    pace: z.enum(['slow', 'normal', 'fast']).optional().catch(undefined),
+  })
+  .transform((p) => (p.emotion || p.motion || p.pace ? (compact(p) as BeatPerformance) : undefined))
+  .catch(undefined)
+
+const beatSchema = z
+  .object({
+    intent: z.string().trim().pipe(z.enum(BEAT_INTENTS)),
+    target: z.enum(['user', 'self', 'shared']).optional().catch(undefined),
+    urgency: z.enum(['low', 'normal', 'high']).catch('normal'),
+    performance: performanceSchema,
+    brief: text(160),
+  })
+  .transform((b) => compact(b) as Beat)
 
 /** 解析模型输出里的 beat；非法时返回 undefined，不影响 speak 本身。 */
 export function parseBeat(value: unknown): Beat | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const raw = value as Record<string, unknown>
-  const intent = typeof raw.intent === 'string' ? raw.intent.trim() : ''
-  if (!isBeatIntent(intent)) return undefined
-  const urgency: BeatUrgency =
-    raw.urgency === 'low' || raw.urgency === 'high' ? raw.urgency : 'normal'
-  const target: BeatTarget | undefined =
-    raw.target === 'user' || raw.target === 'self' || raw.target === 'shared' ? raw.target : undefined
-  const brief = typeof raw.brief === 'string' ? raw.brief.trim().slice(0, 160) : ''
-  const performance = parsePerformance(raw.performance)
-  return {
-    intent,
-    urgency,
-    ...(target ? { target } : {}),
-    ...(brief ? { brief } : {}),
-    ...(performance ? { performance } : {}),
-  }
+  const parsed = beatSchema.safeParse(value)
+  return parsed.success ? (parsed.data as Beat) : undefined
 }
