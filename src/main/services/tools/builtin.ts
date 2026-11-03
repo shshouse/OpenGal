@@ -107,43 +107,151 @@ function stripTags(html: string): string {
     .trim()
 }
 
-function parseBingResults(html: string): BingResult[] {
+function tagText(block: string, tag: string): string {
+  const match = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))
+  return stripTags(match?.[1] ?? '')
+}
+
+/** Bing RSS 比 HTML 结果页稳定：结构固定，不依赖 h2 排版 */
+export function parseBingRss(xml: string): BingResult[] {
   const results: BingResult[] = []
   const seen = new Set<string>()
-  const h2Re = /<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+  const itemRe = /<item>([\s\S]*?)<\/item>/gi
   let m: RegExpExecArray | null
-  while ((m = h2Re.exec(html)) !== null) {
-    const url = m[1]
+  while ((m = itemRe.exec(xml)) !== null) {
+    const block = m[1] ?? ''
+    const url = tagText(block, 'link')
+    const title = tagText(block, 'title')
+    if (!url || !title || seen.has(url)) continue
+    seen.add(url)
+    results.push({ url, title, snippet: tagText(block, 'description').slice(0, MAX_SNIPPET_CHARS) })
+  }
+  return results.slice(0, 10)
+}
+
+function resolveDuckDuckGoUrl(raw: string): string {
+  const absolute = raw.startsWith('//') ? `https:${raw}` : raw
+  try {
+    const parsed = new URL(absolute)
+    const target = parsed.searchParams.get('uddg')
+    return target ? decodeURIComponent(target) : absolute
+  } catch {
+    return absolute
+  }
+}
+
+export function parseDuckDuckGo(html: string): BingResult[] {
+  const results: BingResult[] = []
+  const seen = new Set<string>()
+  const linkRe = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+  let m: RegExpExecArray | null
+  while ((m = linkRe.exec(html)) !== null) {
+    const url = resolveDuckDuckGoUrl(m[1] ?? '')
     const title = stripTags(m[2] ?? '')
     if (!url || !title || seen.has(url)) continue
     seen.add(url)
-    const rest = html.slice(m.index + m[0].length, m.index + m[0].length + 3000)
-    const pMatch = rest.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+    const rest = html.slice(m.index + m[0].length, m.index + m[0].length + 4000)
+    const snippetMatch = rest.match(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i)
     results.push({
       url,
       title,
-      snippet: pMatch ? stripTags(pMatch[1] ?? '').slice(0, MAX_SNIPPET_CHARS) : '',
+      snippet: stripTags(snippetMatch?.[1] ?? '').slice(0, MAX_SNIPPET_CHARS),
     })
   }
   return results.slice(0, 10)
 }
 
-async function bingSearch(query: string): Promise<BingResult[]> {
-  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-hans&mkt=zh-CN`
+export function parseSo360(html: string): BingResult[] {
+  const results: BingResult[] = []
+  const seen = new Set<string>()
+  const h3Re = /<h3[^>]*>([\s\S]*?)<\/h3>/gi
+  let m: RegExpExecArray | null
+  while ((m = h3Re.exec(html)) !== null) {
+    const block = m[1] ?? ''
+    const linkMatch = block.match(/<a[^>]*>/i)
+    if (!linkMatch) continue
+    const tag = linkMatch[0]
+    const dataUrl = tag.match(/data-mdurl="([^"]+)"/i)?.[1]
+    const href = tag.match(/href="([^"]+)"/i)?.[1]
+    const url = dataUrl || href || ''
+    const title = stripTags(block.replace(/<a[^>]*>/i, '').replace(/<\/a>/i, ''))
+    if (!url || !title || seen.has(url)) continue
+    seen.add(url)
+    const rest = html.slice(m.index + m[0].length, m.index + m[0].length + 4000)
+    const snippetMatch = rest.match(/<p[^>]*class="[^"]*res-desc[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
+    results.push({
+      url,
+      title,
+      snippet: stripTags(snippetMatch?.[1] ?? '').slice(0, MAX_SNIPPET_CHARS),
+    })
+  }
+  return results.slice(0, 10)
+}
+
+const SEARCH_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+
+async function duckduckgoSearch(query: string): Promise<BingResult[]> {
   const res = await withRetry(
     () =>
-      fetch(url, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Accept-Language': 'zh-CN,zh;q=0.9',
-        },
+      fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { 'User-Agent': SEARCH_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
         signal: AbortSignal.timeout(15_000),
       }),
-    2,
+    1,
   )
-  if (!res.ok) throw new Error(`必应搜索 HTTP ${res.status}`)
-  return parseBingResults(await res.text())
+  if (!res.ok) throw new Error(`DuckDuckGo HTTP ${res.status}`)
+  return parseDuckDuckGo(await res.text())
+}
+
+async function bingRssSearch(query: string): Promise<BingResult[]> {
+  const res = await withRetry(
+    () =>
+      fetch(
+        `https://www.bing.com/search?q=${encodeURIComponent(query)}&format=rss&setlang=zh-hans&mkt=zh-CN`,
+        {
+          headers: { 'User-Agent': SEARCH_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
+          signal: AbortSignal.timeout(15_000),
+        },
+      ),
+    1,
+  )
+  if (!res.ok) throw new Error(`必应 RSS HTTP ${res.status}`)
+  return parseBingRss(await res.text())
+}
+
+async function soSearch(query: string): Promise<BingResult[]> {
+  const res = await withRetry(
+    () =>
+      fetch(`https://www.so.com/s?q=${encodeURIComponent(query)}`, {
+        headers: { 'User-Agent': SEARCH_UA, 'Accept-Language': 'zh-CN,zh;q=0.9' },
+        signal: AbortSignal.timeout(15_000),
+      }),
+    1,
+  )
+  if (!res.ok) throw new Error(`360 搜索 HTTP ${res.status}`)
+  return parseSo360(await res.text())
+}
+
+/** 免 key 本地搜索：DDG + Bing RSS 并发合并，失败再用 360；不依赖任何搜索 API */
+async function localSearch(query: string): Promise<BingResult[]> {
+  const [ddg, bing] = await Promise.allSettled([duckduckgoSearch(query), bingRssSearch(query)])
+  const merged: BingResult[] = []
+  const seen = new Set<string>()
+  for (const result of [ddg, bing]) {
+    if (result.status !== 'fulfilled') continue
+    for (const item of result.value) {
+      if (seen.has(item.url)) continue
+      seen.add(item.url)
+      merged.push(item)
+    }
+  }
+  if (merged.length > 0) return merged.slice(0, 10)
+  try {
+    return await soSearch(query)
+  } catch {
+    return []
+  }
 }
 
 async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
@@ -178,7 +286,8 @@ async function handleWebSearch(query: string): Promise<string> {
   if (cfg.provider === 'tavily' && cfg.tavilyKey) {
     results = await tavilySearch(query, cfg.tavilyKey)
   } else {
-    results = await bingSearch(query)
+    // local/bing 都走免 key 多引擎；bing 是旧配置兼容值
+    results = await localSearch(query)
   }
   if (results.length === 0) {
     return '搜索无结果：必应返回了页面但未解析出常规结果（可能被风控或页面结构变化）。可稍后重试，或在设置→环境中切换 Tavily 搜索源。'

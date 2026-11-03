@@ -44,3 +44,15 @@ export function handleValidatedWithEvent<Schemas extends z.ZodTypeAny[]>(
     wrap(() => fn(event, ...parseArgs(schemas, raw))),
   )
 }
+
+/**
+ * 不走 IpcResult 包装的变体：fn 自己负责返回值结构与错误处理。
+ * 用于流式响应、插件开关等已经有自己返回约定的通道。
+ */
+export function handleValidatedRaw<Schemas extends z.ZodTypeAny[]>(
+  channel: string,
+  schemas: [...Schemas],
+  fn: (...args: Infer<Schemas>) => unknown,
+): void {
+  ipcMain.handle(channel, (_event, ...raw: unknown[]) => fn(...parseArgs(schemas, raw)))
+}

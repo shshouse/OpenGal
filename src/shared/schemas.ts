@@ -74,3 +74,63 @@ export const summarySchema = z.object({
   text: z.string().min(1),
   message_count: z.number().int().min(0),
 })
+
+/** config.set 的部分更新：校验顶层字段与类型，深层结构交给默认值合并逻辑。 */
+export const configPatchSchema = z
+  .object({
+    subtitles: z
+      .object({
+        mode: z.enum(['off', 'translated', 'bilingual']),
+        targetLanguage: z.string(),
+      })
+      .optional(),
+    systemLocale: z.string().optional(),
+    uiLanguage: z.enum(['zh', 'en', 'ja']).optional(),
+    theme: z.enum(['light', 'dark', 'system']).optional(),
+    llm: z.record(z.string(), z.unknown()).optional(),
+    llmPresets: z.array(z.record(z.string(), z.unknown())).optional(),
+    llmSubPresetId: z.string().optional(),
+    tts: z.record(z.string(), z.unknown()).optional(),
+    asr: z.record(z.string(), z.unknown()).optional(),
+    model: z.record(z.string(), z.unknown()).nullable().optional(),
+    activeCharacterId: z.string().nullable().optional(),
+    runningCharacters: z.record(z.string(), z.boolean()).optional(),
+    showLive2D: z.boolean().optional(),
+    memory: z.record(z.string(), z.unknown()).optional(),
+    tools: z.record(z.string(), z.unknown()).optional(),
+    gameMode: z.record(z.string(), z.unknown()).optional(),
+    startup: z.record(z.string(), z.unknown()).optional(),
+    screen: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict()
+
+export const llmRequestSchema = z.object({
+  messages: z.array(chatMessageSchema),
+  overrides: z
+    .object({
+      provider: z.string().optional(),
+      baseURL: z.string().optional(),
+      apiKey: z.string().optional(),
+      modelName: z.string().optional(),
+      temperature: z.number().optional(),
+      maxTokens: z.number().optional(),
+      contextWindow: z.number().optional(),
+      multimodal: z.boolean().optional(),
+    })
+    .passthrough()
+    .optional(),
+  slot: z.enum(['main', 'sub']).optional(),
+  tools: z
+    .array(
+      z.object({
+        type: z.literal('function'),
+        function: z.object({
+          name: z.string(),
+          description: z.string(),
+          parameters: z.record(z.string(), z.unknown()),
+        }),
+      }),
+    )
+    .optional(),
+  toolChoice: z.unknown().optional(),
+})

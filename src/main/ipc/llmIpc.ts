@@ -1,70 +1,73 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
-import type { LLMRequest, LLMResponse } from '@shared/types'
+import type { LLMRequest } from '@shared/types'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
 import { wrap } from './wrap'
+import { handleValidated, handleValidatedRaw, handleValidatedWithEvent } from './validated'
+import { llmRequestSchema } from '@shared/schemas'
+import { z } from 'zod'
 
 export function registerLlmIpc(): void {
 
-  ipcMain.handle(IpcChannels.llm.chat, (_, request: LLMRequest) =>
-    wrap<LLMResponse>(() => callLLM(request))
+  handleValidated(IpcChannels.llm.chat, [llmRequestSchema], (request) =>
+    // schema 已校验结构；passthrough 允许的额外字段使推导类型比 LLMRequest 宽
+    callLLM(request as LLMRequest),
   )
 
   ipcMain.handle(
     IpcChannels.llm.chatStream,
-    (event, request: LLMRequest, streamId: string) => {
+    (event, request: unknown, streamId: unknown) => {
+      const parsed = llmRequestSchema.safeParse(request)
+      const sid = z.string().min(1).safeParse(streamId)
+      if (!parsed.success || !sid.success) return { success: false, error: '参数不合法' }
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return { success: false, error: 'No window' }
-      callLLMStream(request, streamId, win.webContents).catch(() => {})
+      void callLLMStream(parsed.data as LLMRequest, sid.data, win.webContents).catch(() => {})
       return { success: true }
     }
   )
 
-  ipcMain.handle(IpcChannels.llm.streamAbort, (_, streamId: string) => {
+  handleValidatedRaw(IpcChannels.llm.streamAbort, [z.string().min(1)], (streamId) => {
     abortStream(streamId)
     return { success: true }
   })
 
-  ipcMain.handle(
-    IpcChannels.llm.listModels,
-    (_, baseURL: string, apiKey: string) =>
-      wrap<string[]>(() => listProviderModels(baseURL, apiKey))
+  handleValidated(IpcChannels.llm.listModels, [z.string().min(1), z.string()], (baseURL, apiKey) =>
+    listProviderModels(baseURL, apiKey),
   )
 
   ipcMain.handle(IpcChannels.tools.list, () => wrap(() => getToolDefinitions()))
-  ipcMain.handle(IpcChannels.tools.execute, (_, name: string, argsJson: string) =>
-    wrap(() => executeTool(name, argsJson))
+  handleValidated(IpcChannels.tools.execute, [z.string().min(1), z.string()], (name, argsJson) =>
+    executeTool(name, argsJson),
   )
   ipcMain.handle(IpcChannels.plugins.list, () => wrap(() => scanPlugins()))
-  ipcMain.handle(IpcChannels.plugins.setEnabled, (event, pluginId: string, enabled: boolean) =>
-    wrap(async () => {
-      if (enabled) {
-        const m = getPluginManifest(pluginId)
-        const servers = m.contributions?.mcpServers ?? []
-        if (servers.length > 0) {
-          // 启用即 spawn 本地进程：必须用户在本机原生弹窗里明确同意，渲染进程无法绕过
-          const win = BrowserWindow.fromWebContents(event.sender)
-          const cmds = servers
-            .map((s) => (s.command ? `${s.command} ${(s.args ?? []).join(' ')}`.trim() : (s.url ?? '')))
-            .join('\n')
-          const perms = (m.permissions ?? []).join('、') || '无声明'
-          const { response } = await dialog.showMessageBox(win!, {
-            type: 'warning',
-            title: '启用插件',
-            message: `启用插件「${m.name}」？`,
-            detail: `该插件将在你的电脑上启动本地进程：\n${cmds}\n\n声明权限：${perms}`,
-            buttons: ['启用', '取消'],
-            defaultId: 1,
-            cancelId: 1,
-          })
-          if (response !== 0) return scanPlugins()
-        }
+  handleValidatedWithEvent(IpcChannels.plugins.setEnabled, [z.string().min(1), z.boolean()], async (event, pluginId, enabled) => {
+    if (enabled) {
+      const m = getPluginManifest(pluginId)
+      const servers = m.contributions?.mcpServers ?? []
+      if (servers.length > 0) {
+        // 启用即 spawn 本地进程：必须用户在本机原生弹窗里明确同意，渲染进程无法绕过
+        const win = BrowserWindow.fromWebContents(event.sender)
+        const cmds = servers
+          .map((s) => (s.command ? `${s.command} ${(s.args ?? []).join(' ')}`.trim() : (s.url ?? '')))
+          .join('\n')
+        const perms = (m.permissions ?? []).join('、') || '无声明'
+        const { response } = await dialog.showMessageBox(win!, {
+          type: 'warning',
+          title: '启用插件',
+          message: `启用插件「${m.name}」？`,
+          detail: `该插件将在你的电脑上启动本地进程：\n${cmds}\n\n声明权限：${perms}`,
+          buttons: ['启用', '取消'],
+          defaultId: 1,
+          cancelId: 1,
+        })
+        if (response !== 0) return scanPlugins()
       }
-      await setPluginEnabled(pluginId, enabled)
-      return scanPlugins()
-    })
-  )
+    }
+    await setPluginEnabled(pluginId, enabled)
+    return scanPlugins()
+  })
   ipcMain.handle(IpcChannels.plugins.rescan, () => wrap(() => rescanPlugins()))
 }

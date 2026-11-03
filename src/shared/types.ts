@@ -183,7 +183,7 @@ export interface MemoryConfig {
 
 export interface ToolsConfig {
   webSearch: {
-    provider: 'bing' | 'tavily'
+    provider: 'local' | 'bing' | 'tavily'
     tavilyKey: string
   }
   fileSearchDirs: string[]

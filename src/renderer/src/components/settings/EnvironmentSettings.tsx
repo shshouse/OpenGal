@@ -22,7 +22,7 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
   const [gameEnabled, setGameEnabled] = React.useState(true)
   const [games, setGames] = React.useState<string[]>([])
   const [newGame, setNewGame] = React.useState('')
-  const [provider, setProvider] = React.useState<'bing' | 'tavily'>('bing')
+  const [provider, setProvider] = React.useState<'local' | 'bing' | 'tavily'>('local')
   const [tavilyKey, setTavilyKey] = React.useState('')
   const [fileDirs, setFileDirs] = React.useState<string[]>([])
   const [newDir, setNewDir] = React.useState('')
@@ -33,7 +33,7 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
     if (!config) return
     setGameEnabled(config.gameMode.enabled)
     setGames(config.gameMode.games)
-    setProvider(config.tools.webSearch.provider)
+    setProvider(config.tools.webSearch.provider === 'bing' ? 'local' : config.tools.webSearch.provider)
     setTavilyKey(config.tools.webSearch.tavilyKey)
     setFileDirs(config.tools.fileSearchDirs)
   }, [config])
@@ -135,13 +135,13 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
             <label className="text-xs font-medium text-muted-foreground">搜索源</label>
             <Select
               value={provider}
-              onValueChange={(v) => setProvider(v as 'bing' | 'tavily')}
+              onValueChange={(v) => setProvider(v as 'local' | 'bing' | 'tavily')}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="bing">必应（免配置）</SelectItem>
+                <SelectItem value="local">本地多引擎（免配置）</SelectItem>
                 <SelectItem value="tavily">Tavily API（质量更高）</SelectItem>
               </SelectContent>
             </Select>

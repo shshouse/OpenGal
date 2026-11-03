@@ -7,47 +7,40 @@ import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/rol
 import { warmupTTS } from '../services/ttsClient'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
+import { handleValidated } from './validated'
+import { configPatchSchema } from '@shared/schemas'
+import { z } from 'zod'
 
 export function registerConfigIpc(windows: WindowManager): void {
 
   ipcMain.handle(IpcChannels.config.get, () => wrap<AppConfig>(() => readConfig()))
 
-  ipcMain.handle(IpcChannels.config.set, (_, patch: Partial<AppConfig>) =>
-    wrap<AppConfig>(() => {
-      const next = writeConfig(patch)
-      if (patch.activeCharacterId !== undefined) void warmupTTS()
-      if (patch.screen?.excludeSelf !== undefined) windows.setSelfExclusion(patch.screen.excludeSelf)
-      return next
-    })
-  )
+  handleValidated(IpcChannels.config.set, [configPatchSchema], (patch) => {
+    const next = writeConfig(patch as Partial<AppConfig>)
+    if (patch.activeCharacterId !== undefined) void warmupTTS()
+    const excludeSelf = patch.screen?.excludeSelf
+    if (typeof excludeSelf === 'boolean') windows.setSelfExclusion(excludeSelf)
+    return next
+  })
 
   ipcMain.handle(IpcChannels.model.resolveDefault, () =>
     wrap(() => resolveDefaultModel())
   )
 
-  ipcMain.handle(
-    IpcChannels.model.resolveFromCard,
-    (_, cardId: string) => wrap(() => {
-      const card = getRoleCard(cardId)
-      if (!card) return null
-      return resolveModelFromCard(card)
-    })
-  )
+  handleValidated(IpcChannels.model.resolveFromCard, [z.string().min(1)], (cardId) => {
+    const card = getRoleCard(cardId)
+    if (!card) return null
+    return resolveModelFromCard(card)
+  })
 
-  ipcMain.handle(
-    IpcChannels.model.scan,
-    (_, folderPath: string, modelJsonFile: string) =>
-      wrap(() => scanModel(folderPath, modelJsonFile))
+  handleValidated(IpcChannels.model.scan, [z.string().min(1), z.string().min(1)], (folderPath, modelJsonFile) =>
+    scanModel(folderPath, modelJsonFile),
   )
 
   ipcMain.handle(IpcChannels.character.list, () => wrap(() => listRoleCards()))
-  ipcMain.handle(IpcChannels.character.get, (_, id: string) =>
-    wrap(() => getRoleCard(id))
-  )
-  ipcMain.handle(IpcChannels.character.voiceConfig, (_, id: string) =>
-    wrap<Record<string, unknown> | null>(() => {
-      const card = getRoleCard(id)
-      return card ? readRoleVoiceConfig(card) : null
-    })
-  )
+  handleValidated(IpcChannels.character.get, [z.string().min(1)], (id) => getRoleCard(id))
+  handleValidated(IpcChannels.character.voiceConfig, [z.string().min(1)], (id) => {
+    const card = getRoleCard(id)
+    return card ? readRoleVoiceConfig(card) : null
+  })
 }

@@ -64,7 +64,7 @@ const defaultConfig: AppConfig = {
   showLive2D: true,
   tools: {
     webSearch: {
-      provider: 'bing',
+      provider: 'local',
       tavilyKey: ''
     },
     fileSearchDirs: []
