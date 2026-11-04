@@ -1,9 +1,24 @@
 import { db, rows, run, withTx, getMeta, setMeta } from './core'
 import { factRowToMemory, insertMemoryRowRaw, isoToMs, memoryToFactRow, memoryToStoryRow, storyRowToMemory } from './memoryRows'
+import {
+  recordBulkChange,
+  recordMemoryChange,
+  recordMemoryFieldChange,
+  type MemoryChangeActor,
+} from './changelog'
 import type { MemoryRow, FactRow, StoryRow, MessageRow } from './types'
 
-export function insertMemoryRow(characterId: string, row: MemoryRow): void {
-  withTx(() => insertMemoryRowRaw(characterId, row))
+function loadForChange(id: string): MemoryRow | null {
+  const found = rows('SELECT * FROM memories WHERE id = ?', [id])
+  return found.length > 0 ? (found[0] as unknown as MemoryRow) : null
+}
+
+export function insertMemoryRow(
+  characterId: string,
+  row: MemoryRow,
+  actor: MemoryChangeActor = 'system',
+): void {
+  withTx(() => insertMemoryRowRaw(characterId, row, { actor }))
 }
 
 export function listMemoryRows(
@@ -18,15 +33,25 @@ export function listMemoryRows(
 }
 
 export function setMemoryStateRow(id: string, state: string): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE memories SET state = ? WHERE id = ?').run(state, id).changes
-  ))
+  return withTx(() => {
+    const before = loadForChange(id)
+    const changed = Number(db!.prepare('UPDATE memories SET state = ? WHERE id = ?').run(state, id).changes)
+    if (before && changed > 0) {
+      recordMemoryFieldChange(before.character_id, id, 'state', before.state, state)
+    }
+    return changed
+  })
 }
 
 export function setMemoryPinnedRow(id: string, pinned: boolean): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE memories SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, id).changes
-  ))
+  return withTx(() => {
+    const before = loadForChange(id)
+    const changed = Number(db!.prepare('UPDATE memories SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, id).changes)
+    if (before && changed > 0) {
+      recordMemoryFieldChange(before.character_id, id, 'pinned', String(before.pinned), pinned ? '1' : '0')
+    }
+    return changed
+  })
 }
 
 export function setMemoryEmbeddingRow(id: string, embedding: string): number {
@@ -36,22 +61,46 @@ export function setMemoryEmbeddingRow(id: string, embedding: string): number {
 }
 
 export function confirmMemoryRow(id: string, ts: number): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE memories SET confirmed_at = ? WHERE id = ?').run(ts, id).changes
-  ))
+  return withTx(() => {
+    const before = loadForChange(id)
+    const changed = Number(db!.prepare('UPDATE memories SET confirmed_at = ? WHERE id = ?').run(ts, id).changes)
+    if (before && changed > 0) {
+      recordMemoryFieldChange(
+        before.character_id,
+        id,
+        'confirmed_at',
+        before.confirmed_at === null || before.confirmed_at === undefined ? null : String(before.confirmed_at),
+        String(ts),
+      )
+    }
+    return changed
+  })
 }
 
 export function deleteMemoryRow(id: string): number {
-  return withTx(() => Number(
-    db!.prepare('DELETE FROM memories WHERE id = ?').run(id).changes
-  ))
+  return withTx(() => {
+    const before = loadForChange(id)
+    const changed = Number(db!.prepare('DELETE FROM memories WHERE id = ?').run(id).changes)
+    if (before && changed > 0) {
+      recordMemoryChange({
+        memoryId: id,
+        characterId: before.character_id,
+        action: 'delete',
+        oldValue: JSON.stringify(before),
+        actor: 'user',
+      })
+    }
+    return changed
+  })
 }
 
 // 一条记忆的来源原话：优先用显式 messageIds，否则按记录的时间范围回查
 
 export function clearCharacterMemories(characterId: string): void {
   withTx(() => {
+    const before = Number(rows('SELECT COUNT(*) AS c FROM memories WHERE character_id = ?', [characterId])[0]?.c ?? 0)
     run('DELETE FROM memories WHERE character_id = ?', [characterId])
+    recordBulkChange(characterId, 'clear', before, 'user')
   })
 }
 
@@ -63,13 +112,23 @@ export function listFacts(characterId: string): FactRow[] {
 
 export function saveFacts(characterId: string, items: FactRow[]): void {
   withTx(() => {
+    const before = Number(
+      rows("SELECT COUNT(*) AS c FROM memories WHERE character_id = ? AND kind = 'fact'", [characterId])[0]?.c ?? 0
+    )
     run("DELETE FROM memories WHERE character_id = ? AND kind = 'fact'", [characterId])
-    for (const item of items) insertMemoryRowRaw(characterId, factRowToMemory(characterId, item))
+    for (const item of items) {
+      insertMemoryRowRaw(characterId, factRowToMemory(characterId, item), { log: false })
+    }
+    recordBulkChange(characterId, 'rewrite_facts', before + items.length)
   })
 }
 
-export function insertFactRow(characterId: string, f: FactRow): void {
-  insertMemoryRow(characterId, factRowToMemory(characterId, f))
+export function insertFactRow(
+  characterId: string,
+  f: FactRow,
+  actor: MemoryChangeActor = 'system',
+): void {
+  insertMemoryRow(characterId, factRowToMemory(characterId, f), actor)
 }
 
 export function getFactRow(id: string): FactRow | null {
@@ -90,10 +149,18 @@ export function setFactStatusRow(id: string, status: string): number {
 }
 
 export function setFactFrozenRow(id: string, frozenAt: string | null): number {
-  return withTx(() => Number(
-    db!.prepare('UPDATE memories SET frozen_at = ?, pinned = ? WHERE id = ?')
-      .run(frozenAt, frozenAt ? 1 : 0, id).changes
-  ))
+  return withTx(() => {
+    const before = loadForChange(id)
+    const changed = Number(
+      db!.prepare('UPDATE memories SET frozen_at = ?, pinned = ? WHERE id = ?')
+        .run(frozenAt, frozenAt ? 1 : 0, id).changes
+    )
+    if (before && changed > 0) {
+      recordMemoryFieldChange(before.character_id, id, 'frozen_at', before.frozen_at ?? null, frozenAt, 'user')
+      recordMemoryFieldChange(before.character_id, id, 'pinned', String(before.pinned), frozenAt ? '1' : '0', 'user')
+    }
+    return changed
+  })
 }
 
 export function setFactEmbeddingRow(id: string, embedding: string): number {
@@ -112,13 +179,23 @@ export function listStories(characterId: string): StoryRow[] {
 
 export function saveStories(characterId: string, items: StoryRow[]): void {
   withTx(() => {
+    const before = Number(
+      rows("SELECT COUNT(*) AS c FROM memories WHERE character_id = ? AND kind != 'fact'", [characterId])[0]?.c ?? 0
+    )
     run("DELETE FROM memories WHERE character_id = ? AND kind != 'fact'", [characterId])
-    for (const item of items) insertMemoryRowRaw(characterId, storyRowToMemory(characterId, item))
+    for (const item of items) {
+      insertMemoryRowRaw(characterId, storyRowToMemory(characterId, item), { log: false })
+    }
+    recordBulkChange(characterId, 'rewrite_stories', before + items.length)
   })
 }
 
-export function insertStoryRow(characterId: string, s: StoryRow): void {
-  insertMemoryRow(characterId, storyRowToMemory(characterId, s))
+export function insertStoryRow(
+  characterId: string,
+  s: StoryRow,
+  actor: MemoryChangeActor = 'system',
+): void {
+  insertMemoryRow(characterId, storyRowToMemory(characterId, s), actor)
 }
 
 export function setStoryStatusRow(id: string, status: string): number {
@@ -175,8 +252,10 @@ export function listMessagesAfter(characterId: string, afterTs: number, limit: n
 
 // 重建前清空抽取层；原文、聊天记录、摘要都不动（摘要由压缩链路单独维护）
 export function resetDerived(characterId: string): { facts: number, stories: number } {
-  return withTx(() => ({
-    facts: Number(db!.prepare("DELETE FROM memories WHERE character_id = ? AND kind = 'fact'").run(characterId).changes),
-    stories: Number(db!.prepare("DELETE FROM memories WHERE character_id = ? AND kind != 'fact'").run(characterId).changes),
-  }))
+  return withTx(() => {
+    const facts = Number(db!.prepare("DELETE FROM memories WHERE character_id = ? AND kind = 'fact'").run(characterId).changes)
+    const stories = Number(db!.prepare("DELETE FROM memories WHERE character_id = ? AND kind != 'fact'").run(characterId).changes)
+    recordBulkChange(characterId, 'reset_derived', facts + stories)
+    return { facts, stories }
+  })
 }

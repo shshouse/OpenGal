@@ -33,6 +33,7 @@ export const IpcChannels = {
     deleteFact: 'memory:deleteFact',
     prune: 'memory:prune',
     evidence: 'memory:evidence',
+    changes: 'memory:changes',
   },
   mate: {
     control: 'mate:control',

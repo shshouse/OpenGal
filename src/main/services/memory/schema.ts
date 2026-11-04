@@ -70,6 +70,21 @@ CREATE TABLE IF NOT EXISTS summaries (
   message_count INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_changelog (
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  memory_id TEXT NOT NULL,
+  character_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  field TEXT,
+  old_value TEXT,
+  new_value TEXT,
+  actor TEXT NOT NULL DEFAULT 'system',
+  reason TEXT,
+  ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_changelog_memory ON memory_changelog(memory_id, seq);
+CREATE INDEX IF NOT EXISTS idx_changelog_char ON memory_changelog(character_id, ts);
 `
 
 function ensureColumns(table: string, columns: Array<[string, string]>): void {

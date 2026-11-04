@@ -18,6 +18,7 @@ export { searchTokens, visibleMessageText, searchMessages } from './memory/searc
 export * from './memory/messages'
 export * from './memory/memories'
 export * from './memory/summaries'
+export * from './memory/changelog'
 
 export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<void> {
   if (readyPromise) return readyPromise

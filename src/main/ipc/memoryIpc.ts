@@ -27,6 +27,7 @@ import {
   addSummary,
   commitCompression,
   memoryEvidence,
+  listMemoryChanges,
 } from '../services/memoryDb'
 import {
   characterIdSchema,
@@ -137,6 +138,9 @@ export function registerMemoryIpc(): void {
   )
   ipcMain.handle(IpcChannels.memory.evidence, (_, characterId: string, memoryId: string) =>
     wrap(() => memoryEvidence(characterId, memoryId))
+  )
+  ipcMain.handle(IpcChannels.memory.changes, (_, characterId: string, memoryId: string, limit?: number) =>
+    wrap(() => listMemoryChanges(characterId, memoryId, limit))
   )
   ipcMain.handle(IpcChannels.memory.pending, (_, characterId: string, limit?: number) =>
     wrap(() => pendingFromArchive(characterId, limit))

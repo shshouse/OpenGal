@@ -36,6 +36,19 @@ export interface MemoryStory {
   created_at: string
 }
 
+export interface MemoryChange {
+  seq: number
+  memory_id: string
+  character_id: string
+  action: 'insert' | 'update' | 'delete'
+  field: string | null
+  old_value: string | null
+  new_value: string | null
+  actor: string
+  reason: string | null
+  ts: number
+}
+
 export interface MemoryCandidateFact {
   text: string
   entity: MemoryFact['entity']

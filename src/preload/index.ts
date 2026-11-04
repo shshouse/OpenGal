@@ -9,6 +9,7 @@ import type {
   LlmStreamEvent,
   Live2DModelConfig,
   MemoryApplyPayload,
+  MemoryChange,
   MemoryFact,
   MemoryStory,
   PluginInfo,
@@ -105,6 +106,8 @@ const api = {
         characterId,
         memoryId
       ),
+    changes: (characterId: string, memoryId: string, limit?: number) =>
+      invoke<MemoryChange[]>(IpcChannels.memory.changes, characterId, memoryId, limit),
     getRelevant: (characterId: string, context: string) =>
       invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
         IpcChannels.memory.getRelevant,

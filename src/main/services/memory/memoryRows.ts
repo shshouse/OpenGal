@@ -1,7 +1,15 @@
-import { run } from './core'
+import { rows, run } from './core'
+import { recordMemoryChange, type MemoryChangeActor } from './changelog'
 import type { MemoryRow, FactRow, StoryRow } from './types'
 
-export function insertMemoryRowRaw(characterId: string, row: MemoryRow): void {
+export function insertMemoryRowRaw(
+  characterId: string,
+  row: MemoryRow,
+  opts: { log?: boolean; actor?: MemoryChangeActor } = {},
+): void {
+  const existed = opts.log === false
+    ? false
+    : rows('SELECT 1 FROM memories WHERE id = ?', [row.id]).length > 0
   run(
       `INSERT OR REPLACE INTO memories(id, character_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -34,6 +42,14 @@ export function insertMemoryRowRaw(characterId: string, row: MemoryRow): void {
         row.evidence ?? null,
       ]
     )
+  if (opts.log === false) return
+  recordMemoryChange({
+    memoryId: row.id,
+    characterId,
+    action: existed ? 'update' : 'insert',
+    newValue: row.kind,
+    actor: opts.actor ?? 'system',
+  })
 }
 
 function msToIso(ms: number): string {

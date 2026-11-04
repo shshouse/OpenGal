@@ -309,7 +309,7 @@ export async function applyCandidates(
       continue
     }
     facts.push(entry)
-    insertFactRow(characterId, factToRow(entry, sourceEvidence))
+    insertFactRow(characterId, factToRow(entry, sourceEvidence), 'llm')
     result.insertedFacts++
   }
 
@@ -327,7 +327,7 @@ export async function applyCandidates(
       created_at: ts,
     }
     stories.push(entry)
-    insertStoryRow(characterId, storyToRow(entry, sourceEvidence))
+    insertStoryRow(characterId, storyToRow(entry, sourceEvidence), 'llm')
     result.insertedStories++
   }
 
@@ -360,7 +360,7 @@ export async function manualAddFact(
     embedding: null,
   }
   await memoryDbReady()
-  insertFactRow(characterId, factToRow(entry, null))
+  insertFactRow(characterId, factToRow(entry, null), 'user')
   return entry
 }
 

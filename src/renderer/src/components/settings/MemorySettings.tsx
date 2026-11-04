@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { useCharacterStore } from '@/features/character/characterStore'
 import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
-import type { MemoryFact, MemoryStory } from '@shared/types'
+import type { MemoryChange, MemoryFact, MemoryStory } from '@shared/types'
 import { getErrorMessage } from '@shared/errors'
 
 function sourceText(content: string): string {
@@ -22,6 +22,30 @@ function sourceText(content: string): string {
   }
 }
 
+const ACTOR_LABELS: Record<string, string> = {
+  llm: '自动整理',
+  arbitration: '自动整理',
+  user: '手动修改',
+  system: '系统',
+}
+
+function statusLabel(value: string | null): string {
+  if (value === 'active') return '活跃'
+  if (value === 'archived') return '已归档'
+  if (value === 'superseded') return '已替代'
+  return value ?? '空'
+}
+
+function changeLabel(change: MemoryChange): string {
+  if (change.action === 'insert') return '创建'
+  if (change.action === 'delete') return '删除'
+  if (change.field === 'state') return `状态 ${statusLabel(change.old_value)} → ${statusLabel(change.new_value)}`
+  if (change.field === 'pinned') return change.new_value === '1' ? '固定' : '取消固定'
+  if (change.field === 'confirmed_at') return '再次确认'
+  if (change.field === 'frozen_at') return change.new_value ? '冻结' : '解冻'
+  return '更新'
+}
+
 export function MemorySettings() {
   const activeId = useCharacterStore((s) => s.activeId)
   const characters = useCharacterStore((s) => s.list)
@@ -35,6 +59,7 @@ export function MemorySettings() {
   const [rebuilding, setRebuilding] = React.useState(false)
   const [openSource, setOpenSource] = React.useState<string | null>(null)
   const [sources, setSources] = React.useState<Record<string, Array<{ id: number; role: string; content: string; ts: number }>>>({})
+  const [changes, setChanges] = React.useState<Record<string, MemoryChange[]>>({})
 
   const activeChar = characters.find((c) => c.id === activeId)
   const charName = activeChar?.displayName ?? activeChar?.name ?? '未选择角色'
@@ -62,6 +87,12 @@ export function MemorySettings() {
     void load()
   }, [load])
 
+  const loadChanges = React.useCallback(async (memoryId: string): Promise<void> => {
+    if (!activeId) return
+    const res = await window.opengal.memory.changes(activeId, memoryId, 20)
+    if (res.success && res.data) setChanges((prev) => ({ ...prev, [memoryId]: res.data ?? [] }))
+  }, [activeId])
+
   const filteredFacts = React.useMemo(() => {
     if (!search.trim()) return facts
     const q = search.trim().toLowerCase()
@@ -79,7 +110,10 @@ export function MemorySettings() {
     const res = freeze
       ? await window.opengal.memory.freezeFact(activeId, factId)
       : await window.opengal.memory.unfreezeFact(activeId, factId)
-    if (res.success) await load()
+    if (res.success) {
+      await load()
+      if (openSource === factId) await loadChanges(factId)
+    }
   }
 
   async function handleDelete(factId: string): Promise<void> {
@@ -95,9 +129,11 @@ export function MemorySettings() {
       return
     }
     setOpenSource(id)
-    if (sources[id]) return
-    const res = await window.opengal.memory.evidence(activeId, id)
-    if (res.success && res.data) setSources((prev) => ({ ...prev, [id]: res.data ?? [] }))
+    if (!sources[id]) {
+      const res = await window.opengal.memory.evidence(activeId, id)
+      if (res.success && res.data) setSources((prev) => ({ ...prev, [id]: res.data ?? [] }))
+    }
+    if (!changes[id]) await loadChanges(id)
   }
 
   async function handleAdd(): Promise<void> {
@@ -232,7 +268,7 @@ export function MemorySettings() {
                   </div>
                   <button
                     type="button"
-                    title="查看来源"
+                    title="来源与变更"
                     className="shrink-0 text-muted-foreground hover:text-foreground"
                     onClick={() => void toggleSource(f.id)}
                   >
@@ -249,18 +285,36 @@ export function MemorySettings() {
                   </div>
                   {openSource === f.id && (
                     <div className="border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                      {(sources[f.id] ?? []).length === 0 ? (
-                        <span>这条记忆没有记录来源原话</span>
-                      ) : (
-                        (sources[f.id] ?? []).map((m) => (
-                          <div key={`${f.id}-${m.id}`} className="flex gap-2 py-0.5">
-                            <span className="shrink-0 tabular-nums">
-                              {new Date(m.ts).toLocaleDateString()}
-                            </span>
-                            <span className="min-w-0 flex-1">{sourceText(m.content)}</span>
-                          </div>
-                        ))
-                      )}
+                      <div>
+                        {(sources[f.id] ?? []).length === 0 ? (
+                          <span>这条记忆没有记录来源原话</span>
+                        ) : (
+                          (sources[f.id] ?? []).map((m) => (
+                            <div key={`${f.id}-${m.id}`} className="flex gap-2 py-0.5">
+                              <span className="shrink-0 tabular-nums">
+                                {new Date(m.ts).toLocaleDateString()}
+                              </span>
+                              <span className="min-w-0 flex-1">{sourceText(m.content)}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div className="mt-2 border-t pt-2">
+                        <div className="mb-1 font-medium">变更记录</div>
+                        {(changes[f.id] ?? []).length === 0 ? (
+                          <span>暂无变更记录</span>
+                        ) : (
+                          (changes[f.id] ?? []).map((c) => (
+                            <div key={c.seq} className="flex gap-2 py-0.5">
+                              <span className="shrink-0 tabular-nums">
+                                {new Date(c.ts).toLocaleDateString()}
+                              </span>
+                              <span className="min-w-0 flex-1">{changeLabel(c)}</span>
+                              <span className="shrink-0">{ACTOR_LABELS[c.actor] ?? ''}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   )}
                 </React.Fragment>
