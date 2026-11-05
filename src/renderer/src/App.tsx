@@ -290,9 +290,10 @@ export default function App() {
                 />
               ) : <div className="p-6 text-sm text-muted-foreground">请选择一个角色</div>}
               stage={(
-                <div className="flex h-full min-w-0 flex-col">
-                  <div className="min-h-0 flex-1">{live2dLayer}</div>
-                  <div className="h-[38%] min-h-[240px] max-h-[420px] shrink-0 border-t">
+                <div className="relative h-full min-w-0 overflow-hidden">
+                  <div className="absolute inset-0">{live2dLayer}</div>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 top-1/4 z-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
+                  <div className="absolute inset-0 z-20">
                     <GalgameChatPanel />
                   </div>
                 </div>

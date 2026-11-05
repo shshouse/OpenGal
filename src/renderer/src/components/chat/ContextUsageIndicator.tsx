@@ -81,7 +81,7 @@ export function ContextUsageIndicator() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full border bg-background/60 backdrop-blur-sm transition-colors hover:bg-accent"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent"
           title="上下文使用量"
         >
           <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>

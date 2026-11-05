@@ -24,11 +24,15 @@ export function MicButton() {
       {running && <Waveform />}
       <div className="relative">
         <Button
-          variant={running ? 'default' : 'outline'}
+          variant={running ? 'default' : 'ghost'}
           size="icon"
           onClick={toggle}
           title={error || (applying ? '正在应用语音设置，点击可停止' : running ? '停止语音输入' : '语音输入')}
-          className={cn(error && 'border-destructive text-destructive')}
+          className={cn(
+            'size-8 shrink-0 text-muted-foreground',
+            running && 'text-primary-foreground',
+            error && 'text-destructive',
+          )}
         >
           {running ? <Mic className="size-4" /> : <MicOff className="size-4" />}
         </Button>

@@ -104,12 +104,7 @@ export function AppBar({
       className="flex h-11 shrink-0 select-none items-stretch border-b bg-card [&_button]:active:bg-accent [&_button]:focus-visible:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-inset [&_button]:focus-visible:ring-ring/70"
       style={DRAG}
     >
-      <div className="flex items-center gap-2 pl-3 pr-1">
-        <img src="/Logo/icon.png" alt="" className="size-5 rounded" />
-        <span className="text-sm font-semibold tracking-tight">OpenGal</span>
-      </div>
-
-      <nav className="ml-2 flex items-center gap-0.5" style={NO_DRAG}>
+      <nav className="flex items-center gap-0.5 pl-3" style={NO_DRAG}>
         {NAV.map((item) => {
           const active = activeView === item.view
           const badge = item.view === 'logs' && errorCount > 0
