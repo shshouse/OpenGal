@@ -24,6 +24,8 @@
     --input: 0 0% 90%;
     --ring: 0 0% 9%;
     --radius: 0.375rem;
+    --brand: 168 54% 34%;
+    --brand-foreground: 0 0% 100%;
     --duration-control: 120ms;
     --duration-overlay: 180ms;
     --ease-control: cubic-bezier(0.2, 0, 0, 1);
@@ -51,6 +53,8 @@
     --border: 218 14% 16%;
     --input: 218 14% 19%;
     --ring: 215 9% 60%;
+    --brand: 166 44% 52%;
+    --brand-foreground: 225 15% 5%;
   }
 
   * {

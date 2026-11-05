@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { X } from 'lucide-react'
-import { TitleBar } from '@/components/titlebar/TitleBar'
+import { AppBar, type AppView } from '@/components/nav/AppBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
@@ -10,7 +10,6 @@ import { LogsPanel } from '@/components/logs/LogsPanel'
 import { MarketPage } from '@/components/market/MarketPage'
 import { HomePage } from '@/components/home/HomePage'
 import { RoleDashboard } from '@/components/dashboard/RoleDashboard'
-import { Sidebar } from '@/components/nav/Sidebar'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
 import { useCharacterStore } from '@/features/character/characterStore'
@@ -25,15 +24,14 @@ import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
 
-type View = 'home' | 'chat' | 'market' | 'settings' | 'logs'
-const VIEW_ORDER: View[] = ['home', 'chat', 'market', 'settings', 'logs']
+const VIEW_ORDER: AppView[] = ['home', 'chat', 'market', 'settings', 'logs']
 
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [mateOpen, setMateOpen] = React.useState(false)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [view, setView] = React.useState<View>('home')
+  const [view, setView] = React.useState<AppView>('home')
   const [actionError, setActionError] = React.useState('')
   const characters = useCharacterStore((s) => s.list)
   const bootSteps = useStartupStore((s) => s.steps)
@@ -254,30 +252,23 @@ export default function App() {
   )
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <Sidebar
+    <div className="flex h-full flex-col overflow-hidden">
+      <AppBar
+        view={view}
+        onNavigate={setView}
         avatarUrl={avatarUrl}
         onAvatarClick={(id) => void handleAvatarClick(id)}
-        onOpenChat={() => setView('home')}
-        chatActive={view === 'home' || view === 'chat'}
-        onOpenSettings={() => setView('settings')}
-        onOpenMarket={() => setView('market')}
-        marketActive={view === 'market'}
         mateOpen={mateOpen}
         onToggleMate={() => void toggleMate()}
         showLive2D={config?.showLive2D ?? true}
         onToggleLive2D={() => void toggleLive2D()}
-        onOpenLogs={() => setView('logs')}
-        logsActive={view === 'logs'}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TitleBar />
-        {actionError && (
-          <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
-            {actionError}
-          </div>
-        )}
-        <main className="relative flex flex-1 overflow-hidden">
+      {actionError && (
+        <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+          {actionError}
+        </div>
+      )}
+      <main className="relative flex min-h-0 flex-1 overflow-hidden">
           {view === 'home' && (
             <HomePage
               characters={characters}
@@ -331,8 +322,7 @@ export default function App() {
           )}
 
           {view === 'logs' && <LogsPanel onClose={() => setView('chat')} />}
-        </main>
-      </div>
+      </main>
     </div>
   )
 }
