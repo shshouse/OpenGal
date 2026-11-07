@@ -4,9 +4,9 @@ import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { applyEmotion, playMotionGroup } from '@/features/live2d/live2dBus'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
-import { useCharacterStore } from '@/features/character/characterStore'
-import { isCharacterRunning } from '@shared/characterRuntime'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
+import { useRoleStore } from '@/features/role/roleStore'
+import { isRoleRunning } from '@shared/roleRuntime'
 
 const DRAG_THRESHOLD_PX = 6
 
@@ -15,9 +15,9 @@ export default function MateView() {
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [bubble, setBubble] = React.useState<string | null>(null)
   const [spriteCard, setSpriteCard] = React.useState<import('@shared/types').RoleCardEntry | null>(null)
-  const activeId = useCharacterStore((s) => s.activeId)
-  const runningById = useCharacterRuntimeStore((s) => s.byId)
-  const sleeping = !isCharacterRunning(runningById, activeId)
+  const activeId = useRoleStore((s) => s.activeId)
+  const runningById = useRoleRuntimeStore((s) => s.byId)
+  const sleeping = !isRoleRunning(runningById, activeId)
   const dragRef = React.useRef<{ x: number; y: number; dragging: boolean } | null>(null)
 
   React.useEffect(() => {
@@ -32,8 +32,8 @@ export default function MateView() {
         setBubble(payload.text)
         break
       case 'runtime':
-        useCharacterRuntimeStore.getState().hydrate(payload.runningCharacters)
-        useCharacterStore.setState({ activeId: payload.activeCharacterId })
+        useRoleRuntimeStore.getState().hydrate(payload.runningRoles)
+        useRoleStore.setState({ activeId: payload.activeRoleId })
         break
       case 'performance':
         if (payload.emotion) applyEmotion(payload.emotion)
@@ -53,9 +53,9 @@ export default function MateView() {
     void (async () => {
       const cfg = await window.opengal.config.get()
       if (!cfg.success || !cfg.data) return
-      useCharacterRuntimeStore.getState().hydrate(cfg.data.runningCharacters)
-      const currentId = activeId ?? cfg.data.activeCharacterId
-      const cards = await window.opengal.character.list()
+      useRoleRuntimeStore.getState().hydrate(cfg.data.runningRoles)
+      const currentId = activeId ?? cfg.data.activeRoleId
+      const cards = await window.opengal.role.list()
       setSpriteCard(cards.data?.find((card) => card.id === currentId && card.performance.mode === 'sprite') ?? null)
       if (currentId) {
         const fromCard = await window.opengal.model.resolveFromCard(currentId)
@@ -116,7 +116,7 @@ export default function MateView() {
           </div>
         </div>
       )}
-      {spriteCard?.spriteFrames ? <SpriteStage frames={spriteCard.spriteFrames} characterId={spriteCard.id} sleeping={sleeping} mate /> : <Live2DStage
+      {spriteCard?.spriteFrames ? <SpriteStage frames={spriteCard.spriteFrames} roleId={spriteCard.id} sleeping={sleeping} mate /> : <Live2DStage
         model={model}
         sleeping={sleeping}
         transparent

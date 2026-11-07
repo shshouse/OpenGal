@@ -7,12 +7,12 @@ import * as db from '../../src/main/services/memoryDb'
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-evidence-'))
 
 const api = db as unknown as {
-  memoryEvidence?: (characterId: string, memoryId: string) => Array<{ id: number; content: string; ts: number }>
+  memoryEvidence?: (roleId: string, memoryId: string) => Array<{ id: number; content: string; ts: number }>
 }
 
-function say(characterId: string, text: string, ts: number) {
+function say(roleId: string, text: string, ts: number) {
   db.appendMessage({
-    character_id: characterId,
+    role_id: roleId,
     role: 'user',
     content: JSON.stringify({ role: 'user', content: text }),
     ts,
@@ -23,7 +23,7 @@ function say(characterId: string, text: string, ts: number) {
 function memory(id: string, extra: Record<string, unknown> = {}) {
   db.insertMemoryRow('c1', {
     id,
-    character_id: 'c1',
+    role_id: 'c1',
     kind: 'fact',
     text: '用户养了一只橘猫',
     state: 'active',

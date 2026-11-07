@@ -9,7 +9,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-e2e-'))
 
 function say(role: 'user' | 'assistant', text: string, ts: number) {
   db.appendMessage({
-    character_id: 'c1',
+    role_id: 'c1',
     role,
     content: JSON.stringify({ role, content: text }),
     ts,

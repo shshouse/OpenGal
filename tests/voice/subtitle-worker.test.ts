@@ -30,7 +30,7 @@ describe('subtitle worker', () => {
   const emit = (id: string, text: string, turn = 1, language = 'ja'): void => {
     pipelineBus.emit('llm:dialog', {
       segmentId: id,
-      characterId: 'role',
+      roleId: 'role',
       name: 'role',
       text,
       turnStartedAt: turn,

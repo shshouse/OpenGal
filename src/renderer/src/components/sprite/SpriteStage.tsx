@@ -4,9 +4,9 @@ import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { useStartupStore } from '@/features/startup/startupStore'
 import './sprite.css'
 
-export function SpriteStage({ frames, characterId, sleeping, mate = false }: {
+export function SpriteStage({ frames, roleId, sleeping, mate = false }: {
   frames: SpriteFrames
-  characterId: string
+  roleId: string
   sleeping: boolean
   mate?: boolean
 }) {
@@ -19,20 +19,20 @@ export function SpriteStage({ frames, characterId, sleeping, mate = false }: {
     setSpeaking(false)
     setEmotion('')
     const off = pipelineBus.on('tts:playback', (event) => {
-      if (!event.characterId || event.characterId === characterId) setSpeaking(event.speaking)
+      if (!event.roleId || event.roleId === roleId) setSpeaking(event.speaking)
     })
     const offEmotion = pipelineBus.on('tts:segmentStart', (event) => {
-      if (!event.characterId || event.characterId === characterId) setEmotion(event.emotion ?? '')
+      if (!event.roleId || event.roleId === roleId) setEmotion(event.emotion ?? '')
     })
     const offMate = mate ? window.opengal.mate.onUpdate((payload) => {
       if (payload.type !== 'performance') return
-      if (payload.emotion && (!payload.characterId || payload.characterId === characterId)) setEmotion(payload.emotion)
-      if (payload.speaking !== undefined && (!payload.characterId || payload.characterId === characterId)) {
+      if (payload.emotion && (!payload.roleId || payload.roleId === roleId)) setEmotion(payload.emotion)
+      if (payload.speaking !== undefined && (!payload.roleId || payload.roleId === roleId)) {
         setSpeaking(payload.speaking)
       }
     }) : () => {}
     return () => { off(); offEmotion(); offMate() }
-  }, [characterId, mate])
+  }, [roleId, mate])
 
   React.useEffect(() => {
     if (sleeping) { setBlink(true); setSpeaking(false); return }
@@ -47,7 +47,7 @@ export function SpriteStage({ frames, characterId, sleeping, mate = false }: {
     }
     schedule()
     return () => { window.clearTimeout(next); window.clearTimeout(open) }
-  }, [sleeping, characterId])
+  }, [sleeping, roleId])
 
   React.useEffect(() => {
     if (!speaking || sleeping) { setMouth(false); return }

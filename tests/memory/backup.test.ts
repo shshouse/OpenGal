@@ -16,7 +16,7 @@ describe('memory backup', () => {
   it('flush 后产出可打开且通过校验的每日快照', async () => {
     await initMemoryDb(root)
     await memoryDbReady()
-    appendMessage({ character_id: 'c', role: 'user', content: '内容', ts: 1, archived: 0 })
+    appendMessage({ role_id: 'c', role: 'user', content: '内容', ts: 1, archived: 0 })
 
     flushMemoryDb()
 

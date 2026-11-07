@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock('../../src/main/services/configStore', () => ({
-  readConfig: () => ({ tts: { enabled: true, provider: 'genie' }, activeCharacterId: null }),
+  readConfig: () => ({ tts: { enabled: true, provider: 'genie' }, activeRoleId: null }),
 }))
 vi.mock('../../src/main/services/roleCardLoader', () => ({ getRoleCard: () => null }))
 vi.mock('../../src/main/services/ttsServer', () => ({ startGptSovitsServer: async () => {} }))

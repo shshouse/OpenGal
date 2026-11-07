@@ -27,17 +27,17 @@ function parseMateState(value: unknown): MateStatePayload | null {
         type: 'performance',
         emotion: str(raw.emotion),
         motion: str(raw.motion),
-        characterId: str(raw.characterId),
+        roleId: str(raw.roleId),
         speaking: bool(raw.speaking),
       }
     case 'runtime':
       return {
         type: 'runtime',
-        runningCharacters:
-          raw.runningCharacters && typeof raw.runningCharacters === 'object'
-            ? (raw.runningCharacters as Record<string, boolean>)
+        runningRoles:
+          raw.runningRoles && typeof raw.runningRoles === 'object'
+            ? (raw.runningRoles as Record<string, boolean>)
             : {},
-        activeCharacterId: str(raw.activeCharacterId) ?? null,
+        activeRoleId: str(raw.activeRoleId) ?? null,
       }
     case 'avatar': {
       const dataUrl = str(raw.dataUrl)

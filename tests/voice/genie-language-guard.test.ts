@@ -57,7 +57,7 @@ describe('Genie 台词语言守卫', () => {
     fs.writeFileSync(refAudio, '')
     vi.stubGlobal('fetch', async (input: string) => {
       state.fetched.push(input)
-      if (input.endsWith('/load_character') || input.endsWith('/set_reference_audio')) {
+      if (input.endsWith('/load_role') || input.endsWith('/set_reference_audio')) {
         return new Response('{}', { status: 200 })
       }
       return new Response(new Uint8Array(Buffer.alloc(32_000 * 2)), { status: 200 })

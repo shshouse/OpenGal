@@ -39,7 +39,7 @@ export interface MemoryStory {
 export interface MemoryChange {
   seq: number
   memory_id: string
-  character_id: string
+  role_id: string
   action: 'insert' | 'update' | 'delete'
   field: string | null
   old_value: string | null

@@ -10,20 +10,20 @@ import { ActivityTimeline } from './ActivityTimeline'
 import { MemoryDashboard } from './MemoryDashboard'
 
 interface Props {
-  character: RoleCardEntry
+  role: RoleCardEntry
   running: boolean
   onToggleRunning: () => void
 }
 
-export function RoleDashboard({ character, running, onToggleRunning }: Props): React.JSX.Element {
-  const activities = useActivityStore((state) => selectActivities(state, character.id))
+export function RoleDashboard({ role, running, onToggleRunning }: Props): React.JSX.Element {
+  const activities = useActivityStore((state) => selectActivities(state, role.id))
   const steps = useStartupStore((state) => state.steps)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const todayCount = activities.filter((entry) => entry.at >= today.getTime()).length
   const errorCount = activities.filter((entry) => entry.kind === 'error').length
   const healthyCount = steps.filter((step) => step.status === 'ok').length
-  const label = character.displayName ?? character.name
+  const label = role.displayName ?? role.name
 
   return (
     <Tabs defaultValue="overview" className="flex h-full min-w-0 flex-col">
@@ -72,7 +72,7 @@ export function RoleDashboard({ character, running, onToggleRunning }: Props): R
         </div>
       </TabsContent>
       <TabsContent value="memory" className="min-h-0 flex-1 overflow-y-auto">
-        <MemoryDashboard key={character.id} characterId={character.id} />
+        <MemoryDashboard key={role.id} roleId={role.id} />
       </TabsContent>
       <TabsContent value="activity" className="min-h-0 flex-1 overflow-y-auto">
         <div className="p-4"><ActivityTimeline entries={activities} /></div>

@@ -8,9 +8,9 @@ function id(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`
 }
 
-function add(characterId: string | null, entry: Omit<ActivityEntry, 'characterId'>): void {
-  if (!characterId) return
-  useActivityStore.getState().add({ ...entry, characterId })
+function add(roleId: string | null, entry: Omit<ActivityEntry, 'roleId'>): void {
+  if (!roleId) return
+  useActivityStore.getState().add({ ...entry, roleId })
 }
 
 export function startActivityBridge(): () => void {
@@ -25,7 +25,7 @@ export function startActivityBridge(): () => void {
     })
   })
   const offDialog = pipelineBus.on('llm:dialog', (msg) => {
-    add(msg.characterId ?? useChatStore.getState().sessionId, {
+    add(msg.roleId ?? useChatStore.getState().sessionId, {
       id: id('speech'),
       kind: 'speech',
       title: '开口说话',

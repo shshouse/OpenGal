@@ -33,22 +33,22 @@ vi.mock('@/components/market/MarketPage', () => ({ MarketPage: () => null }))
 vi.mock('@/components/logs/LogsPanel', () => ({ LogsPanel: () => null }))
 
 import App from '../../src/renderer/src/App'
-import { useCharacterStore } from '../../src/renderer/src/features/character/characterStore'
-import { useCharacterRuntimeStore } from '../../src/renderer/src/features/character/characterRuntimeStore'
+import { useRoleStore } from '../../src/renderer/src/features/role/roleStore'
+import { useRoleRuntimeStore } from '../../src/renderer/src/features/role/roleRuntimeStore'
 
 describe('App home lifecycle', () => {
   beforeEach(() => {
     state.homeProps = null
     state.configSet = vi.fn()
-    useCharacterStore.setState({
+    useRoleStore.setState({
       activeId: 'a',
       list: [
         { id: 'a', name: 'A', performance: { mode: 'auto' }, persona: { description: '', personality: '' } },
         { id: 'b', name: 'B', performance: { mode: 'auto' }, persona: { description: '', personality: '' } },
       ] as never,
-      setActive: async (id: string) => { useCharacterStore.setState({ activeId: id }) },
+      setActive: async (id: string) => { useRoleStore.setState({ activeId: id }) },
     })
-    useCharacterRuntimeStore.setState({ byId: { a: true, b: false } })
+    useRoleRuntimeStore.setState({ byId: { a: true, b: false } })
     vi.stubGlobal('window', {
       opengal: {
         config: { set: state.configSet },
@@ -68,8 +68,8 @@ describe('App home lifecycle', () => {
     renderToString(React.createElement(App))
     await state.homeProps!.onToggleRunning('b')
 
-    expect(useCharacterStore.getState().activeId).toBe('a')
-    expect(useCharacterRuntimeStore.getState().byId.b).toBe(true)
+    expect(useRoleStore.getState().activeId).toBe('a')
+    expect(useRoleRuntimeStore.getState().byId.b).toBe(true)
   })
 
   it('配置保存失败时运行状态保持原值', async () => {
@@ -77,7 +77,7 @@ describe('App home lifecycle', () => {
     renderToString(React.createElement(App))
     await state.homeProps!.onToggleRunning('b')
 
-    expect(useCharacterStore.getState().activeId).toBe('a')
-    expect(useCharacterRuntimeStore.getState().byId.b).toBe(false)
+    expect(useRoleStore.getState().activeId).toBe('a')
+    expect(useRoleRuntimeStore.getState().byId.b).toBe(false)
   })
 })

@@ -2,9 +2,9 @@ import type { ChatMessage, MessageContentPart } from '@shared/types'
 import type { UserInputMessage } from '@shared/messages'
 import { resolveSlotConfig } from '@shared/llmSlot'
 import { useChatStore } from '@/features/chat/chatStore'
-import { useCharacterStore } from '@/features/character/characterStore'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
-import { isCharacterRunning } from '@shared/characterRuntime'
+import { useRoleStore } from '@/features/role/roleStore'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
+import { isRoleRunning } from '@shared/roleRuntime'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { isSpeaking } from './uiHandlers'
 import {
@@ -165,8 +165,8 @@ function armSilenceTimer(): void {
 export function offerUtterance(text: string): void {
   const t = text.trim()
   if (!t) return
-  const activeId = useCharacterStore.getState().activeId
-  if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
+  const activeId = useRoleStore.getState().activeId
+  if (!isRoleRunning(useRoleRuntimeStore.getState().byId, activeId)) return
   buffer.push({ text: t, at: Date.now() })
   armSilenceTimer()
 }
@@ -236,7 +236,7 @@ async function evaluate(): Promise<void> {
     if (generation !== decisionGeneration) return
     // IPC 不支持下取消；超时只释放判定闩锁，迟到的结果由 generation 校验丢弃
     const now = Date.now()
-    const cardNow = useCharacterStore.getState().getActive()
+    const cardNow = useRoleStore.getState().getActive()
     const perception = framePerception(
       utterances.map<PerceptionEvent>((u, i) => ({
         id: `u-${u.at}-${i}`,
@@ -251,7 +251,7 @@ async function evaluate(): Promise<void> {
     ).map(sanitizeTrust)
     const directorInput: DirectorInput = {
       now,
-      character: {
+      role: {
         id: cardNow?.id ?? 'unknown',
         displayName: cardNow?.displayName || cardNow?.name || '',
       },
@@ -389,7 +389,7 @@ async function captureScreen(): Promise<{ dataUrl: string; at: number } | null> 
 
 /** 导演直接给出台词：记录用户原话与角色台词，再进入 TTS/演出队列，不走主管线生成 */
 function speakDirect(line: string, userText: string): void {
-  const card = useCharacterStore.getState().getActive()
+  const card = useRoleStore.getState().getActive()
   const name = card?.displayName || card?.name || 'assistant'
   const chat = useChatStore.getState()
   if (userText.trim()) chat.appendUser(userText)
@@ -402,7 +402,7 @@ function speakDirect(line: string, userText: string): void {
       text: segment.text,
       emotion: segment.emotion,
       motion: segment.motion,
-      characterId: card?.id,
+      roleId: card?.id,
       segmentId: crypto.randomUUID(),
       turnStartedAt: startedAt,
     })
@@ -420,7 +420,7 @@ async function askDirector(
   const chat = useChatStore.getState().messages
   const recent = chat.slice(-6).map((m) => `${m.role === 'user' ? '用户' : '角色'}: ${plainContent(m.content).slice(0, 120)}`)
   const sinceLastReply = lastReplyAt ? Math.round((input.now - lastReplyAt) / 1000) : -1
-  const roleName = input.character.displayName || null
+  const roleName = input.role.displayName || null
 
   const utterances = input.perception.filter(
     (e): e is Extract<PerceptionEvent, { kind: 'utterance' }> => e.kind === 'utterance',
@@ -517,12 +517,12 @@ async function askDirector(
  */
 export async function evaluateInitiative(idleMs: number): Promise<DirectorDecision> {
   const now = Date.now()
-  const card = useCharacterStore.getState().getActive()
+  const card = useRoleStore.getState().getActive()
   const cfg = (await window.opengal.config.get()).data?.asr
   const env = (await window.opengal.env.get()).data ?? null
   const input: DirectorInput = {
     now,
-    character: {
+    role: {
       id: card?.id ?? 'unknown',
       displayName: card?.displayName || card?.name || '',
     },

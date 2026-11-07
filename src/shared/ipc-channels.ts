@@ -45,10 +45,10 @@ export const IpcChannels = {
     resolveDefault: 'model:resolveDefault',
     resolveFromCard: 'model:resolveFromCard'
   },
-  character: {
-    list: 'character:list',
-    get: 'character:get',
-    voiceConfig: 'character:voiceConfig'
+  role: {
+    list: 'role:list',
+    get: 'role:get',
+    voiceConfig: 'role:voiceConfig'
   },
   chatHistory: {
     load: 'chatHistory:load',

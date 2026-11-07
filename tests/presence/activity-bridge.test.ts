@@ -30,7 +30,7 @@ function record(id: string, name = 'web_search'): ToolCallRecord {
 describe('activity bridge', () => {
   let stop: () => void
   beforeEach(() => {
-    useActivityStore.setState({ byCharacter: {} })
+    useActivityStore.setState({ byRole: {} })
     useToolCallsStore.setState({ records: [] })
     storage.values.clear()
     storage.setItem = (key, value) => { storage.values.set(key, value) }
@@ -43,7 +43,7 @@ describe('activity bridge', () => {
     useToolCallsStore.getState().clear()
     useToolCallsStore.getState().add(record('call_0', 'second'))
 
-    const entries = useActivityStore.getState().byCharacter.role
+    const entries = useActivityStore.getState().byRole.role
     expect(entries).toHaveLength(2)
     expect(entries.map((entry) => entry.title)).toEqual(['调用 first', '调用 second'])
   })
@@ -52,6 +52,6 @@ describe('activity bridge', () => {
     storage.setItem = () => { throw new DOMException('full', 'QuotaExceededError') }
 
     expect(() => useToolCallsStore.getState().add(record('call_1'))).not.toThrow()
-    expect(useActivityStore.getState().byCharacter.role).toHaveLength(1)
+    expect(useActivityStore.getState().byRole.role).toHaveLength(1)
   })
 })

@@ -30,7 +30,7 @@ import {
   listMemoryChanges,
 } from '../services/memoryDb'
 import {
-  characterIdSchema,
+  roleIdSchema,
   chatMessageSchema,
   memoryApplyPayloadSchema,
   memoryEntitySchema,
@@ -55,29 +55,29 @@ export function registerMemoryIpc(): void {
     }
   }
 
-  ipcMain.handle(IpcChannels.chatHistory.load, (_, characterId: string) =>
+  ipcMain.handle(IpcChannels.chatHistory.load, (_, roleId: string) =>
     wrap<ChatMessage[]>(async () => {
       await memoryDbReady()
-      return listUnarchivedMessages(characterId).map(rowToChatMessage)
+      return listUnarchivedMessages(roleId).map(rowToChatMessage)
     })
   )
   handleValidated(
     IpcChannels.chatHistory.append,
-    [characterIdSchema, z.array(chatMessageSchema)],
-    async (characterId, messages) => {
+    [roleIdSchema, z.array(chatMessageSchema)],
+    async (roleId, messages) => {
       await memoryDbReady()
-      return saveChatMessages(characterId, messages)
+      return saveChatMessages(roleId, messages)
     },
   )
   handleValidated(
     IpcChannels.chatHistory.replaceAll,
-    [characterIdSchema, z.array(chatMessageSchema)],
-    (characterId, messages) => {
+    [roleIdSchema, z.array(chatMessageSchema)],
+    (roleId, messages) => {
       replaceUnarchivedMessages(
-        characterId,
+        roleId,
         messages.map((m) => ({
           id: m.dbId,
-          character_id: characterId,
+          role_id: roleId,
           role: m.role,
           content: JSON.stringify(m),
           ts: m.ts ?? Date.now(),
@@ -89,69 +89,69 @@ export function registerMemoryIpc(): void {
   )
   handleValidated(
     IpcChannels.chatHistory.archiveRange,
-    [characterIdSchema, z.number().int(), z.number().int()],
-    (characterId, fromId, toId) => archiveMessagesRange(characterId, fromId, toId),
+    [roleIdSchema, z.number().int(), z.number().int()],
+    (roleId, fromId, toId) => archiveMessagesRange(roleId, fromId, toId),
   )
-  ipcMain.handle(IpcChannels.chatHistory.latestMessageId, (_, characterId: string) =>
-    wrap<number | null>(() => latestMessageId(characterId))
+  ipcMain.handle(IpcChannels.chatHistory.latestMessageId, (_, roleId: string) =>
+    wrap<number | null>(() => latestMessageId(roleId))
   )
-  ipcMain.handle(IpcChannels.chatHistory.summaries, (_, characterId: string) =>
-    wrap(() => listSummaries(characterId))
+  ipcMain.handle(IpcChannels.chatHistory.summaries, (_, roleId: string) =>
+    wrap(() => listSummaries(roleId))
   )
   handleValidated(
     IpcChannels.chatHistory.summaryAdd,
-    [characterIdSchema, summarySchema],
-    (characterId, s) => {
-      addSummary(characterId, s)
+    [roleIdSchema, summarySchema],
+    (roleId, s) => {
+      addSummary(roleId, s)
       return true
     },
   )
 
   handleValidated(
     IpcChannels.chatHistory.commitCompression,
-    [characterIdSchema, z.number().int(), z.number().int(), summarySchema],
-    (characterId, fromId, toId, s) => commitCompression(characterId, fromId, toId, s),
+    [roleIdSchema, z.number().int(), z.number().int(), summarySchema],
+    (roleId, fromId, toId, s) => commitCompression(roleId, fromId, toId, s),
   )
 
-  ipcMain.handle(IpcChannels.memory.get, (_, characterId: string) =>
+  ipcMain.handle(IpcChannels.memory.get, (_, roleId: string) =>
     wrap(async () => ({
-      facts: await loadFacts(characterId),
-      stories: await loadStories(characterId),
-      block: await getMemoryBlock(characterId)
+      facts: await loadFacts(roleId),
+      stories: await loadStories(roleId),
+      block: await getMemoryBlock(roleId)
     }))
   )
   handleValidated(
     IpcChannels.memory.apply,
-    [characterIdSchema, memoryApplyPayloadSchema],
-    (characterId, payload) => applyCandidates(characterId, payload),
+    [roleIdSchema, memoryApplyPayloadSchema],
+    (roleId, payload) => applyCandidates(roleId, payload),
   )
   handleValidated(
     IpcChannels.memory.manualAdd,
-    [characterIdSchema, z.string().min(1), memoryEntitySchema.optional()],
-    (characterId, text, entity) => manualAddFact(characterId, text, entity),
+    [roleIdSchema, z.string().min(1), memoryEntitySchema.optional()],
+    (roleId, text, entity) => manualAddFact(roleId, text, entity),
   )
-  handleValidated(IpcChannels.memory.clear, [characterIdSchema], (characterId) =>
-    clearMemory(characterId),
+  handleValidated(IpcChannels.memory.clear, [roleIdSchema], (roleId) =>
+    clearMemory(roleId),
   )
-  ipcMain.handle(IpcChannels.memory.prune, (_, characterId: string) =>
-    wrap(() => pruneOverflow(characterId))
+  ipcMain.handle(IpcChannels.memory.prune, (_, roleId: string) =>
+    wrap(() => pruneOverflow(roleId))
   )
-  ipcMain.handle(IpcChannels.memory.evidence, (_, characterId: string, memoryId: string) =>
-    wrap(() => memoryEvidence(characterId, memoryId))
+  ipcMain.handle(IpcChannels.memory.evidence, (_, roleId: string, memoryId: string) =>
+    wrap(() => memoryEvidence(roleId, memoryId))
   )
-  ipcMain.handle(IpcChannels.memory.changes, (_, characterId: string, memoryId: string, limit?: number) =>
-    wrap(() => listMemoryChanges(characterId, memoryId, limit))
+  ipcMain.handle(IpcChannels.memory.changes, (_, roleId: string, memoryId: string, limit?: number) =>
+    wrap(() => listMemoryChanges(roleId, memoryId, limit))
   )
-  ipcMain.handle(IpcChannels.memory.pending, (_, characterId: string, limit?: number) =>
-    wrap(() => pendingFromArchive(characterId, limit))
+  ipcMain.handle(IpcChannels.memory.pending, (_, roleId: string, limit?: number) =>
+    wrap(() => pendingFromArchive(roleId, limit))
   )
-  ipcMain.handle(IpcChannels.memory.advanceCursor, (_, characterId: string, ts: number) =>
-    wrap(() => advanceCursor(characterId, ts))
+  ipcMain.handle(IpcChannels.memory.advanceCursor, (_, roleId: string, ts: number) =>
+    wrap(() => advanceCursor(roleId, ts))
   )
   handleValidatedWithEvent(
     IpcChannels.memory.rebuild,
-    [characterIdSchema, z.string().min(1)],
-    async (event, characterId, confirm) => {
+    [roleIdSchema, z.string().min(1)],
+    async (event, roleId, confirm) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       const { response } = await dialog.showMessageBox(win!, {
         type: 'warning',
@@ -163,23 +163,23 @@ export function registerMemoryIpc(): void {
         cancelId: 1,
       })
       if (response !== 0) throw new Error('已取消重建')
-      return rebuildMemory(characterId, confirm)
+      return rebuildMemory(roleId, confirm)
     },
   )
-  handleValidated(IpcChannels.memory.freezeFact, [characterIdSchema, z.string().min(1)], (characterId, factId) =>
-    freezeFact(characterId, factId),
+  handleValidated(IpcChannels.memory.freezeFact, [roleIdSchema, z.string().min(1)], (roleId, factId) =>
+    freezeFact(roleId, factId),
   )
-  handleValidated(IpcChannels.memory.unfreezeFact, [characterIdSchema, z.string().min(1)], (characterId, factId) =>
-    unfreezeFact(characterId, factId),
+  handleValidated(IpcChannels.memory.unfreezeFact, [roleIdSchema, z.string().min(1)], (roleId, factId) =>
+    unfreezeFact(roleId, factId),
   )
-  handleValidated(IpcChannels.memory.deleteFact, [characterIdSchema, z.string().min(1)], (characterId, factId) =>
-    deleteFact(characterId, factId),
+  handleValidated(IpcChannels.memory.deleteFact, [roleIdSchema, z.string().min(1)], (roleId, factId) =>
+    deleteFact(roleId, factId),
   )
-  ipcMain.handle(IpcChannels.memory.getRelevant, (_, characterId: string, context: string) =>
+  ipcMain.handle(IpcChannels.memory.getRelevant, (_, roleId: string, context: string) =>
     wrap(async () => ({
-      facts: await loadFacts(characterId),
-      stories: await loadStories(characterId),
-      block: await getMemoryBlock(characterId, context, true)
+      facts: await loadFacts(roleId),
+      stories: await loadStories(roleId),
+      block: await getMemoryBlock(roleId, context, true)
     }))
   )
 }

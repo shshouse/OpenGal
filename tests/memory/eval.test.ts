@@ -9,7 +9,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-eval-'))
 
 const { recallVerbatim } = memoryStore as unknown as {
   recallVerbatim?: (
-    characterId: string,
+    roleId: string,
     query: string,
     charCap?: number,
     range?: { fromTs: number; toTs: number },
@@ -41,7 +41,7 @@ const CONVERSATIONS: Record<string, Line[]> = {
 interface EvalCase {
   id: string
   kind: 'verbatim' | 'time' | 'miss' | 'cross' | 'semantic'
-  character: string
+  role: string
   query: string
   range?: { fromTs: number; toTs: number }
   expect?: string
@@ -49,13 +49,13 @@ interface EvalCase {
 }
 
 const CASES: EvalCase[] = [
-  { id: 'v1', kind: 'verbatim', character: 'c-eval', query: '年糕', expect: '年糕' },
-  { id: 'v2', kind: 'verbatim', character: 'c-eval', query: '橘猫', expect: '橘猫' },
-  { id: 'v3', kind: 'verbatim', character: 'c-eval', query: '南京 出差', expect: '南京' },
+  { id: 'v1', kind: 'verbatim', role: 'c-eval', query: '年糕', expect: '年糕' },
+  { id: 'v2', kind: 'verbatim', role: 'c-eval', query: '橘猫', expect: '橘猫' },
+  { id: 'v3', kind: 'verbatim', role: 'c-eval', query: '南京 出差', expect: '南京' },
   {
     id: 't1',
     kind: 'time',
-    character: 'c-eval',
+    role: 'c-eval',
     query: '南京',
     range: { fromTs: t(7, 1), toTs: t(7, 31) },
     expect: '出差',
@@ -63,17 +63,17 @@ const CASES: EvalCase[] = [
   {
     id: 't2',
     kind: 'miss',
-    character: 'c-eval',
+    role: 'c-eval',
     query: '南京',
     range: { fromTs: t(1, 1), toTs: t(2, 1) },
   },
-  { id: 'm1', kind: 'miss', character: 'c-eval', query: '量子力学' },
-  { id: 'x1', kind: 'cross', character: 'c-other', query: '年糕', forbid: '年糕' },
-  { id: 's1', kind: 'semantic', character: 'c-eval', query: '宠物', expect: '猫' },
+  { id: 'm1', kind: 'miss', role: 'c-eval', query: '量子力学' },
+  { id: 'x1', kind: 'cross', role: 'c-other', query: '年糕', forbid: '年糕' },
+  { id: 's1', kind: 'semantic', role: 'c-eval', query: '宠物', expect: '猫' },
 ]
 
 async function runCase(c: EvalCase): Promise<boolean> {
-  const text = await recallVerbatim!(c.character, c.query, 1500, c.range)
+  const text = await recallVerbatim!(c.role, c.query, 1500, c.range)
   if (c.kind === 'miss' || c.kind === 'cross') {
     if (!text) return true
     return c.forbid ? !text.includes(c.forbid) : false
@@ -86,10 +86,10 @@ describe('记忆检索评测', () => {
   beforeAll(async () => {
     await memoryDb.initMemoryDb(root)
     await memoryDb.memoryDbReady()
-    for (const [characterId, lines] of Object.entries(CONVERSATIONS)) {
+    for (const [roleId, lines] of Object.entries(CONVERSATIONS)) {
       for (const line of lines) {
         memoryDb.appendMessage({
-          character_id: characterId,
+          role_id: roleId,
           role: line.role,
           content: JSON.stringify({ role: line.role, content: line.text }),
           ts: line.ts,

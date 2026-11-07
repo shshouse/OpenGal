@@ -24,7 +24,7 @@ import {
   addSummary,
   appendMessage,
   archiveMessagesRange,
-  clearCharacterMessages,
+  clearRoleMessages,
   closeMemoryDb,
   getMeta,
   latestMessageId,
@@ -75,7 +75,7 @@ describe('memory persistence pipeline', () => {
         path.join(chatDir, 'c1.json'),
         JSON.stringify({
           version: 1,
-          characterId: 'c1',
+          roleId: 'c1',
           messages: [
             { role: 'user', content: '你好' },
             { role: 'assistant', content: '嗨，今天想做点什么？' },
@@ -192,7 +192,7 @@ describe('memory persistence pipeline', () => {
       assert.strictEqual((JSON.parse(synced[0].content) as { content: string }).content, '你好')
       assert.ok(fs.existsSync(path.join(root, 'memory.db')))
       assert.ok(fs.statSync(path.join(root, 'memory.db')).size > 0)
-      appendMessage({ character_id: 'c1', role: 'user', content: '"再来一条"', ts: Date.now(), archived: 0 })
+      appendMessage({ role_id: 'c1', role: 'user', content: '"再来一条"', ts: Date.now(), archived: 0 })
       assert.strictEqual(listUnarchivedMessages('c1').length, 3)
 
       saveChatMessages(
@@ -213,7 +213,7 @@ describe('memory persistence pipeline', () => {
       assert.strictEqual(sums.length, 2)
       assert.strictEqual(sums[0].text, '摘要v1')
       assert.strictEqual(sums[1].text, '摘要v2')
-      clearCharacterMessages('m1')
+      clearRoleMessages('m1')
       assert.strictEqual(listUnarchivedMessages('m1').length, 0)
 
       initMemoryStore(root)
@@ -263,7 +263,7 @@ describe('memory persistence pipeline', () => {
       oldFact.last_confirmed_at = new Date(Date.now() - 100 * 86400000).toISOString()
       const { saveFacts } = await import('../../src/main/services/memoryDb')
       saveFacts(c4, factsC4.map((f) => ({
-        id: f.id, character_id: c4, text: f.text, entity: f.entity, importance: f.importance,
+        id: f.id, role_id: c4, text: f.text, entity: f.entity, importance: f.importance,
         subject: f.subject ?? null, attribute: f.attribute ?? null,
         confidence: f.confidence, source: f.source, created_at: f.created_at, last_confirmed_at: f.last_confirmed_at,
         status: f.status, evidence_reinforce: f.evidence.reinforce, evidence_negate: f.evidence.negate,

@@ -1,9 +1,9 @@
 const cache = new Map<string, string | null>()
 
-export function getMemorySnapshot(characterId: string): string | null | undefined {
-  return cache.get(characterId)
+export function getMemorySnapshot(roleId: string): string | null | undefined {
+  return cache.get(roleId)
 }
 
-export function setMemorySnapshot(characterId: string, block: string | null): void {
-  cache.set(characterId, block)
+export function setMemorySnapshot(roleId: string, block: string | null): void {
+  cache.set(roleId, block)
 }

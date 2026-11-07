@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Brain, Lock, LockOpen, Trash2, Plus, RefreshCw, RotateCcw, Search, Quote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useCharacterStore } from '@/features/character/characterStore'
+import { useRoleStore } from '@/features/role/roleStore'
 import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
 import type { MemoryChange, MemoryFact, MemoryStory } from '@shared/types'
@@ -47,8 +47,8 @@ function changeLabel(change: MemoryChange): string {
 }
 
 export function MemorySettings() {
-  const activeId = useCharacterStore((s) => s.activeId)
-  const characters = useCharacterStore((s) => s.list)
+  const activeId = useRoleStore((s) => s.activeId)
+  const roles = useRoleStore((s) => s.list)
   const [facts, setFacts] = React.useState<MemoryFact[]>([])
   const [stories, setStories] = React.useState<MemoryStory[]>([])
   const [loading, setLoading] = React.useState(false)
@@ -61,7 +61,7 @@ export function MemorySettings() {
   const [sources, setSources] = React.useState<Record<string, Array<{ id: number; role: string; content: string; ts: number }>>>({})
   const [changes, setChanges] = React.useState<Record<string, MemoryChange[]>>({})
 
-  const activeChar = characters.find((c) => c.id === activeId)
+  const activeChar = roles.find((c) => c.id === activeId)
   const charName = activeChar?.displayName ?? activeChar?.name ?? '未选择角色'
 
   const load = React.useCallback(async () => {

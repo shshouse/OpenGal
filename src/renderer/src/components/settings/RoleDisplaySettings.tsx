@@ -12,7 +12,7 @@ const DEFAULTS = {
   yRatio: 0.6
 }
 
-interface CharacterDisplaySettingsProps {
+interface RoleDisplaySettingsProps {
   config: AppConfig | null
   model: Live2DModelConfig | null
   onSave: (next: Partial<AppConfig>) => Promise<void>
@@ -52,11 +52,11 @@ function NumberSlider({
   )
 }
 
-export function CharacterDisplaySettings({
+export function RoleDisplaySettings({
   config,
   model,
   onSave
-}: CharacterDisplaySettingsProps) {
+}: RoleDisplaySettingsProps) {
   const [scale, setScale] = React.useState(model?.scale ?? DEFAULTS.scale)
   const [xRatio, setXRatio] = React.useState(model?.xRatio ?? DEFAULTS.xRatio)
   const [yRatio, setYRatio] = React.useState(model?.canvasYRatio ?? DEFAULTS.yRatio)

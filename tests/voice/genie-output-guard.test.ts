@@ -82,7 +82,7 @@ describe('Genie 合成结果校验', () => {
     fs.writeFileSync(refAudio, Buffer.concat([header, data]))
 
     vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
-      if (input.endsWith('/load_character') || input.endsWith('/set_reference_audio') || input.endsWith('/stop')) {
+      if (input.endsWith('/load_role') || input.endsWith('/set_reference_audio') || input.endsWith('/stop')) {
         return new Response('{}', { status: 200 })
       }
       state.lastTtsBody = String(init?.body ?? '')

@@ -17,7 +17,7 @@ export function registerConfigIpc(windows: WindowManager): void {
 
   handleValidated(IpcChannels.config.set, [configPatchSchema], (patch) => {
     const next = writeConfig(patch as Partial<AppConfig>)
-    if (patch.activeCharacterId !== undefined) void warmupTTS()
+    if (patch.activeRoleId !== undefined) void warmupTTS()
     const excludeSelf = patch.screen?.excludeSelf
     if (typeof excludeSelf === 'boolean') windows.setSelfExclusion(excludeSelf)
     return next
@@ -37,9 +37,9 @@ export function registerConfigIpc(windows: WindowManager): void {
     scanModel(folderPath, modelJsonFile),
   )
 
-  ipcMain.handle(IpcChannels.character.list, () => wrap(() => listRoleCards()))
-  handleValidated(IpcChannels.character.get, [z.string().min(1)], (id) => getRoleCard(id))
-  handleValidated(IpcChannels.character.voiceConfig, [z.string().min(1)], (id) => {
+  ipcMain.handle(IpcChannels.role.list, () => wrap(() => listRoleCards()))
+  handleValidated(IpcChannels.role.get, [z.string().min(1)], (id) => getRoleCard(id))
+  handleValidated(IpcChannels.role.voiceConfig, [z.string().min(1)], (id) => {
     const card = getRoleCard(id)
     return card ? readRoleVoiceConfig(card) : null
   })

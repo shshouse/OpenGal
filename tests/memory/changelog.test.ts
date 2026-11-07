@@ -8,7 +8,7 @@ import {
   getFactRow,
   initMemoryDb,
   insertFactRow,
-  listCharacterMemoryChanges,
+  listRoleMemoryChanges,
   listMemoryChanges,
   memoryDbReady,
   restoreMemoryChange,
@@ -19,10 +19,10 @@ import {
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-changelog-'))
 
-function fact(characterId: string, id: string, overrides: Partial<FactRow> = {}): FactRow {
+function fact(roleId: string, id: string, overrides: Partial<FactRow> = {}): FactRow {
   return {
     id,
-    character_id: characterId,
+    role_id: roleId,
     text: `事实 ${id}`,
     entity: 'user',
     subject: null,
@@ -90,7 +90,7 @@ describe('memory changelog', () => {
 
   it('批量重写只留一条汇总', () => {
     saveFacts('c2', [fact('c2', 'f2'), fact('c2', 'f3')])
-    const changes = listCharacterMemoryChanges('c2')
+    const changes = listRoleMemoryChanges('c2')
     expect(changes).toHaveLength(1)
     expect(changes[0].reason).toBe('rewrite_facts')
     expect(changes[0].new_value).toBe('2')

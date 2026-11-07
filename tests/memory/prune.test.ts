@@ -8,13 +8,13 @@ import * as store from '../../src/main/services/memoryStore'
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-prune-'))
 
 const { pruneOverflow } = store as unknown as {
-  pruneOverflow?: (characterId: string, limit?: number) => Promise<{ archived: number }>
+  pruneOverflow?: (roleId: string, limit?: number) => Promise<{ archived: number }>
 }
 
 function seed(id: string, importance: number, pinned = false, kind = 'fact') {
   db.insertMemoryRow('c-prune', {
     id,
-    character_id: 'c-prune',
+    role_id: 'c-prune',
     kind,
     text: `记忆 ${id}`,
     state: 'active',

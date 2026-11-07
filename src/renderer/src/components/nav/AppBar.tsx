@@ -13,10 +13,10 @@ import {
   X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useCharacterStore } from '@/features/character/characterStore'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { useRoleStore } from '@/features/role/roleStore'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { isCharacterRunning } from '@shared/characterRuntime'
+import { isRoleRunning } from '@shared/roleRuntime'
 
 export type AppView = 'home' | 'chat' | 'market' | 'settings' | 'logs'
 
@@ -34,7 +34,7 @@ interface Props {
   view: AppView
   onNavigate: (view: AppView) => void
   avatarUrl?: string | null
-  onAvatarClick: (characterId: string) => void
+  onAvatarClick: (roleId: string) => void
   mateOpen: boolean
   onToggleMate: () => void
   showLive2D: boolean
@@ -81,9 +81,9 @@ export function AppBar({
   showLive2D,
   onToggleLive2D
 }: Props): React.JSX.Element {
-  const characters = useCharacterStore((state) => state.list)
-  const activeId = useCharacterStore((state) => state.activeId)
-  const runningById = useCharacterRuntimeStore((state) => state.byId)
+  const roles = useRoleStore((state) => state.list)
+  const activeId = useRoleStore((state) => state.activeId)
+  const runningById = useRoleRuntimeStore((state) => state.byId)
   const errorCount = useLogsStore((state) =>
     state.entries.reduce((n, entry) => (entry.level === 'error' || entry.level === 'warn' ? n + 1 : n), 0),
   )
@@ -133,16 +133,16 @@ export function AppBar({
       </nav>
 
       <div className="ml-3 flex items-center gap-1 border-l pl-3" style={NO_DRAG}>
-        {characters.slice(0, 5).map((character) => {
-          const active = character.id === activeId
-          const running = isCharacterRunning(runningById, character.id)
-          const label = character.displayName ?? character.name
+        {roles.slice(0, 5).map((role) => {
+          const active = role.id === activeId
+          const running = isRoleRunning(runningById, role.id)
+          const label = role.displayName ?? role.name
           return (
             <button
-              key={character.id}
+              key={role.id}
               type="button"
               title={`${label}：${running ? '运行中，点击休眠' : '沉睡中，点击唤醒'}`}
-              onClick={() => onAvatarClick(character.id)}
+              onClick={() => onAvatarClick(role.id)}
               className={cn(
                 'relative flex size-8 items-center justify-center overflow-hidden rounded-full border text-xs transition-colors',
                 active ? 'border-brand ring-1 ring-brand/50' : 'border-border hover:border-muted-foreground/50',
@@ -152,7 +152,7 @@ export function AppBar({
               {active && avatarUrl ? (
                 <img src={avatarUrl} alt={label} className="h-full w-full object-cover" />
               ) : (
-                <span style={{ color: character.color ?? undefined }}>{label.slice(0, 1)}</span>
+                <span style={{ color: role.color ?? undefined }}>{label.slice(0, 1)}</span>
               )}
               <span
                 className={cn(

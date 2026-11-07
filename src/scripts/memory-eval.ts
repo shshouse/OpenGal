@@ -12,7 +12,7 @@ import {
 
 interface EvalQuestion {
   id: string
-  character: string
+  role: string
   query: string
   from?: string
   to?: string
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   await memoryDbReady()
   const results: EvalResult[] = []
   for (const question of list) {
-    const rows = searchMessages(question.character, question.query, {
+    const rows = searchMessages(question.role, question.query, {
       fromTs: question.from ? Date.parse(question.from) : undefined,
       toTs: question.to ? Date.parse(question.to) : undefined,
     })

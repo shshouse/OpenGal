@@ -12,18 +12,18 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  character_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   ts INTEGER NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0,
   kind TEXT NOT NULL DEFAULT 'chat'
 );
-CREATE INDEX IF NOT EXISTS idx_msg_char ON messages(character_id, archived, ts);
+CREATE INDEX IF NOT EXISTS idx_msg_char ON messages(role_id, archived, ts);
 
 CREATE TABLE IF NOT EXISTS memories (
   id TEXT PRIMARY KEY,
-  character_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'fact',
   text TEXT NOT NULL,
   entity TEXT NOT NULL DEFAULT 'user',
@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS memories (
   frozen_at TEXT,
   evidence TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_mem_char_state ON memories(character_id, state, kind);
-CREATE INDEX IF NOT EXISTS idx_mem_char_time ON memories(character_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_mem_char_state ON memories(role_id, state, kind);
+CREATE INDEX IF NOT EXISTS idx_mem_char_time ON memories(role_id, created_at);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
   message_id UNINDEXED,
@@ -63,7 +63,7 @@ END;
 
 CREATE TABLE IF NOT EXISTS summaries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  character_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
   start_ts INTEGER NOT NULL,
   end_ts INTEGER NOT NULL,
   text TEXT NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS summaries (
 CREATE TABLE IF NOT EXISTS memory_changelog (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   memory_id TEXT NOT NULL,
-  character_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
   action TEXT NOT NULL,
   field TEXT,
   old_value TEXT,
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS memory_changelog (
   ts INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_changelog_memory ON memory_changelog(memory_id, seq);
-CREATE INDEX IF NOT EXISTS idx_changelog_char ON memory_changelog(character_id, ts);
+CREATE INDEX IF NOT EXISTS idx_changelog_char ON memory_changelog(role_id, ts);
 `
 
 function ensureColumns(table: string, columns: Array<[string, string]>): void {
@@ -144,14 +144,14 @@ function migrateLegacyMemoryTables(): void {
       if (hasTable('facts')) {
         for (const row of rows('SELECT * FROM facts', [])) {
           const fact = row as unknown as FactRow
-          insertMemoryRowRaw(characterIdOf(fact), factRowToMemory(characterIdOf(fact), fact))
+          insertMemoryRowRaw(roleIdOf(fact), factRowToMemory(roleIdOf(fact), fact))
           migrated++
         }
       }
       if (hasTable('stories')) {
         for (const row of rows('SELECT * FROM stories', [])) {
           const story = row as unknown as StoryRow
-          insertMemoryRowRaw(characterIdOf(story), storyRowToMemory(characterIdOf(story), story))
+          insertMemoryRowRaw(roleIdOf(story), storyRowToMemory(roleIdOf(story), story))
           migrated++
         }
       }
@@ -162,8 +162,8 @@ function migrateLegacyMemoryTables(): void {
   }
 }
 
-function characterIdOf(row: { character_id: string }): string {
-  return row.character_id
+function roleIdOf(row: { role_id: string }): string {
+  return row.role_id
 }
 
 export function migrateFactsSchema(): void {

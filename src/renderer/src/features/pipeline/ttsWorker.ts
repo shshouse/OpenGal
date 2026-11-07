@@ -134,7 +134,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
   if (!speech) {
     return {
       segmentId: msg.segmentId,
-      characterId: msg.characterId,
+      roleId: msg.roleId,
       audioUrl: '',
       name: msg.name,
       text: msg.text || '',
@@ -150,7 +150,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
 
   let audioUrl = ''
   try {
-    const result = await window.opengal.tts.speak({ text: speech, roleCardId: msg.characterId })
+    const result = await window.opengal.tts.speak({ text: speech, roleCardId: msg.roleId })
     if (result.success && result.data) {
       if (!result.data.skipped) {
         audioUrl = URL.createObjectURL(new Blob([result.data.audio], { type: result.data.mimeType }))
@@ -165,7 +165,7 @@ async function synthesize(msg: LLMDialogMessage): Promise<TTSOutputMessage> {
 
   return {
     segmentId: msg.segmentId,
-    characterId: msg.characterId,
+    roleId: msg.roleId,
     audioUrl,
     name: msg.name,
     text: msg.text,

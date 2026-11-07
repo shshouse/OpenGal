@@ -318,14 +318,14 @@ async function handleReadWebPage(url: string): Promise<string> {
 const RECALL_CHAR_CAP = 1200
 
 async function handleRecallMemory(query: string, from?: string, to?: string): Promise<string> {
-  const characterId = readConfig().activeCharacterId
-  if (!characterId) throw new Error('当前没有激活角色')
+  const roleId = readConfig().activeRoleId
+  if (!roleId) throw new Error('当前没有激活角色')
   const fromTs = from ? Date.parse(from) : NaN
   const toTs = to ? Date.parse(to) : NaN
   const range = Number.isFinite(fromTs) && Number.isFinite(toTs) ? { fromTs, toTs } : undefined
   const [block, verbatim] = await Promise.all([
-    getMemoryBlock(characterId, query, true, RECALL_CHAR_CAP),
-    recallVerbatim(characterId, query, 1500, range),
+    getMemoryBlock(roleId, query, true, RECALL_CHAR_CAP),
+    recallVerbatim(roleId, query, 1500, range),
   ])
   const parts = [block, verbatim].filter((part): part is string => Boolean(part))
   return parts.length ? parts.join('\n\n') : '没有找到相关的长期记忆'

@@ -36,8 +36,8 @@ interface ChatState {
   archiveFront: (count: number, offset?: number) => Promise<void>
   dropFront: (count: number, offset?: number) => void
   clear: () => void
-  switchSession: (characterId: string | null) => void
-  ensureHydrated: (characterId: string) => Promise<void>
+  switchSession: (roleId: string | null) => void
+  ensureHydrated: (roleId: string) => Promise<void>
 }
 
 function buildUserContent(text: string, images?: string[]): ChatMessage['content'] {
@@ -142,17 +142,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [...state.messages.slice(0, offset), ...state.messages.slice(offset + count)],
     }))
   },
-  switchSession: (characterId) => {
+  switchSession: (roleId) => {
     const { sessionId } = get()
-    if (sessionId === characterId) return
+    if (sessionId === roleId) return
     set((state) => {
       const sessions = { ...state.sessions }
       if (state.sessionId) {
         sessions[state.sessionId] = { messages: state.messages }
       }
-      const restored = (characterId && sessions[characterId]) || { messages: [] }
+      const restored = (roleId && sessions[roleId]) || { messages: [] }
       return {
-        sessionId: characterId,
+        sessionId: roleId,
         sessions,
         messages: restored.messages,
         streamingSegments: [],
@@ -162,9 +162,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     })
   },
-  ensureHydrated: async (characterId) => {
-    if (get().hydratedIds[characterId]) return
-    const res = await window.opengal.chatHistory.load(characterId).catch((err: Error) => {
+  ensureHydrated: async (roleId) => {
+    if (get().hydratedIds[roleId]) return
+    const res = await window.opengal.chatHistory.load(roleId).catch((err: Error) => {
       console.error('[chatStore] 历史加载失败:', err.message)
       return null
     })
@@ -174,9 +174,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       | PersistedUserMessage
     )[]
     set((state) => {
-      const sessions = { ...state.sessions, [characterId]: { messages: loaded } }
-      const hydratedIds = { ...state.hydratedIds, [characterId]: true as const }
-      if (state.sessionId === characterId) {
+      const sessions = { ...state.sessions, [roleId]: { messages: loaded } }
+      const hydratedIds = { ...state.hydratedIds, [roleId]: true as const }
+      if (state.sessionId === roleId) {
         suppressPersist++
         return { sessions, hydratedIds, messages: loaded }
       }

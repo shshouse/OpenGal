@@ -2,44 +2,39 @@ import * as React from 'react'
 import { ArrowRight, Moon, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { isCharacterRunning, type CharacterRunningMap } from '@shared/characterRuntime'
-import type { BootStep, BootStepStatus, RoleCardEntry } from '@shared/types'
+import { isRoleRunning, type RoleRunningMap } from '@shared/roleRuntime'
+import type { BootStep, RoleCardEntry } from '@shared/types'
 
 interface Props {
-  characters: RoleCardEntry[]
+  roles: RoleCardEntry[]
   activeId: string | null
-  runningById: CharacterRunningMap
+  runningById: RoleRunningMap
   steps: BootStep[]
-  onOpenRole: (characterId: string) => void
-  onToggleRunning: (characterId: string) => void
+  onOpenRole: (roleId: string) => void
+  onToggleRunning: (roleId: string) => void
 }
 
-const STATUS_TEXT: Record<BootStepStatus, string> = {
-  pending: '待启动',
-  running: '加载中',
-  ok: '正常',
-  failed: '失败',
-  skipped: '已跳过'
-}
-
-const STATUS_CLASS: Record<BootStepStatus, string> = {
-  pending: 'text-muted-foreground',
-  running: 'text-foreground',
-  ok: 'text-brand',
-  failed: 'text-destructive',
-  skipped: 'text-muted-foreground'
-}
-
-const DOT_CLASS: Record<BootStepStatus, string> = {
-  pending: 'bg-muted-foreground/35',
-  running: 'bg-foreground/70',
-  ok: 'bg-brand',
-  failed: 'bg-destructive',
-  skipped: 'bg-muted-foreground/25'
+function StatusRow({
+  label,
+  value,
+  danger
+}: {
+  label: string
+  value: string
+  danger?: boolean
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn('ml-auto truncate tabular-nums', danger ? 'text-destructive' : 'text-foreground')}>
+        {value}
+      </span>
+    </div>
+  )
 }
 
 export function HomePage({
-  characters,
+  roles,
   activeId,
   runningById,
   steps,
@@ -47,9 +42,42 @@ export function HomePage({
   onToggleRunning
 }: Props): React.JSX.Element {
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
-  const runningCount = characters.filter((character) => isCharacterRunning(runningById, character.id)).length
-  const selected = characters.find((character) => character.id === (selectedId ?? activeId)) ?? characters[0] ?? null
-  const selectedRunning = selected ? isCharacterRunning(runningById, selected.id) : false
+  const runningCount = roles.filter((role) => isRoleRunning(runningById, role.id)).length
+  const selected = roles.find((role) => role.id === (selectedId ?? activeId)) ?? roles[0] ?? null
+  const selectedRunning = selected ? isRoleRunning(runningById, selected.id) : false
+  const selectedRoleId = selected?.id ?? null
+
+  const [memoryCount, setMemoryCount] = React.useState<number | null>(null)
+  const [memoryError, setMemoryError] = React.useState(false)
+
+  React.useEffect(() => {
+    setMemoryCount(null)
+    setMemoryError(false)
+    if (!selectedRoleId) return
+    let cancelled = false
+    void window.opengal.memory.get(selectedRoleId).then((res) => {
+      if (cancelled) return
+      if (res.success && res.data) setMemoryCount(res.data.facts.length + res.data.stories.length)
+      else setMemoryError(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedRoleId])
+
+  const shapeLabel = selected?.performance.mode === 'live2d' ? 'Live2D' : '立绘'
+  const memoryLabel = memoryError ? '读取失败' : memoryCount === null ? '读取中' : `${memoryCount} 条`
+  const ttsStep = steps.find((step) => step.id === 'tts')
+  const voiceDanger = ttsStep?.status === 'failed'
+  const voiceLabel = voiceDanger
+    ? '服务未连接'
+    : ttsStep?.status !== 'ok'
+      ? '待启动'
+      : selected?.voice?.engine === 'genie'
+        ? 'Genie'
+        : selected?.voice?.engine === 'gpt-sovits'
+          ? 'GPT-SoVITS'
+          : '未配置'
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -57,25 +85,25 @@ export function HomePage({
         <div className="flex h-11 shrink-0 items-center justify-between px-4">
           <span className="text-xs font-medium text-muted-foreground">角色</span>
           <span className="text-xs tabular-nums text-muted-foreground">
-            {characters.length} 个 · {runningCount} 运行中
+            {roles.length} 个 · {runningCount} 运行中
           </span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          {characters.length === 0 ? (
+          {roles.length === 0 ? (
             <div className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
               还没有角色包
             </div>
           ) : (
-            characters.map((character) => {
-              const running = isCharacterRunning(runningById, character.id)
-              const label = character.displayName ?? character.name
-              const active = selected?.id === character.id
+            roles.map((role) => {
+              const running = isRoleRunning(runningById, role.id)
+              const label = role.displayName ?? role.name
+              const active = selected?.id === role.id
               return (
                 <button
-                  key={character.id}
+                  key={role.id}
                   type="button"
-                  onClick={() => setSelectedId(character.id)}
+                  onClick={() => setSelectedId(role.id)}
                   className={cn(
                     'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70 active:bg-accent',
@@ -84,7 +112,7 @@ export function HomePage({
                 >
                   <span
                     className="relative flex size-9 shrink-0 items-center justify-center rounded-full border bg-background text-xs"
-                    style={{ color: character.color }}
+                    style={{ color: role.color }}
                   >
                     {label.slice(0, 1)}
                     <span
@@ -98,7 +126,7 @@ export function HomePage({
                     <span className="block truncate text-sm">{label}</span>
                     <span className="block text-xs text-muted-foreground">
                       {running ? '运行中' : '沉睡中'}
-                      {character.id === activeId ? ' · 当前角色' : ''}
+                      {role.id === activeId ? ' · 当前角色' : ''}
                     </span>
                   </span>
                 </button>
@@ -108,17 +136,11 @@ export function HomePage({
         </div>
 
         <div className="shrink-0 border-t px-4 py-3">
-          <div className="mb-2 text-xs font-medium text-muted-foreground">运行环境</div>
-          <div className="space-y-1.5">
-            {steps.map((step) => (
-              <div key={step.id} title={step.detail} className="flex items-center gap-2 text-xs">
-                <span className={cn('size-1.5 shrink-0 rounded-full', DOT_CLASS[step.status])} />
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{step.label}</span>
-                <span className={cn('shrink-0 tabular-nums', STATUS_CLASS[step.status])}>
-                  {STATUS_TEXT[step.status]}
-                </span>
-              </div>
-            ))}
+          <div className="mb-2 text-xs font-medium text-muted-foreground">运行状态</div>
+          <div className="space-y-1.5 text-xs">
+            <StatusRow label="形象" value={shapeLabel} />
+            <StatusRow label="记忆" value={memoryLabel} danger={memoryError} />
+            <StatusRow label="语音" value={voiceLabel} danger={voiceDanger} />
           </div>
         </div>
       </aside>

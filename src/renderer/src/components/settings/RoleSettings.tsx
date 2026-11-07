@@ -1,16 +1,16 @@
 import * as React from 'react'
 import { Users, RefreshCw, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useCharacterStore } from '@/features/character/characterStore'
+import { useRoleStore } from '@/features/role/roleStore'
 import { cn } from '@/lib/utils'
 
-export function CharacterSettings() {
-  const list = useCharacterStore((s) => s.list)
-  const activeId = useCharacterStore((s) => s.activeId)
-  const loading = useCharacterStore((s) => s.loading)
-  const error = useCharacterStore((s) => s.error)
-  const loadCharacters = useCharacterStore((s) => s.loadCharacters)
-  const setActive = useCharacterStore((s) => s.setActive)
+export function RoleSettings() {
+  const list = useRoleStore((s) => s.list)
+  const activeId = useRoleStore((s) => s.activeId)
+  const loading = useRoleStore((s) => s.loading)
+  const error = useRoleStore((s) => s.error)
+  const loadRoles = useRoleStore((s) => s.loadRoles)
+  const setActive = useRoleStore((s) => s.setActive)
 
   return (
     <div className="space-y-3">
@@ -21,7 +21,7 @@ export function CharacterSettings() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => void loadCharacters(activeId)}
+          onClick={() => void loadRoles(activeId)}
           disabled={loading}
         >
           <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />

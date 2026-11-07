@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users, Monitor, Sparkles, Volume2, Mic, Puzzle, Brain, Gamepad2 } from 'lucide-react'
-import { CharacterSettings } from './CharacterSettings'
-import { CharacterDisplaySettings } from './CharacterDisplaySettings'
+import { RoleSettings } from './RoleSettings'
+import { RoleDisplaySettings } from './RoleDisplaySettings'
 import { SettingsDialog } from './SettingsDialog'
 import { TTSSettings } from './TTSSettings'
 import { ASRSettings } from './ASRSettings'
@@ -55,11 +55,11 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
-          <TabsContent value="character" className="mt-0">
-            <CharacterSettings />
+          <TabsContent value="role" className="mt-0">
+            <RoleSettings />
           </TabsContent>
           <TabsContent value="display" className="mt-0">
-            <CharacterDisplaySettings config={config} model={model} onSave={onSave} />
+            <RoleDisplaySettings config={config} model={model} onSave={onSave} />
             <SubtitleSettings config={config} onSave={onSave} />
           </TabsContent>
           <TabsContent value="llm" className="mt-0">

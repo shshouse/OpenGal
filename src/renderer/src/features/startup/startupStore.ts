@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import type { BootStep } from '@shared/types'
-import { isCharacterRunning } from '@shared/characterRuntime'
+import { isRoleRunning } from '@shared/roleRuntime'
 import { speechLanguageLabel } from '@shared/subtitles'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
-import { useCharacterStore } from '@/features/character/characterStore'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
+import { useRoleStore } from '@/features/role/roleStore'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
@@ -50,18 +50,18 @@ function allSettled(steps: BootStep[]): boolean {
 
 export async function maybeGreet(): Promise<void> {
   if (greeted || greetingPending) return
-  const activeId = useCharacterStore.getState().activeId
-  if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
+  const activeId = useRoleStore.getState().activeId
+  if (!isRoleRunning(useRoleRuntimeStore.getState().byId, activeId)) return
   greetingPending = true
   try {
     const cfg = await window.opengal.config.get()
     if (!cfg.success || !cfg.data?.startup.greetingEnabled || !llmConfigured) return
-    const currentId = useCharacterStore.getState().activeId
-    if (currentId !== activeId || !isCharacterRunning(useCharacterRuntimeStore.getState().byId, currentId)) return
+    const currentId = useRoleStore.getState().activeId
+    if (currentId !== activeId || !isRoleRunning(useRoleRuntimeStore.getState().byId, currentId)) return
     greeted = true
     // 问候语是中文指令，模型容易顺着说中文；角色语言必须在这里再钉一次，
     // 否则中文台词喂给非中文音色模型会被读成参考音频
-    const card = useCharacterStore.getState().list.find((c) => c.id === activeId)
+    const card = useRoleStore.getState().list.find((c) => c.id === activeId)
     const label = card?.language ? speechLanguageLabel(card.language) : null
     const nudge = `（现在是${timeBucket()}。请用一两句符合角色设定的话向用户打招呼，自然简短，可以结合当前时间，不要提到系统或启动。${label ? `台词必须使用${label}，不要用其他语言。` : ''}）`
     useChatStore.getState().setSending(true)

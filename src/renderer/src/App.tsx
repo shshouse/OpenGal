@@ -12,14 +12,14 @@ import { HomePage } from '@/components/home/HomePage'
 import { RoleDashboard } from '@/components/dashboard/RoleDashboard'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
-import { useCharacterStore } from '@/features/character/characterStore'
+import { useRoleStore } from '@/features/role/roleStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { useStartupStore, maybeGreet } from '@/features/startup/startupStore'
 import { useASRStore } from '@/features/asr/asrStore'
 import { shouldShowMainStage } from '@shared/stagePolicy'
-import { isCharacterRunning } from '@shared/characterRuntime'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { isRoleRunning } from '@shared/roleRuntime'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
@@ -33,13 +33,13 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const [view, setView] = React.useState<AppView>('home')
   const [actionError, setActionError] = React.useState('')
-  const characters = useCharacterStore((s) => s.list)
+  const roles = useRoleStore((s) => s.list)
   const bootSteps = useStartupStore((s) => s.steps)
-  const loadCharacters = useCharacterStore((s) => s.loadCharacters)
-  const activeId = useCharacterStore((s) => s.activeId)
-  const activeCard = useCharacterStore((s) => s.list.find((card) => card.id === s.activeId))
-  const runningById = useCharacterRuntimeStore((s) => s.byId)
-  const activeRunning = isCharacterRunning(runningById, activeId)
+  const loadRoles = useRoleStore((s) => s.loadRoles)
+  const activeId = useRoleStore((s) => s.activeId)
+  const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
+  const runningById = useRoleRuntimeStore((s) => s.byId)
+  const activeRunning = isRoleRunning(runningById, activeId)
 
   React.useEffect(() => {
     if (activeCard?.performance.mode === 'sprite') setAvatarUrl(activeCard.spriteFrames?.idle ?? null)
@@ -88,11 +88,11 @@ export default function App() {
       const cfg = await window.opengal.config.get()
       if (cfg.success && cfg.data) {
         setConfig(cfg.data)
-        useCharacterRuntimeStore.getState().hydrate(cfg.data.runningCharacters)
+        useRoleRuntimeStore.getState().hydrate(cfg.data.runningRoles)
         await useASRStore.getState().applySettings(cfg.data.asr)
         if (!cfg.data.showLive2D) useStartupStore.getState().reportLive2d('skipped')
-        await loadCharacters(cfg.data.activeCharacterId)
-        const active = useCharacterStore.getState().getActive()
+        await loadRoles(cfg.data.activeRoleId)
+        const active = useRoleStore.getState().getActive()
         if (active) {
           const fromCard = await window.opengal.model.resolveFromCard(active.id)
           if (fromCard.success && fromCard.data) {
@@ -110,12 +110,12 @@ export default function App() {
         }
       }
     })()
-  }, [loadCharacters])
+  }, [loadRoles])
 
   React.useEffect(() => {
     window.opengal.mate?.emitRuntime?.({
-      runningCharacters: runningById,
-      activeCharacterId: activeId,
+      runningRoles: runningById,
+      activeRoleId: activeId,
     })
   }, [runningById, activeId])
 
@@ -172,32 +172,32 @@ export default function App() {
     }
   }
 
-  async function setRunningFor(characterId: string): Promise<void> {
-    const nextRunning = !isCharacterRunning(
-      useCharacterRuntimeStore.getState().byId,
-      characterId,
+  async function setRunningFor(roleId: string): Promise<void> {
+    const nextRunning = !isRoleRunning(
+      useRoleRuntimeStore.getState().byId,
+      roleId,
     )
-    const runningCharacters = {
-      ...useCharacterRuntimeStore.getState().byId,
-      [characterId]: nextRunning,
+    const runningRoles = {
+      ...useRoleRuntimeStore.getState().byId,
+      [roleId]: nextRunning,
     }
     try {
-      await saveConfig({ runningCharacters })
-      useCharacterRuntimeStore.getState().setRunning(characterId, nextRunning)
+      await saveConfig({ runningRoles })
+      useRoleRuntimeStore.getState().setRunning(roleId, nextRunning)
       setActionError('')
     } catch {
       setActionError('运行状态保存失败，请重试')
     }
   }
 
-  async function openCharacter(characterId: string): Promise<void> {
-    if (characterId !== activeId) await useCharacterStore.getState().setActive(characterId)
+  async function openRole(roleId: string): Promise<void> {
+    if (roleId !== activeId) await useRoleStore.getState().setActive(roleId)
     setView('chat')
   }
 
-  async function handleAvatarClick(characterId: string): Promise<void> {
-    await openCharacter(characterId)
-    await setRunningFor(characterId)
+  async function handleAvatarClick(roleId: string): Promise<void> {
+    await openRole(roleId)
+    await setRunningFor(roleId)
   }
 
   async function toggleMate(): Promise<void> {
@@ -239,7 +239,7 @@ export default function App() {
 
   const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
   const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
-    <SpriteStage frames={activeCard.spriteFrames} characterId={activeCard.id} sleeping={!activeRunning} />
+    <SpriteStage frames={activeCard.spriteFrames} roleId={activeCard.id} sleeping={!activeRunning} />
   ) : (
     <Live2DStage
       model={model}
@@ -271,11 +271,11 @@ export default function App() {
       <main className="relative flex min-h-0 flex-1 overflow-hidden">
           {view === 'home' && (
             <HomePage
-              characters={characters}
+              roles={roles}
               activeId={activeId}
               runningById={runningById}
               steps={bootSteps}
-              onOpenRole={(id) => void openCharacter(id)}
+              onOpenRole={(id) => void openRole(id)}
               onToggleRunning={setRunningFor}
             />
           )}
@@ -284,7 +284,7 @@ export default function App() {
             <ChatWorkspace
               chat={activeCard ? (
                 <RoleDashboard
-                  character={activeCard}
+                  role={activeCard}
                   running={activeRunning}
                   onToggleRunning={() => void setRunningFor(activeCard.id)}
                 />

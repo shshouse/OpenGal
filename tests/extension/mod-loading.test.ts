@@ -1,17 +1,25 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { listRoleCardsDetailed } from '../../src/main/services/roleCardLoader'
 
 const root = path.resolve('tests/fixtures/role-card-root')
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'og-mod-loading-data-'))
 const previous = process.env.OPENGAL_MOD_ROOT
+const previousData = process.env.OPENGAL_DATA_DIR
 
 beforeAll(() => {
   process.env.OPENGAL_MOD_ROOT = root
+  process.env.OPENGAL_DATA_DIR = dataRoot
 })
 
 afterAll(() => {
   if (previous === undefined) delete process.env.OPENGAL_MOD_ROOT
   else process.env.OPENGAL_MOD_ROOT = previous
+  if (previousData === undefined) delete process.env.OPENGAL_DATA_DIR
+  else process.env.OPENGAL_DATA_DIR = previousData
+  fs.rmSync(dataRoot, { recursive: true, force: true })
 })
 
 describe('完整角色清单加载', () => {

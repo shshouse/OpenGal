@@ -33,9 +33,9 @@ afterAll(() => {
 describe('CorpusBuffer', () => {
   it('提取期间新进入的语料不被清理', () => {
     const buffer = new CorpusBuffer(1000)
-    buffer.push({ characterId: 'c1', role: 'user', text: 'A', at: 1 })
+    buffer.push({ roleId: 'c1', role: 'user', text: 'A', at: 1 })
     const snapshot = buffer.snapshot()
-    buffer.push({ characterId: 'c1', role: 'user', text: 'B', at: 2 })
+    buffer.push({ roleId: 'c1', role: 'user', text: 'B', at: 2 })
     buffer.dropExtracted('c1', snapshot.maxSeq)
     const left = buffer.entries()
     expect(left).toHaveLength(1)

@@ -8,16 +8,16 @@ import * as memoryStore from '../../src/main/services/memoryStore'
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-recall-'))
 
 const { recallVerbatim } = memoryStore as unknown as {
-  recallVerbatim?: (characterId: string, query: string) => Promise<string | null>
+  recallVerbatim?: (roleId: string, query: string) => Promise<string | null>
 }
 const { appendMissingMessages } = memoryDb as unknown as {
   appendMissingMessages?: (
-    characterId: string,
+    roleId: string,
     items: Array<Omit<memoryDb.MessageRow, 'id'>>,
   ) => number
 }
 
-function seedOldConversation(characterId: string) {
+function seedOldConversation(roleId: string) {
   const base = Date.UTC(2024, 2, 12, 6, 20)
   const lines: Array<[string, string]> = [
     ['user', '今天天气不错'],
@@ -27,7 +27,7 @@ function seedOldConversation(characterId: string) {
   ]
   lines.forEach(([role, text], index) => {
     memoryDb.appendMessage({
-      character_id: characterId,
+      role_id: roleId,
       role,
       content: JSON.stringify({ role, content: text }),
       ts: base + index * 60_000,
@@ -67,25 +67,25 @@ describe('原话检索', () => {
   it('写入记忆时记录来源时间范围，并能回查原话', async () => {
     const applyCandidates = (memoryStore as unknown as {
       applyCandidates?: (
-        characterId: string,
+        roleId: string,
         payload: unknown,
       ) => Promise<unknown>
     }).applyCandidates
     const messagesInRange = (memoryDb as unknown as {
-      messagesInRange?: (characterId: string, fromTs: number, toTs: number) => memoryDb.MessageRow[]
+      messagesInRange?: (roleId: string, fromTs: number, toTs: number) => memoryDb.MessageRow[]
     }).messagesInRange
     expect(applyCandidates).toBeTypeOf('function')
     expect(messagesInRange).toBeTypeOf('function')
 
     memoryDb.appendMessage({
-      character_id: 'c-ev',
+      role_id: 'c-ev',
       role: 'user',
       content: JSON.stringify({ role: 'user', content: '我下周要去南京出差' }),
       ts: 1000,
       archived: 1,
     })
     memoryDb.appendMessage({
-      character_id: 'c-ev',
+      role_id: 'c-ev',
       role: 'assistant',
       content: JSON.stringify({ role: 'assistant', content: '南京这时候很热吧' }),
       ts: 2000,
@@ -118,8 +118,8 @@ describe('原话检索', () => {
   it('只追加缺失消息，不删除已有消息，也不重复插入', () => {
     expect(appendMissingMessages).toBeTypeOf('function')
     const items = [
-      { character_id: 'c-import', role: 'user', content: '第一句', ts: 100, archived: 0 },
-      { character_id: 'c-import', role: 'assistant', content: '第二句', ts: 200, archived: 0 },
+      { role_id: 'c-import', role: 'user', content: '第一句', ts: 100, archived: 0 },
+      { role_id: 'c-import', role: 'assistant', content: '第二句', ts: 200, archived: 0 },
     ]
     expect(appendMissingMessages!('c-import', items)).toBe(2)
     expect(appendMissingMessages!('c-import', items)).toBe(0)
@@ -128,7 +128,7 @@ describe('原话检索', () => {
     expect(rows.map((r) => r.content)).toEqual(['第一句', '第二句'])
 
     appendMissingMessages!('c-import', [
-      { character_id: 'c-import', role: 'user', content: '第三句', ts: 300, archived: 0 },
+      { role_id: 'c-import', role: 'user', content: '第三句', ts: 300, archived: 0 },
     ])
     expect(memoryDb.listUnarchivedMessages('c-import')).toHaveLength(3)
   })

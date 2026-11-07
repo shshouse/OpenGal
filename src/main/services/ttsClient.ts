@@ -21,7 +21,7 @@ export interface TTSSpeakResponse {
 
 function resolveActiveCard(explicitId: string | undefined) {
   const cfg = readConfig()
-  const id = explicitId || cfg.activeCharacterId
+  const id = explicitId || cfg.activeRoleId
   if (!id) return null
   return getRoleCard(id)
 }

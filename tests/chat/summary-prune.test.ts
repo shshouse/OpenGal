@@ -7,7 +7,7 @@ import * as db from '../../src/main/services/memoryDb'
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-summary-prune-'))
 
 const api = db as unknown as {
-  pruneSummaries?: (characterId: string, keep?: number) => number
+  pruneSummaries?: (roleId: string, keep?: number) => number
 }
 
 describe('摘要清理', () => {

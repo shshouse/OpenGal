@@ -8,7 +8,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-core-'))
 
 interface MemoryRow {
   id: string
-  character_id: string
+  role_id: string
   kind: 'fact' | 'event' | 'promise'
   text: string
   state: 'active' | 'superseded' | 'archived' | 'fulfilled' | 'cancelled'
@@ -23,21 +23,21 @@ interface MemoryRow {
 }
 
 const api = db as unknown as {
-  insertMemoryRow?: (characterId: string, row: MemoryRow) => void
-  listMemoryRows?: (characterId: string, opts?: { includeInactive?: boolean }) => MemoryRow[]
+  insertMemoryRow?: (roleId: string, row: MemoryRow) => void
+  listMemoryRows?: (roleId: string, opts?: { includeInactive?: boolean }) => MemoryRow[]
   setMemoryStateRow?: (id: string, state: MemoryRow['state']) => number
   setMemoryPinnedRow?: (id: string, pinned: boolean) => number
   searchMessages?: (
-    characterId: string,
+    roleId: string,
     query: string,
     opts?: { fromTs?: number; toTs?: number; limit?: number; radius?: number },
-  ) => Array<{ id: number; character_id: string; role: string; content: string; ts: number; kind: string }>
+  ) => Array<{ id: number; role_id: string; role: string; content: string; ts: number; kind: string }>
 }
 
 function memory(overrides: Partial<MemoryRow> = {}): MemoryRow {
   return {
     id: 'm1',
-    character_id: 'c1',
+    role_id: 'c1',
     kind: 'fact',
     text: '用户住在北京',
     state: 'active',
@@ -53,9 +53,9 @@ function memory(overrides: Partial<MemoryRow> = {}): MemoryRow {
   }
 }
 
-function seed(characterId: string, role: string, text: string, ts: number, kind = 'chat') {
+function seed(roleId: string, role: string, text: string, ts: number, kind = 'chat') {
   db.appendMessage({
-    character_id: characterId,
+    role_id: roleId,
     role,
     content: JSON.stringify({ role, content: text }),
     ts,
@@ -79,7 +79,7 @@ describe('记忆地基', () => {
     expect(api.insertMemoryRow).toBeTypeOf('function')
     api.insertMemoryRow!('c1', memory())
     api.insertMemoryRow!('c1', memory({ id: 'm2', text: '用户搬到上海', supersedes: 'm1' }))
-    api.insertMemoryRow!('c2', memory({ id: 'm3', character_id: 'c2', text: '别的角色' }))
+    api.insertMemoryRow!('c2', memory({ id: 'm3', role_id: 'c2', text: '别的角色' }))
 
     const active = api.listMemoryRows!('c1')
     expect(active.map((row) => row.id).sort()).toEqual(['m1', 'm2'])
@@ -104,7 +104,7 @@ describe('记忆地基', () => {
 
   it('同一条消息重复写入不会产生两条', () => {
     const item = {
-      character_id: 'c-dup',
+      role_id: 'c-dup',
       role: 'user',
       content: JSON.stringify({ role: 'user', content: '重复的一句话' }),
       ts: 1000,
@@ -146,7 +146,7 @@ describe('记忆地基', () => {
     seed('c-b', 'user', '我也喜欢喝美式', 50)
     const hits = api.searchMessages!('c-a', '美式', { radius: 0 })
     expect(hits).toHaveLength(1)
-    expect(hits[0].character_id).toBe('c-a')
+    expect(hits[0].role_id).toBe('c-a')
   })
 
   it('时间范围过滤只返回范围内消息', () => {

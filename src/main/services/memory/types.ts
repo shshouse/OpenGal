@@ -6,7 +6,7 @@ export interface MemoryDbLogger {
 
 export interface MessageRow {
   id?: number
-  character_id: string
+  role_id: string
   role: string
   content: string
   ts: number
@@ -16,7 +16,7 @@ export interface MessageRow {
 
 export interface MemoryRow {
   id: string
-  character_id: string
+  role_id: string
   kind: string
   text: string
   subject?: string | null
@@ -45,7 +45,7 @@ export interface MemoryRow {
 
 export interface FactRow {
   id: string
-  character_id: string
+  role_id: string
   text: string
   entity: string
   subject: string | null
@@ -72,7 +72,7 @@ export interface FactRow {
 
 export interface StoryRow {
   id: string
-  character_id: string
+  role_id: string
   kind: string
   text: string
   occurred_at: string

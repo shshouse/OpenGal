@@ -5,7 +5,7 @@ export type ActivityKind = 'user' | 'speech' | 'tool' | 'system' | 'error'
 
 export interface ActivityEntry {
   id: string
-  characterId: string
+  roleId: string
   kind: ActivityKind
   title: string
   detail?: string
@@ -14,36 +14,36 @@ export interface ActivityEntry {
 }
 
 interface ActivityState {
-  byCharacter: Record<string, ActivityEntry[]>
+  byRole: Record<string, ActivityEntry[]>
   add: (entry: ActivityEntry) => void
-  clearCharacter: (characterId: string) => void
+  clearRole: (roleId: string) => void
 }
 
-const MAX_PER_CHARACTER = 200
+const MAX_PER_ROLE = 200
 const EMPTY_ACTIVITIES: ActivityEntry[] = []
 
-export function selectActivities(state: { byCharacter: Record<string, ActivityEntry[]> }, characterId: string): ActivityEntry[] {
+export function selectActivities(state: { byRole: Record<string, ActivityEntry[]> }, roleId: string): ActivityEntry[] {
   // hasOwnProperty 是安全边界：角色 ID 可能是 "constructor" / "__proto__"，直接索引会沿原型链取到值
-  if (!Object.prototype.hasOwnProperty.call(state.byCharacter, characterId)) return EMPTY_ACTIVITIES
-  return state.byCharacter[characterId] ?? EMPTY_ACTIVITIES
+  if (!Object.prototype.hasOwnProperty.call(state.byRole, roleId)) return EMPTY_ACTIVITIES
+  return state.byRole[roleId] ?? EMPTY_ACTIVITIES
 }
 
 export const useActivityStore = create<ActivityState>()(persist((set) => ({
-  byCharacter: {},
+  byRole: {},
   add: (entry) => set((state) => {
-    const current = selectActivities(state, entry.characterId)
+    const current = selectActivities(state, entry.roleId)
     if (current.some((item) => item.id === entry.id)) return state
     return {
-      byCharacter: {
-        ...state.byCharacter,
-        [entry.characterId]: [...current, entry].slice(-MAX_PER_CHARACTER),
+      byRole: {
+        ...state.byRole,
+        [entry.roleId]: [...current, entry].slice(-MAX_PER_ROLE),
       },
     }
   }),
-  clearCharacter: (characterId) => set((state) => {
-    const next = { ...state.byCharacter }
-    delete next[characterId]
-    return { byCharacter: next }
+  clearRole: (roleId) => set((state) => {
+    const next = { ...state.byRole }
+    delete next[roleId]
+    return { byRole: next }
   }),
 }), {
   name: 'opengal-activity',
@@ -52,5 +52,5 @@ export const useActivityStore = create<ActivityState>()(persist((set) => ({
     setItem: (key, value) => { try { localStorage.setItem(key, value) } catch { /* 缓存失败不阻断角色活动 */ } },
     removeItem: (key) => { try { localStorage.removeItem(key) } catch { /* 保留内存状态 */ } },
   })),
-  partialize: (state) => ({ byCharacter: state.byCharacter }),
+  partialize: (state) => ({ byRole: state.byRole }),
 }))

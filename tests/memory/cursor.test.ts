@@ -31,10 +31,10 @@ afterAll(() => {
   fs.rmSync(root, { recursive: true, force: true })
 })
 
-function seedMessages(characterId: string, base: number, lines: string[]) {
+function seedMessages(roleId: string, base: number, lines: string[]) {
   lines.forEach((text, index) => {
     appendMessage({
-      character_id: characterId,
+      role_id: roleId,
       role: index % 2 === 0 ? 'user' : 'assistant',
       content: JSON.stringify({ role: index % 2 === 0 ? 'user' : 'assistant', content: text }),
       ts: base + index * 1000,

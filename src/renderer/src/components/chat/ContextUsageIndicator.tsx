@@ -3,7 +3,7 @@ import { Info } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { getContextUsage, setGlobalContextWindow } from '@/features/pipeline/llmWorker'
 import { useChatStore } from '@/features/chat/chatStore'
-import { useCharacterStore } from '@/features/character/characterStore'
+import { useRoleStore } from '@/features/role/roleStore'
 
 interface Segment {
   label: string
@@ -51,7 +51,7 @@ const RADIUS = SIZE / 2 - 1
 
 export function ContextUsageIndicator() {
   const messages = useChatStore((s) => s.messages)
-  const activeId = useCharacterStore((s) => s.activeId)
+  const activeId = useRoleStore((s) => s.activeId)
   const [data, setData] = React.useState<{ segments: Segment[]; total: number; max: number } | null>(null)
 
   React.useEffect(() => {

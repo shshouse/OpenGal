@@ -3,7 +3,7 @@ import { recordMemoryChange, type MemoryChangeActor } from './changelog'
 import type { MemoryRow, FactRow, StoryRow } from './types'
 
 export function insertMemoryRowRaw(
-  characterId: string,
+  roleId: string,
   row: MemoryRow,
   opts: { log?: boolean; actor?: MemoryChangeActor } = {},
 ): void {
@@ -11,11 +11,11 @@ export function insertMemoryRowRaw(
     ? false
     : rows('SELECT 1 FROM memories WHERE id = ?', [row.id]).length > 0
   run(
-      `INSERT OR REPLACE INTO memories(id, character_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
+      `INSERT OR REPLACE INTO memories(id, role_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         row.id,
-        characterId,
+        roleId,
         row.kind,
         row.text,
         row.entity ?? 'user',
@@ -45,7 +45,7 @@ export function insertMemoryRowRaw(
   if (opts.log === false) return
   recordMemoryChange({
     memoryId: row.id,
-    characterId,
+    roleId,
     action: existed ? 'update' : 'insert',
     newValue: row.kind,
     actor: opts.actor ?? 'system',
@@ -70,11 +70,11 @@ function evidenceRange(raw: string | null | undefined): { fromTs?: number; toTs?
   }
 }
 
-export function factRowToMemory(characterId: string, f: FactRow): MemoryRow {
+export function factRowToMemory(roleId: string, f: FactRow): MemoryRow {
   const range = evidenceRange(f.source_evidence)
   return {
     id: f.id,
-    character_id: characterId,
+    role_id: roleId,
     kind: 'fact',
     text: f.text,
     entity: f.entity,
@@ -106,7 +106,7 @@ export function memoryToFactRow(r: MemoryRow): FactRow {
   const pinned = r.pinned === 1
   return {
     id: r.id,
-    character_id: r.character_id,
+    role_id: r.role_id,
     text: r.text,
     entity: (r.entity ?? 'user') as FactRow['entity'],
     subject: r.subject ?? null,
@@ -136,11 +136,11 @@ export function memoryToFactRow(r: MemoryRow): FactRow {
   }
 }
 
-export function storyRowToMemory(characterId: string, s: StoryRow): MemoryRow {
+export function storyRowToMemory(roleId: string, s: StoryRow): MemoryRow {
   const range = evidenceRange(s.source_evidence)
   return {
     id: s.id,
-    character_id: characterId,
+    role_id: roleId,
     kind: s.kind,
     text: s.text,
     state: s.status === 'active' ? (s.fulfilled === 1 ? 'fulfilled' : 'active') : 'archived',
@@ -162,7 +162,7 @@ export function memoryToStoryRow(r: MemoryRow): StoryRow {
   const inactive = r.state === 'archived' || r.state === 'cancelled' || r.state === 'superseded'
   return {
     id: r.id,
-    character_id: r.character_id,
+    role_id: r.role_id,
     kind: r.kind,
     text: r.text,
     occurred_at: msToIso(r.happened_at ?? r.created_at),

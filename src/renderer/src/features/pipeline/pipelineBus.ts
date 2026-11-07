@@ -15,7 +15,7 @@ export interface PipelineEventMap {
   'llm:done': LLMTurnDoneMessage
   'tts:output': TTSOutputMessage
   'tts:segmentStart': TTSOutputMessage
-  'tts:playback': { speaking: boolean; characterId?: string }
+  'tts:playback': { speaking: boolean; roleId?: string }
   'pipeline:abort': void
 }
 

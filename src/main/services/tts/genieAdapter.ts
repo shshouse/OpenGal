@@ -14,7 +14,7 @@ import { getErrorMessage } from '@shared/errors'
 
 interface ResolvedGenieSettings {
   baseURL: string
-  characterName: string
+  roleName: string
   onnxModelAbs: string
   refAudioAbs: string
   referenceText: string
@@ -121,11 +121,11 @@ function wrapPcmAsWav(buffer: Buffer): Buffer {
 export class GenieAdapter implements TTSAdapter {
   readonly provider = 'genie'
 
-  private loadedCharacters = new Map<string, Set<string>>()
+  private loadedRoles = new Map<string, Set<string>>()
   private stopping: Promise<unknown> = Promise.resolve()
 
   reset(): void {
-    this.loadedCharacters.clear()
+    this.loadedRoles.clear()
   }
 
   async ping(req: { globalConfig: TTSConfig; card?: RoleCardEntry | null }): Promise<{ ok: boolean; message?: string }> {
@@ -165,13 +165,13 @@ export class GenieAdapter implements TTSAdapter {
     if (!text) throw new Error('Empty TTS input')
 
     const settings = this.resolveSettings(req)
-    await this.ensureCharacterLoaded(settings, req.signal)
+    await this.ensureRoleLoaded(settings, req.signal)
     req.signal?.throwIfAborted()
 
     // 中文音色模型走中文 G2P，先把会让它崩掉的字换掉；其他语种按原文送
     const spoken = settings.outputLanguage === 'zh' ? sanitizeForG2P(text) : text
     const body = {
-      character_name: settings.characterName,
+      role_name: settings.roleName,
       text: spoken,
       split_sentence: true,
     }
@@ -274,8 +274,8 @@ export class GenieAdapter implements TTSAdapter {
     if (!baseURL) throw new Error('TTS baseURL is not configured')
     assertLocalBaseURL(baseURL)
 
-    const characterName = pickString(merged, 'characterName').trim()
-    if (!characterName) throw new Error('Genie characterName is not configured')
+    const roleName = pickString(merged, 'characterName').trim()
+    if (!roleName) throw new Error('Genie characterName is not configured')
 
     const onnxRel = pickString(merged, 'onnxModelDir')
     const refRel = pickString(merged, 'referenceAudio')
@@ -317,37 +317,37 @@ export class GenieAdapter implements TTSAdapter {
       )
     }
 
-    return { baseURL, characterName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage, outputLanguage }
+    return { baseURL, roleName, onnxModelAbs: onnxAbs, refAudioAbs: refAbs, referenceText, referenceLanguage, outputLanguage }
   }
 
-  private async ensureCharacterLoaded(settings: ResolvedGenieSettings, signal?: AbortSignal): Promise<void> {
-    let loaded = this.loadedCharacters.get(settings.baseURL)
+  private async ensureRoleLoaded(settings: ResolvedGenieSettings, signal?: AbortSignal): Promise<void> {
+    let loaded = this.loadedRoles.get(settings.baseURL)
     if (!loaded) {
       loaded = new Set()
-      this.loadedCharacters.set(settings.baseURL, loaded)
+      this.loadedRoles.set(settings.baseURL, loaded)
     }
-    if (loaded.has(settings.characterName)) return
+    if (loaded.has(settings.roleName)) return
 
     const setupSignal = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
       : AbortSignal.timeout(30_000)
 
     const loadBody = {
-      character_name: settings.characterName,
+      role_name: settings.roleName,
       onnx_model_dir: settings.onnxModelAbs,
       language: settings.outputLanguage,
     }
     const loadRes = await fetchReadable(
-      `${settings.baseURL}/load_character`,
+      `${settings.baseURL}/load_role`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loadBody), signal: setupSignal },
       GENIE_ENDPOINT,
     )
     if (!loadRes.ok) {
-      throw new Error(`load_character failed (${loadRes.status}): ${await loadRes.text()}`)
+      throw new Error(`load_role failed (${loadRes.status}): ${await loadRes.text()}`)
     }
 
     const refBody = {
-      character_name: settings.characterName,
+      role_name: settings.roleName,
       audio_path: settings.refAudioAbs,
       audio_text: settings.referenceText,
       language: settings.referenceLanguage,
@@ -361,7 +361,7 @@ export class GenieAdapter implements TTSAdapter {
       throw new Error(`set_reference_audio failed (${refRes.status}): ${await refRes.text()}`)
     }
 
-    loaded.add(settings.characterName)
+    loaded.add(settings.roleName)
   }
 }
 

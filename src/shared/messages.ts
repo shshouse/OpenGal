@@ -7,7 +7,7 @@ export interface UserInputMessage {
 
 export interface LLMDialogMessage {
   segmentId?: string
-  characterId?: string
+  roleId?: string
   language?: string
   name: string
   text: string
@@ -21,7 +21,7 @@ export interface LLMDialogMessage {
 
 export interface TTSOutputMessage {
   segmentId?: string
-  characterId?: string
+  roleId?: string
   audioUrl: string
   name: string
   text: string

@@ -65,53 +65,53 @@ const api = {
     rescan: () => invoke<PluginInfo[]>(IpcChannels.plugins.rescan)
   },
   memory: {
-    get: (characterId: string) =>
+    get: (roleId: string) =>
       invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
         IpcChannels.memory.get,
-        characterId
+        roleId
       ),
-    apply: (characterId: string, payload: MemoryApplyPayload) =>
+    apply: (roleId: string, payload: MemoryApplyPayload) =>
       invoke<{
         insertedFacts: number
         refreshedFacts: number
         insertedStories: number
-      }>(IpcChannels.memory.apply, characterId, payload),
-    manualAdd: (characterId: string, text: string, entity?: MemoryFact['entity']) =>
-      invoke<MemoryFact>(IpcChannels.memory.manualAdd, characterId, text, entity),
-    clear: (characterId: string) => invoke<void>(IpcChannels.memory.clear, characterId),
-    pending: (characterId: string, limit?: number) =>
+      }>(IpcChannels.memory.apply, roleId, payload),
+    manualAdd: (roleId: string, text: string, entity?: MemoryFact['entity']) =>
+      invoke<MemoryFact>(IpcChannels.memory.manualAdd, roleId, text, entity),
+    clear: (roleId: string) => invoke<void>(IpcChannels.memory.clear, roleId),
+    pending: (roleId: string, limit?: number) =>
       invoke<{
         cursor: number
         entries: Array<{ role: 'user' | 'assistant'; text: string; at: number }>
-      }>(IpcChannels.memory.pending, characterId, limit),
-    advanceCursor: (characterId: string, ts: number) =>
-      invoke<void>(IpcChannels.memory.advanceCursor, characterId, ts),
-    rebuild: (characterId: string) =>
+      }>(IpcChannels.memory.pending, roleId, limit),
+    advanceCursor: (roleId: string, ts: number) =>
+      invoke<void>(IpcChannels.memory.advanceCursor, roleId, ts),
+    rebuild: (roleId: string) =>
       invoke<{ facts: number; stories: number }>(
         IpcChannels.memory.rebuild,
-        characterId,
-        `rebuild:${characterId}`
+        roleId,
+        `rebuild:${roleId}`
       ),
-    freezeFact: (characterId: string, factId: string) =>
-      invoke<boolean>(IpcChannels.memory.freezeFact, characterId, factId),
-    unfreezeFact: (characterId: string, factId: string) =>
-      invoke<boolean>(IpcChannels.memory.unfreezeFact, characterId, factId),
-    deleteFact: (characterId: string, factId: string) =>
-      invoke<boolean>(IpcChannels.memory.deleteFact, characterId, factId),
-    prune: (characterId: string) =>
-      invoke<{ archived: number }>(IpcChannels.memory.prune, characterId),
-    evidence: (characterId: string, memoryId: string) =>
+    freezeFact: (roleId: string, factId: string) =>
+      invoke<boolean>(IpcChannels.memory.freezeFact, roleId, factId),
+    unfreezeFact: (roleId: string, factId: string) =>
+      invoke<boolean>(IpcChannels.memory.unfreezeFact, roleId, factId),
+    deleteFact: (roleId: string, factId: string) =>
+      invoke<boolean>(IpcChannels.memory.deleteFact, roleId, factId),
+    prune: (roleId: string) =>
+      invoke<{ archived: number }>(IpcChannels.memory.prune, roleId),
+    evidence: (roleId: string, memoryId: string) =>
       invoke<Array<{ id: number; role: string; content: string; ts: number }>>(
         IpcChannels.memory.evidence,
-        characterId,
+        roleId,
         memoryId
       ),
-    changes: (characterId: string, memoryId: string, limit?: number) =>
-      invoke<MemoryChange[]>(IpcChannels.memory.changes, characterId, memoryId, limit),
-    getRelevant: (characterId: string, context: string) =>
+    changes: (roleId: string, memoryId: string, limit?: number) =>
+      invoke<MemoryChange[]>(IpcChannels.memory.changes, roleId, memoryId, limit),
+    getRelevant: (roleId: string, context: string) =>
       invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
         IpcChannels.memory.getRelevant,
-        characterId,
+        roleId,
         context
       )
   },
@@ -122,40 +122,40 @@ const api = {
     scan: (folderPath: string, modelJsonFile: string) =>
       invoke<Live2DModelConfig | null>(IpcChannels.model.scan, folderPath, modelJsonFile)
   },
-  character: {
-    list: () => invoke<RoleCardEntry[]>(IpcChannels.character.list),
-    get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.character.get, id),
+  role: {
+    list: () => invoke<RoleCardEntry[]>(IpcChannels.role.list),
+    get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.role.get, id),
     voiceConfig: (id: string) =>
-      invoke<Record<string, unknown> | null>(IpcChannels.character.voiceConfig, id)
+      invoke<Record<string, unknown> | null>(IpcChannels.role.voiceConfig, id)
   },
   chatHistory: {
-    load: (characterId: string) => invoke<ChatMessage[]>(IpcChannels.chatHistory.load, characterId),
-    append: (characterId: string, messages: ChatMessage[]) =>
-      invoke<number[]>(IpcChannels.chatHistory.append, characterId, messages),
-    replaceAll: (characterId: string, messages: ChatMessage[]) =>
-      invoke<boolean>(IpcChannels.chatHistory.replaceAll, characterId, messages),
-    archiveRange: (characterId: string, fromId: number, toId: number) =>
-      invoke<number>(IpcChannels.chatHistory.archiveRange, characterId, fromId, toId),
-    latestMessageId: (characterId: string) =>
-      invoke<number | null>(IpcChannels.chatHistory.latestMessageId, characterId),
-    summaries: (characterId: string) =>
+    load: (roleId: string) => invoke<ChatMessage[]>(IpcChannels.chatHistory.load, roleId),
+    append: (roleId: string, messages: ChatMessage[]) =>
+      invoke<number[]>(IpcChannels.chatHistory.append, roleId, messages),
+    replaceAll: (roleId: string, messages: ChatMessage[]) =>
+      invoke<boolean>(IpcChannels.chatHistory.replaceAll, roleId, messages),
+    archiveRange: (roleId: string, fromId: number, toId: number) =>
+      invoke<number>(IpcChannels.chatHistory.archiveRange, roleId, fromId, toId),
+    latestMessageId: (roleId: string) =>
+      invoke<number | null>(IpcChannels.chatHistory.latestMessageId, roleId),
+    summaries: (roleId: string) =>
       invoke<Array<{ start_ts: number; end_ts: number; text: string; message_count: number }>>(
         IpcChannels.chatHistory.summaries,
-        characterId
+        roleId
       ),
     summaryAdd: (
-      characterId: string,
+      roleId: string,
       s: { start_ts: number; end_ts: number; text: string; message_count: number }
-    ) => invoke<boolean>(IpcChannels.chatHistory.summaryAdd, characterId, s),
+    ) => invoke<boolean>(IpcChannels.chatHistory.summaryAdd, roleId, s),
     commitCompression: (
-      characterId: string,
+      roleId: string,
       fromId: number,
       toId: number,
       s: { start_ts: number; end_ts: number; text: string; message_count: number }
     ) =>
       invoke<{ archived: number }>(
         IpcChannels.chatHistory.commitCompression,
-        characterId,
+        roleId,
         fromId,
         toId,
         s
@@ -167,9 +167,9 @@ const api = {
     dragStart: () => mateControl('dragStart'),
     dragMove: () => mateControl('dragMove'),
     setBubble: (text: string) => mateSync({ type: 'bubble', text }),
-    emitPerformance: (payload: { emotion?: string; motion?: string; characterId?: string; speaking?: boolean }) =>
+    emitPerformance: (payload: { emotion?: string; motion?: string; roleId?: string; speaking?: boolean }) =>
       mateSync({ type: 'performance', ...payload }),
-    emitRuntime: (payload: { runningCharacters: Record<string, boolean>; activeCharacterId: string | null }) =>
+    emitRuntime: (payload: { runningRoles: Record<string, boolean>; activeRoleId: string | null }) =>
       mateSync({ type: 'runtime', ...payload }),
     emitAvatar: (dataUrl: string) => mateSync({ type: 'avatar', dataUrl }),
     onUpdate: (listener: (payload: MateStatePayload) => void) => {

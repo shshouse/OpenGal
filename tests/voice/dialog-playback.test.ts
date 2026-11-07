@@ -49,7 +49,7 @@ describe('对话配音与动作的先后关系', () => {
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
   const output = (motion?: string): import('@shared/messages').TTSOutputMessage => ({
     segmentId: motion ?? 'plain',
-    characterId: 'sonetto',
+    roleId: 'sonetto',
     name: 'sonetto',
     text: 'Hello',
     audioUrl: 'data:audio/wav;base64,AAAA',

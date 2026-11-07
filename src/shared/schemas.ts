@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /** 各 IPC 通道的入参 schema。跨进程边界的数据一律视为不可信，主进程收到先过这里。 */
 
-export const characterIdSchema = z.string().min(1, 'characterId 不能为空')
+export const roleIdSchema = z.string().min(1, 'roleId 不能为空')
 
 export const chatRoleSchema = z.enum(['system', 'user', 'assistant', 'tool'])
 
@@ -93,8 +93,8 @@ export const configPatchSchema = z
     tts: z.record(z.string(), z.unknown()).optional(),
     asr: z.record(z.string(), z.unknown()).optional(),
     model: z.record(z.string(), z.unknown()).nullable().optional(),
-    activeCharacterId: z.string().nullable().optional(),
-    runningCharacters: z.record(z.string(), z.boolean()).optional(),
+    activeRoleId: z.string().nullable().optional(),
+    runningRoles: z.record(z.string(), z.boolean()).optional(),
     showLive2D: z.boolean().optional(),
     memory: z.record(z.string(), z.unknown()).optional(),
     tools: z.record(z.string(), z.unknown()).optional(),

@@ -58,7 +58,7 @@ describe('voice barge-in and playback cancellation', () => {
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
   const output = (url: string): import('@shared/messages').TTSOutputMessage => ({
     segmentId: url,
-    characterId: 'role',
+    roleId: 'role',
     name: 'role',
     text: '台词',
     audioUrl: url,
@@ -180,18 +180,18 @@ describe('voice barge-in and playback cancellation', () => {
 
   it('立绘只在语音实际播放期间收到角色状态', async () => {
     state.model = null
-    const events: Array<{ speaking: boolean; characterId?: string }> = []
+    const events: Array<{ speaking: boolean; roleId?: string }> = []
     const off = pipelineBus.on('tts:playback', (event) => events.push(event))
     pipelineBus.emit('tts:output', output('sprite-audio'))
     const audio = state.audioInstances.at(-1)!
     expect(events).toEqual([])
     audio.dispatchEvent(new Event('playing'))
-    expect(events).toEqual([{ speaking: true, characterId: 'role' }])
+    expect(events).toEqual([{ speaking: true, roleId: 'role' }])
     audio.dispatchEvent(new Event('ended'))
     await flush()
     expect(events).toEqual([
-      { speaking: true, characterId: 'role' },
-      { speaking: false, characterId: 'role' },
+      { speaking: true, roleId: 'role' },
+      { speaking: false, roleId: 'role' },
     ])
     off()
   })

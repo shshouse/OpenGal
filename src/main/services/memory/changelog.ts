@@ -14,12 +14,12 @@ export const CHANGE_FIELDS = {
 
 export type MemoryChangeField = keyof typeof CHANGE_FIELDS
 
-const COLUMNS = 'seq, memory_id, character_id, action, field, old_value, new_value, actor, reason, ts'
+const COLUMNS = 'seq, memory_id, role_id, action, field, old_value, new_value, actor, reason, ts'
 
 // 日志是旁路：写失败只记录，不让它回滚已经生效的记忆变更
 export function recordMemoryChange(input: {
   memoryId: string
-  characterId: string
+  roleId: string
   action: MemoryChangeAction
   field?: string | null
   oldValue?: string | null
@@ -30,10 +30,10 @@ export function recordMemoryChange(input: {
   if (!db) return
   try {
     db.prepare(
-      'INSERT INTO memory_changelog(memory_id, character_id, action, field, old_value, new_value, actor, reason, ts) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO memory_changelog(memory_id, role_id, action, field, old_value, new_value, actor, reason, ts) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       input.memoryId,
-      input.characterId,
+      input.roleId,
       input.action,
       input.field ?? null,
       input.oldValue ?? null,
@@ -48,7 +48,7 @@ export function recordMemoryChange(input: {
 }
 
 export function recordMemoryFieldChange(
-  characterId: string,
+  roleId: string,
   memoryId: string,
   field: MemoryChangeField,
   oldValue: string | null,
@@ -56,12 +56,12 @@ export function recordMemoryFieldChange(
   actor: MemoryChangeActor = 'system',
 ): void {
   if (oldValue === newValue) return
-  recordMemoryChange({ memoryId, characterId, action: 'update', field, oldValue, newValue, actor })
+  recordMemoryChange({ memoryId, roleId, action: 'update', field, oldValue, newValue, actor })
 }
 
 // 批量重写只留一条汇总，逐条记录会让一次重建刷出上千行
 export function recordBulkChange(
-  characterId: string,
+  roleId: string,
   action: string,
   count: number,
   actor: MemoryChangeActor = 'system',
@@ -69,7 +69,7 @@ export function recordBulkChange(
   if (count <= 0) return
   recordMemoryChange({
     memoryId: '',
-    characterId,
+    roleId,
     action: 'delete',
     newValue: String(count),
     actor,
@@ -77,23 +77,23 @@ export function recordBulkChange(
   })
 }
 
-export function listMemoryChanges(characterId: string, memoryId: string, limit = 20): MemoryChange[] {
+export function listMemoryChanges(roleId: string, memoryId: string, limit = 20): MemoryChange[] {
   return rows(
-    `SELECT ${COLUMNS} FROM memory_changelog WHERE character_id = ? AND memory_id = ? ORDER BY seq DESC LIMIT ?`,
-    [characterId, memoryId, Math.max(1, limit)],
+    `SELECT ${COLUMNS} FROM memory_changelog WHERE role_id = ? AND memory_id = ? ORDER BY seq DESC LIMIT ?`,
+    [roleId, memoryId, Math.max(1, limit)],
   ) as unknown as MemoryChange[]
 }
 
-export function listCharacterMemoryChanges(characterId: string, limit = 200): MemoryChange[] {
+export function listRoleMemoryChanges(roleId: string, limit = 200): MemoryChange[] {
   return rows(
-    `SELECT ${COLUMNS} FROM memory_changelog WHERE character_id = ? ORDER BY seq DESC LIMIT ?`,
-    [characterId, Math.max(1, limit)],
+    `SELECT ${COLUMNS} FROM memory_changelog WHERE role_id = ? ORDER BY seq DESC LIMIT ?`,
+    [roleId, Math.max(1, limit)],
   ) as unknown as MemoryChange[]
 }
 
 // 只回滚 update 与 delete；insert 的撤销等同删除，由调用方决定
-export function restoreMemoryChange(characterId: string, seq: number): boolean {
-  const found = rows(`SELECT ${COLUMNS} FROM memory_changelog WHERE seq = ? AND character_id = ?`, [seq, characterId])
+export function restoreMemoryChange(roleId: string, seq: number): boolean {
+  const found = rows(`SELECT ${COLUMNS} FROM memory_changelog WHERE seq = ? AND role_id = ?`, [seq, roleId])
   const change = found[0] as unknown as MemoryChange | undefined
   if (!change) return false
   return withTx(() => {

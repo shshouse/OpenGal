@@ -7,7 +7,7 @@ import { getErrorMessage } from '@shared/errors'
 
 const ENTITY_LABELS = { user: '关于你', character: '关于角色', relationship: '关于关系' } as const
 
-export function MemoryDashboard({ characterId }: { characterId: string }): React.JSX.Element {
+export function MemoryDashboard({ roleId }: { roleId: string }): React.JSX.Element {
   const [facts, setFacts] = React.useState<MemoryFact[]>([])
   const [stories, setStories] = React.useState<MemoryStory[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -17,7 +17,7 @@ export function MemoryDashboard({ characterId }: { characterId: string }): React
     setLoading(true)
     setError('')
     try {
-      const res = await window.opengal.memory.get(characterId)
+      const res = await window.opengal.memory.get(roleId)
       if (!res.success || !res.data) throw new Error(res.error || '记忆读取失败')
       setFacts(res.data.facts)
       setStories(res.data.stories)
@@ -26,7 +26,7 @@ export function MemoryDashboard({ characterId }: { characterId: string }): React
     } finally {
       setLoading(false)
     }
-  }, [characterId])
+  }, [roleId])
 
   React.useEffect(() => { void load() }, [load])
   const summary = React.useMemo(() => summarizeMemories(facts, stories), [facts, stories])

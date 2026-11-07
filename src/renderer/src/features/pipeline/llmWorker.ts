@@ -1,6 +1,6 @@
 import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
-import { isCharacterRunning } from '@shared/characterRuntime'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
+import { isRoleRunning } from '@shared/roleRuntime'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { packContext, type ContextItem } from './contextAssembler'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, ToolCall, ToolDefinition } from '@shared/types'
 import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
@@ -27,11 +27,11 @@ let latencyTurnStart = 0
 let firstTokenLogged = false
 let firstDialogLogged = false
 
-async function fetchRelevantMemory(characterId: string, context: string): Promise<string | null> {
+async function fetchRelevantMemory(roleId: string, context: string): Promise<string | null> {
   try {
-    const res = await window.opengal.memory.getRelevant(characterId, context.slice(0, 500))
+    const res = await window.opengal.memory.getRelevant(roleId, context.slice(0, 500))
     if (res.success && res.data?.block) {
-      setMemorySnapshot(characterId, res.data.block)
+      setMemorySnapshot(roleId, res.data.block)
       return res.data.block
     }
     if (!res.success) {
@@ -40,7 +40,7 @@ async function fetchRelevantMemory(characterId: string, context: string): Promis
   } catch (err) {
     useLogsStore.getState().appendLocal('warn', 'memory', `向量记忆检索异常: ${getErrorMessage(err)}`)
   }
-  return getMemorySnapshot(characterId) ?? null
+  return getMemorySnapshot(roleId) ?? null
 }
 
 let pendingPromptRawTokens = 0
@@ -120,7 +120,7 @@ export function startLLMWorker(): () => void {
     pipelineBus.emit('llm:dialog', {
       ...toDialogMessage(item, latencyTurnStart),
       segmentId: crypto.randomUUID(),
-      characterId: card?.id,
+      roleId: card?.id,
       language: card?.language,
     })
   }
@@ -131,7 +131,7 @@ export function startLLMWorker(): () => void {
       pipelineBus.emit('llm:done', { ok: false, error: 'No active role card' })
       return
     }
-    if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, card.id)) return
+    if (!isRoleRunning(useRoleRuntimeStore.getState().byId, card.id)) return
     if (currentStreamId) {
       try {
         void window.opengal.llm.abortStream(currentStreamId)

@@ -50,7 +50,7 @@ export interface DirectorConstraints {
 
 export interface DirectorInput {
   now: number
-  character: { id: string; displayName: string }
+  role: { id: string; displayName: string }
   self: DirectorSelf
   perception: PerceptionEvent[]
   constraints: DirectorConstraints

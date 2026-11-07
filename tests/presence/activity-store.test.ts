@@ -14,13 +14,13 @@ const storage = vi.hoisted(() => {
 
 import { selectActivities, useActivityStore } from '../../src/renderer/src/features/activity/activityStore'
 
-function entry(id: string, characterId = 'a') {
-  return { id, characterId, kind: 'speech' as const, title: id, at: 1 }
+function entry(id: string, roleId = 'a') {
+  return { id, roleId, kind: 'speech' as const, title: id, at: 1 }
 }
 
 describe('activity store', () => {
   beforeEach(() => {
-    useActivityStore.setState({ byCharacter: {} })
+    useActivityStore.setState({ byRole: {} })
     storage.values.clear()
   })
 
@@ -29,11 +29,11 @@ describe('activity store', () => {
     useActivityStore.getState().add(entry('204'))
     useActivityStore.getState().add(entry('b-1', 'b'))
 
-    const a = useActivityStore.getState().byCharacter.a
+    const a = useActivityStore.getState().byRole.a
     expect(a).toHaveLength(200)
     expect(a[0].id).toBe('5')
     expect(a.at(-1)?.id).toBe('204')
-    expect(useActivityStore.getState().byCharacter.b).toHaveLength(1)
+    expect(useActivityStore.getState().byRole.b).toHaveLength(1)
   })
 
   it('空角色选择器返回稳定引用，避免无限重渲染', () => {
@@ -49,9 +49,9 @@ describe('activity store', () => {
   it('清空指定角色不影响其他角色', () => {
     useActivityStore.getState().add(entry('a-1'))
     useActivityStore.getState().add(entry('b-1', 'b'))
-    useActivityStore.getState().clearCharacter('a')
+    useActivityStore.getState().clearRole('a')
 
-    expect(useActivityStore.getState().byCharacter.a).toBeUndefined()
-    expect(useActivityStore.getState().byCharacter.b).toHaveLength(1)
+    expect(useActivityStore.getState().byRole.a).toBeUndefined()
+    expect(useActivityStore.getState().byRole.b).toHaveLength(1)
   })
 })

@@ -5,25 +5,25 @@ import { setActiveRoleCard as wireLLMWorkerRoleCard } from '@/features/pipeline/
 import { useChatStore } from '@/features/chat/chatStore'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
 
-interface CharacterState {
+interface RoleState {
   list: RoleCardEntry[]
   activeId: string | null
   loading: boolean
   error: string | null
-  loadCharacters: (preferredActiveId?: string | null) => Promise<void>
+  loadRoles: (preferredActiveId?: string | null) => Promise<void>
   setActive: (id: string) => Promise<void>
   getActive: () => RoleCardEntry | null
 }
 
-export const useCharacterStore = create<CharacterState>((set, get) => ({
+export const useRoleStore = create<RoleState>((set, get) => ({
   list: [],
   activeId: null,
   loading: false,
   error: null,
 
-  loadCharacters: async (preferredActiveId) => {
+  loadRoles: async (preferredActiveId) => {
     set({ loading: true, error: null })
-    const res = await window.opengal.character.list()
+    const res = await window.opengal.role.list()
     if (!res.success || !res.data) {
       set({ loading: false, error: res.error || '加载角色列表失败' })
       return
@@ -59,7 +59,7 @@ export const useCharacterStore = create<CharacterState>((set, get) => ({
     set({ activeId: id, error: null })
     wireLLMWorkerRoleCard(card)
     void useChatStore.getState().ensureHydrated(id)
-    await window.opengal.config.set({ activeCharacterId: id })
+    await window.opengal.config.set({ activeRoleId: id })
     void window.opengal.tts.reset()
     void window.opengal.boot.recheckTts()
   },

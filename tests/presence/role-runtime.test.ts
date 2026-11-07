@@ -1,32 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import {
   getHeadCrop,
-  isCharacterRunning,
-  toggleCharacterRunning,
-} from '../../src/shared/characterRuntime'
+  isRoleRunning,
+  toggleRoleRunning,
+} from '../../src/shared/roleRuntime'
 
 describe('角色运行状态', () => {
   it('默认所有角色都是沉睡', () => {
-    expect(isCharacterRunning(undefined, 'sonetto')).toBe(false)
-    expect(isCharacterRunning({}, 'sonetto')).toBe(false)
+    expect(isRoleRunning(undefined, 'sonetto')).toBe(false)
+    expect(isRoleRunning({}, 'sonetto')).toBe(false)
   })
 
   it('每个角色独立切换，不影响其他角色', () => {
-    const awake = toggleCharacterRunning({}, 'sonetto')
-    expect(isCharacterRunning(awake, 'sonetto')).toBe(true)
-    expect(isCharacterRunning(awake, 'neuro')).toBe(false)
+    const awake = toggleRoleRunning({}, 'sonetto')
+    expect(isRoleRunning(awake, 'sonetto')).toBe(true)
+    expect(isRoleRunning(awake, 'neuro')).toBe(false)
 
-    const both = toggleCharacterRunning(awake, 'neuro')
-    expect(isCharacterRunning(both, 'sonetto')).toBe(true)
-    expect(isCharacterRunning(both, 'neuro')).toBe(true)
+    const both = toggleRoleRunning(awake, 'neuro')
+    expect(isRoleRunning(both, 'sonetto')).toBe(true)
+    expect(isRoleRunning(both, 'neuro')).toBe(true)
 
-    const asleep = toggleCharacterRunning(both, 'sonetto')
-    expect(isCharacterRunning(asleep, 'sonetto')).toBe(false)
-    expect(isCharacterRunning(asleep, 'neuro')).toBe(true)
+    const asleep = toggleRoleRunning(both, 'sonetto')
+    expect(isRoleRunning(asleep, 'sonetto')).toBe(false)
+    expect(isRoleRunning(asleep, 'neuro')).toBe(true)
   })
 
   it('没有角色 id 时不改变状态', () => {
-    expect(toggleCharacterRunning({ a: true }, null)).toEqual({ a: true })
+    expect(toggleRoleRunning({ a: true }, null)).toEqual({ a: true })
   })
 })
 

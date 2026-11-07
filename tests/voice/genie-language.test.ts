@@ -66,7 +66,7 @@ describe('GenieAdapter 语言配置', () => {
       card: { language: 'zh' },
     } as never)
 
-    expect(state.bodies.load_character?.language).toBe('zh')
+    expect(state.bodies.load_role?.language).toBe('zh')
     expect(state.bodies.set_reference_audio?.language).toBe('en')
   })
 

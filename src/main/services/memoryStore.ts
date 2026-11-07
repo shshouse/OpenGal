@@ -11,7 +11,7 @@ import {
   memoryDbReady,
   listFacts,
   listStories,
-  clearCharacterMemory,
+  clearRoleMemory,
   insertFactRow,
   insertStoryRow,
   reinforceFactRow,
@@ -90,7 +90,7 @@ function rowToFact(r: FactRow): MemoryFact {
 function factToRow(f: MemoryFact, sourceEvidence: string | null = null): FactRow {
   return {
     id: f.id,
-    character_id: '',
+    role_id: '',
     text: f.text,
     entity: f.entity,
     subject: f.subject ?? null,
@@ -133,7 +133,7 @@ function rowToStory(r: StoryRow): MemoryStory {
 function storyToRow(s: MemoryStory, sourceEvidence: string | null = null): StoryRow {
   return {
     id: s.id,
-    character_id: '',
+    role_id: '',
     kind: s.kind,
     text: s.text,
     occurred_at: s.occurred_at,
@@ -150,12 +150,12 @@ const MAX_ACTIVE_MEMORIES = 2000
 
 // 超过上限时按重要性归档，钉住的记忆不计入上限也不被归档
 export async function pruneOverflow(
-  characterId: string,
+  roleId: string,
   limit = MAX_ACTIVE_MEMORIES,
 ): Promise<{ archived: number }> {
   await memoryDbReady()
-  pruneSummaries(characterId)
-  const rows = listMemoryRows(characterId)
+  pruneSummaries(roleId)
+  const rows = listMemoryRows(roleId)
   if (rows.length <= limit) return { archived: 0 }
   const pinned = rows.filter((row) => row.pinned === 1)
   const rest = rows
@@ -167,27 +167,27 @@ export async function pruneOverflow(
   return { archived: drop.length }
 }
 
-async function loadFactsTyped(characterId: string): Promise<MemoryFact[]> {
+async function loadFactsTyped(roleId: string): Promise<MemoryFact[]> {
   await memoryDbReady()
-  return listFacts(characterId).map(rowToFact)
+  return listFacts(roleId).map(rowToFact)
 }
 
-async function loadStoriesTyped(characterId: string): Promise<MemoryStory[]> {
+async function loadStoriesTyped(roleId: string): Promise<MemoryStory[]> {
   await memoryDbReady()
-  return listStories(characterId).map(rowToStory)
+  return listStories(roleId).map(rowToStory)
 }
 
-export async function loadFacts(characterId: string): Promise<MemoryFact[]> {
-  return loadFactsTyped(characterId)
+export async function loadFacts(roleId: string): Promise<MemoryFact[]> {
+  return loadFactsTyped(roleId)
 }
 
-export async function loadStories(characterId: string): Promise<MemoryStory[]> {
-  return loadStoriesTyped(characterId)
+export async function loadStories(roleId: string): Promise<MemoryStory[]> {
+  return loadStoriesTyped(roleId)
 }
 
-export async function clearMemory(characterId: string): Promise<void> {
+export async function clearMemory(roleId: string): Promise<void> {
   await memoryDbReady()
-  clearCharacterMemory(characterId)
+  clearRoleMemory(roleId)
 }
 
 export { normalizeText, similarity as textSimilarity }
@@ -277,17 +277,17 @@ export interface ApplyResult {
 }
 
 export async function applyCandidates(
-  characterId: string,
+  roleId: string,
   payload: MemoryApplyPayload,
 ): Promise<ApplyResult> {
-  const facts = await loadFactsTyped(characterId)
-  const stories = await loadStoriesTyped(characterId)
+  const facts = await loadFactsTyped(roleId)
+  const stories = await loadStoriesTyped(roleId)
   const result: ApplyResult = { insertedFacts: 0, refreshedFacts: 0, insertedStories: 0 }
   const ts = nowIso()
   const sourceEvidence = payload.evidence
     ? JSON.stringify({
         ...payload.evidence,
-        messageIds: listMessageIdsInRange(characterId, payload.evidence.fromTs, payload.evidence.toTs),
+        messageIds: listMessageIdsInRange(roleId, payload.evidence.fromTs, payload.evidence.toTs),
       })
     : null
 
@@ -309,7 +309,7 @@ export async function applyCandidates(
       continue
     }
     facts.push(entry)
-    insertFactRow(characterId, factToRow(entry, sourceEvidence), 'llm')
+    insertFactRow(roleId, factToRow(entry, sourceEvidence), 'llm')
     result.insertedFacts++
   }
 
@@ -327,7 +327,7 @@ export async function applyCandidates(
       created_at: ts,
     }
     stories.push(entry)
-    insertStoryRow(characterId, storyToRow(entry, sourceEvidence), 'llm')
+    insertStoryRow(roleId, storyToRow(entry, sourceEvidence), 'llm')
     result.insertedStories++
   }
 
@@ -335,7 +335,7 @@ export async function applyCandidates(
 }
 
 export async function manualAddFact(
-  characterId: string,
+  roleId: string,
   text: string,
   entity: MemoryFact['entity'] = 'user',
 ): Promise<MemoryFact> {
@@ -360,7 +360,7 @@ export async function manualAddFact(
     embedding: null,
   }
   await memoryDbReady()
-  insertFactRow(characterId, factToRow(entry, null), 'user')
+  insertFactRow(roleId, factToRow(entry, null), 'user')
   return entry
 }
 
@@ -551,18 +551,18 @@ export interface PendingEntry {
 
 // 启动时把库里还没提取的原文带回内存缓冲：崩溃/退出的会话也能补记
 export async function pendingFromArchive(
-  characterId: string,
+  roleId: string,
   limit = 200,
 ): Promise<{ cursor: number, entries: PendingEntry[] }> {
   await memoryDbReady()
-  let cursor = getMemoryCursor(characterId)
-  if (!isCursorInitialized(characterId)) {
-    cursor = bootstrapCursor(characterId, BOOTSTRAP_LOOKBACK)
-    setMemoryCursor(characterId, cursor)
-    markCursorInitialized(characterId)
+  let cursor = getMemoryCursor(roleId)
+  if (!isCursorInitialized(roleId)) {
+    cursor = bootstrapCursor(roleId, BOOTSTRAP_LOOKBACK)
+    setMemoryCursor(roleId, cursor)
+    markCursorInitialized(roleId)
   }
   const entries: PendingEntry[] = []
-  for (const row of listMessagesAfter(characterId, cursor, limit)) {
+  for (const row of listMessagesAfter(roleId, cursor, limit)) {
     const text = visibleMessageText(row.content).trim()
     if (!text) continue
     const role: PendingEntry['role'] = row.role === 'user' ? 'user' : 'assistant'
@@ -571,22 +571,22 @@ export async function pendingFromArchive(
   return { cursor, entries }
 }
 
-export async function advanceCursor(characterId: string, ts: number): Promise<void> {
+export async function advanceCursor(roleId: string, ts: number): Promise<void> {
   await memoryDbReady()
-  if (ts > getMemoryCursor(characterId)) setMemoryCursor(characterId, ts)
-  markCursorInitialized(characterId)
+  if (ts > getMemoryCursor(roleId)) setMemoryCursor(roleId, ts)
+  markCursorInitialized(roleId)
 }
 
 // 清空派生数据并从零重放；原文与聊天记录一条不动。必须显式传确认标记
 export async function rebuildMemory(
-  characterId: string,
+  roleId: string,
   confirm: string,
 ): Promise<{ facts: number, stories: number }> {
-  if (confirm !== `rebuild:${characterId}`) throw new Error(`重建需要确认标记 rebuild:${characterId}`)
+  if (confirm !== `rebuild:${roleId}`) throw new Error(`重建需要确认标记 rebuild:${roleId}`)
   await memoryDbReady()
-  const removed = resetDerived(characterId)
-  setMemoryCursor(characterId, 0)
-  markCursorInitialized(characterId)
+  const removed = resetDerived(roleId)
+  setMemoryCursor(roleId, 0)
+  markCursorInitialized(roleId)
   return removed
 }
 
@@ -599,11 +599,11 @@ function formatMessageTime(ts: number): string {
 // 原话召回：补充 facts/stories 覆盖不到的逐字历史，带时间戳，供模型区分"当年说的"和"刚说的"
 // 词法没命中时退回记忆向量：命中的事实再展开成当时的原话
 async function recallFromMemoryVectors(
-  characterId: string,
+  roleId: string,
   query: string,
   charCap: number,
 ): Promise<string | null> {
-  const facts = (await loadFactsTyped(characterId)).filter((fact) => fact.status === 'active')
+  const facts = (await loadFactsTyped(roleId)).filter((fact) => fact.status === 'active')
   if (facts.length === 0) return null
   let hits: Array<{ fact: MemoryFact; similarity: number }>
   try {
@@ -615,7 +615,7 @@ async function recallFromMemoryVectors(
   const lines: string[] = []
   let used = 0
   for (const hit of hits) {
-    for (const row of memoryEvidence(characterId, hit.fact.id, 2)) {
+    for (const row of memoryEvidence(roleId, hit.fact.id, 2)) {
       const text = visibleMessageText(row.content).trim()
       if (!text) continue
       const line = `[${formatMessageTime(row.ts)}] ${row.role}: ${text}`
@@ -631,15 +631,15 @@ async function recallFromMemoryVectors(
 }
 
 export async function recallVerbatim(
-  characterId: string,
+  roleId: string,
   query: string,
   charCap = 1500,
   range?: { fromTs: number; toTs: number },
 ): Promise<string | null> {
   if (!query.trim()) return null
   await memoryDbReady()
-  const rows = searchMessages(characterId, query, { fromTs: range?.fromTs, toTs: range?.toTs, radius: 1 })
-  if (rows.length === 0) return recallFromMemoryVectors(characterId, query, charCap)
+  const rows = searchMessages(roleId, query, { fromTs: range?.fromTs, toTs: range?.toTs, radius: 1 })
+  if (rows.length === 0) return recallFromMemoryVectors(roleId, query, charCap)
   const lines: string[] = []
   let used = 0
   for (const row of rows) {
@@ -654,23 +654,23 @@ export async function recallVerbatim(
 }
 
 export async function getMemoryBlock(
-  characterId: string,
+  roleId: string,
   context?: string,
   useVector = false,
   charCap = config.injectCharCap,
 ): Promise<string | null> {
   const [facts, stories] = await Promise.all([
-    loadFactsTyped(characterId),
-    loadStoriesTyped(characterId),
+    loadFactsTyped(roleId),
+    loadStoriesTyped(roleId),
   ])
   if (useVector && context) {
-    return buildMemoryBlockVector(characterId, facts, stories, context, charCap)
+    return buildMemoryBlockVector(roleId, facts, stories, context, charCap)
   }
   return buildMemoryBlock(facts, stories, charCap, context)
 }
 
 export async function buildMemoryBlockVector(
-  characterId: string,
+  roleId: string,
   facts: MemoryFact[],
   stories: MemoryStory[],
   context: string,
@@ -705,17 +705,17 @@ export async function buildMemoryBlockVector(
   )
 }
 
-export async function freezeFact(_characterId: string, factId: string): Promise<boolean> {
+export async function freezeFact(_roleId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
   return setFactFrozenRow(factId, nowIso()) > 0
 }
 
-export async function unfreezeFact(_characterId: string, factId: string): Promise<boolean> {
+export async function unfreezeFact(_roleId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
   return setFactFrozenRow(factId, null) > 0
 }
 
-export async function deleteFact(_characterId: string, factId: string): Promise<boolean> {
+export async function deleteFact(_roleId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
   return deleteFactRow(factId) > 0
 }

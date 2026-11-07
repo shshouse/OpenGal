@@ -20,11 +20,11 @@ vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
 vi.mock('../../src/renderer/src/features/logs/logsStore', () => ({
   useLogsStore: { getState: () => ({ appendLocal: () => {} }) },
 }))
-vi.mock('../../src/renderer/src/features/character/characterRuntimeStore', () => ({
-  useCharacterRuntimeStore: { getState: () => ({ byId: state.byId }) },
+vi.mock('../../src/renderer/src/features/role/roleRuntimeStore', () => ({
+  useRoleRuntimeStore: { getState: () => ({ byId: state.byId }) },
 }))
-vi.mock('../../src/renderer/src/features/character/characterStore', () => ({
-  useCharacterStore: {
+vi.mock('../../src/renderer/src/features/role/roleStore', () => ({
+  useRoleStore: {
     getState: () => ({ activeId: state.activeId, list: [{ id: 'a', language: 'ja' }, { id: 'b', language: 'ja' }] }),
   },
 }))

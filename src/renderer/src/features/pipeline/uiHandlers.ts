@@ -40,7 +40,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       window.opengal.mate?.emitPerformance?.({
         emotion: msg.emotion,
         motion: msg.motion,
-        characterId: msg.characterId,
+        roleId: msg.roleId,
       })
       pipelineBus.emit('tts:segmentStart', msg)
     }
@@ -53,7 +53,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
       return
     }
 
-    await playDialogAudio(msg.audioUrl, msg.characterId, () => {
+    await playDialogAudio(msg.audioUrl, msg.roleId, () => {
       if (!this.firstAudioLogged && msg.turnStartedAt) {
         this.firstAudioLogged = true
         useLogsStore
@@ -66,7 +66,7 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
 }
 
 // 只在真实播放开始时回调 onStart；取消后不再触发（防止迟到的声画复活旧回复）。
-async function playDialogAudio(audioUrl: string, characterId: string | undefined, onStart: () => void): Promise<void> {
+async function playDialogAudio(audioUrl: string, roleId: string | undefined, onStart: () => void): Promise<void> {
   await new Promise<void>((resolve) => {
     const model = getLive2DModel()
     let audio: HTMLAudioElement | null = null
@@ -76,8 +76,8 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
       if (settled || started) return
       started = true
       speakingCount += 1
-      pipelineBus.emit('tts:playback', { speaking: true, characterId })
-      window.opengal.mate?.emitPerformance?.({ speaking: true, characterId })
+      pipelineBus.emit('tts:playback', { speaking: true, roleId })
+      window.opengal.mate?.emitPerformance?.({ speaking: true, roleId })
       onStart()
     }
     const onPlaying = (): void => start()
@@ -91,8 +91,8 @@ async function playDialogAudio(audioUrl: string, characterId: string | undefined
       settled = true
       if (started) {
         speakingCount = Math.max(0, speakingCount - 1)
-        pipelineBus.emit('tts:playback', { speaking: false, characterId })
-        window.opengal.mate?.emitPerformance?.({ speaking: false, characterId })
+        pipelineBus.emit('tts:playback', { speaking: false, roleId })
+        window.opengal.mate?.emitPerformance?.({ speaking: false, roleId })
       }
       if (cancelPlayback === cancel) cancelPlayback = null
       audio?.removeEventListener('playing', onPlaying)

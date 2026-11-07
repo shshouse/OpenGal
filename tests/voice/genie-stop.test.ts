@@ -48,7 +48,7 @@ describe('GenieAdapter cancellation', () => {
       referenceLanguage: 'zh',
     }
     const adapter = new GenieAdapter()
-    ;(adapter as unknown as { loadedCharacters: Map<string, Set<string>> }).loadedCharacters.set(
+    ;(adapter as unknown as { loadedRoles: Map<string, Set<string>> }).loadedRoles.set(
       'http://127.0.0.1:39999',
       new Set(['test']),
     )

@@ -67,7 +67,7 @@ export function syncLegacyMemoryFromJson(dataRoot: string): void {
           if (typeof f.id !== 'string' || typeof f.text !== 'string' || !f.text) continue
           insertMemoryRowRaw(dirName, {
             id: f.id,
-            character_id: dirName,
+            role_id: dirName,
             kind: 'fact',
             text: f.text,
             entity: typeof f.entity === 'string' ? f.entity : 'user',
@@ -91,7 +91,7 @@ export function syncLegacyMemoryFromJson(dataRoot: string): void {
           if (typeof s.id !== 'string' || typeof s.text !== 'string' || !s.text) continue
           insertMemoryRowRaw(dirName, {
             id: s.id,
-            character_id: dirName,
+            role_id: dirName,
             kind: typeof s.kind === 'string' ? s.kind : 'event',
             text: s.text,
             state: s.fulfilled ? 'fulfilled' : (s.status === 'active' ? 'active' : 'archived'),
@@ -122,7 +122,7 @@ export function syncLegacyMemoryFromJson(dataRoot: string): void {
 
 interface LegacyChatFile {
   version?: number
-  characterId?: string
+  roleId?: string
   messages?: Array<{ role: string; content: unknown }>
 }
 
@@ -137,19 +137,19 @@ export async function syncChatHistoryFromJson(dataRoot: string): Promise<void> {
       const safeName = name.slice(0, -'.json'.length)
       if (getMeta(`chat_mtime:${safeName}`) === mtime) continue
       const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as LegacyChatFile
-      const characterId = parsed?.characterId || safeName
+      const roleId = parsed?.roleId || safeName
       const msgs = Array.isArray(parsed?.messages) ? parsed.messages : []
       const mtimeMs = fs.statSync(file).mtimeMs
       const items = msgs.map((m, i) => ({
-        character_id: characterId,
+        role_id: roleId,
         role: m.role,
         content: JSON.stringify(m),
         ts: Math.max(0, Math.round(mtimeMs - (msgs.length - 1 - i) * 1000)),
         archived: 0,
       }))
-      appendMissingMessages(characterId, items)
+      appendMissingMessages(roleId, items)
       setMeta(`chat_mtime:${safeName}`, mtime)
-      logger.info('memory', `已同步会话历史到记忆库: ${characterId}（${items.length} 条）`)
+      logger.info('memory', `已同步会话历史到记忆库: ${roleId}（${items.length} 条）`)
     }
   } catch (err) {
     logger.warn('memory', `会话历史同步失败（原文件未动）: ${getErrorMessage(err)}`)

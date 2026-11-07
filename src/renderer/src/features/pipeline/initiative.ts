@@ -7,9 +7,9 @@ import { resolveInitiativePolicy } from '@shared/initiativePolicy'
 import { detectReturn } from './initiativePerception'
 import { buildInitiativeNudge } from '@shared/initiativeNudge'
 import { speechLanguageLabel } from '@shared/subtitles'
-import { useCharacterStore } from '@/features/character/characterStore'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
-import { isCharacterRunning } from '@shared/characterRuntime'
+import { useRoleStore } from '@/features/role/roleStore'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
+import { isRoleRunning } from '@shared/roleRuntime'
 import { getErrorMessage } from '@shared/errors'
 
 const TICK_MS = 60_000
@@ -41,8 +41,8 @@ export function startInitiative(): () => void {
       if (!cfg) return
       const policy = resolveInitiativePolicy(cfg)
       if (!policy.enabled) return
-      const activeId = useCharacterStore.getState().activeId
-      if (!isCharacterRunning(useCharacterRuntimeStore.getState().byId, activeId)) return
+      const activeId = useRoleStore.getState().activeId
+      if (!isRoleRunning(useRoleRuntimeStore.getState().byId, activeId)) return
       if (useChatStore.getState().isSending) return
       const envRes = await window.opengal.env.get()
       const env = envRes.success ? (envRes.data ?? null) : null
@@ -65,7 +65,7 @@ export function startInitiative(): () => void {
       }
 
       lastInitiativeAt = Date.now()
-      const card = useCharacterStore.getState().list.find((c) => c.id === activeId)
+      const card = useRoleStore.getState().list.find((c) => c.id === activeId)
       const languageLabel = card?.language ? speechLanguageLabel(card.language) : null
       const nudge = buildInitiativeNudge(Math.round(idleMs / 60_000), env, cfg.directorMode ?? 'agent', undefined, languageLabel)
       log('info', `主动开口: ${decision.reason}`)

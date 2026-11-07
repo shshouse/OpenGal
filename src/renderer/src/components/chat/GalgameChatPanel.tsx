@@ -10,9 +10,9 @@ import { getLive2DModel } from '@/features/live2d/live2dBus'
 import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { offerUtterance, setDirectorDispatch } from '@/features/pipeline/directorWorker'
 import { extractAssistantDisplayText } from '@shared/roleCard'
-import { isCharacterRunning } from '@shared/characterRuntime'
-import { useCharacterRuntimeStore } from '@/features/character/characterRuntimeStore'
-import { useCharacterStore } from '@/features/character/characterStore'
+import { isRoleRunning } from '@shared/roleRuntime'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
+import { useRoleStore } from '@/features/role/roleStore'
 import { useStartupStore } from '@/features/startup/startupStore'
 import { displaySubtitle, useSubtitleStore } from '@/features/pipeline/subtitles'
 import { consumeVoiceInterruption } from '@/features/pipeline/bargeIn'
@@ -52,14 +52,14 @@ export function GalgameChatPanel() {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const composingRef = React.useRef(false)
   const compositionEndAtRef = React.useRef(0)
-  const character = useCharacterStore((s) => s.list.find((c) => c.id === s.activeId))
+  const role = useRoleStore((s) => s.list.find((c) => c.id === s.activeId))
   const bootAwake = useStartupStore((s) => s.phase === 'awake')
-  const runningById = useCharacterRuntimeStore((s) => s.byId)
-  const sleeping = Boolean(character && !isCharacterRunning(runningById, character.id))
+  const runningById = useRoleRuntimeStore((s) => s.byId)
+  const sleeping = Boolean(role && !isRoleRunning(runningById, role.id))
   const canInteract = bootAwake && !sleeping
   useSubtitleStore((s) => s.records)
   useSubtitleStore((s) => s.preferences)
-  const subtitle = (text: string): string => displaySubtitle(character?.id ?? '', text)
+  const subtitle = (text: string): string => displaySubtitle(role?.id ?? '', text)
 
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
   const [cursor, setCursor] = React.useState(0)

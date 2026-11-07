@@ -6,8 +6,8 @@ import {
   addSummary,
   appendMessage,
   archiveMessagesRange,
-  clearCharacterMemory,
-  clearCharacterMessages,
+  clearRoleMemory,
+  clearRoleMessages,
   closeMemoryDb,
   commitCompression,
   deleteFactRow,
@@ -42,7 +42,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memorydb-'))
 function fact(id: string, overrides: Partial<FactRow> = {}): FactRow {
   return {
     id,
-    character_id: 'c-fact',
+    role_id: 'c-fact',
     text: `事实 ${id}`,
     entity: 'user',
     subject: null,
@@ -67,7 +67,7 @@ function fact(id: string, overrides: Partial<FactRow> = {}): FactRow {
 function story(id: string, overrides: Partial<StoryRow> = {}): StoryRow {
   return {
     id,
-    character_id: 'c-story',
+    role_id: 'c-story',
     kind: 'event',
     text: `故事 ${id}`,
     occurred_at: '2026-01-01T00:00:00.000Z',
@@ -101,9 +101,9 @@ describe('memoryDb', () => {
   })
 
   it('消息追加、归档与清理', () => {
-    appendMessage({ character_id: 'c-msg', role: 'user', content: '一', ts: 1, archived: 0 })
-    appendMessage({ character_id: 'c-msg', role: 'assistant', content: '二', ts: 2, archived: 0 })
-    appendMessage({ character_id: 'c-msg', role: 'user', content: '三', ts: 3, archived: 0 })
+    appendMessage({ role_id: 'c-msg', role: 'user', content: '一', ts: 1, archived: 0 })
+    appendMessage({ role_id: 'c-msg', role: 'assistant', content: '二', ts: 2, archived: 0 })
+    appendMessage({ role_id: 'c-msg', role: 'user', content: '三', ts: 3, archived: 0 })
     const rows = listUnarchivedMessages('c-msg')
     expect(rows.map((r) => r.content)).toEqual(['一', '二', '三'])
     expect(latestMessageId('c-msg')).toBe(rows[2].id)
@@ -112,15 +112,15 @@ describe('memoryDb', () => {
     expect(archived).toBe(2)
     expect(listUnarchivedMessages('c-msg').map((r) => r.content)).toEqual(['三'])
 
-    clearCharacterMessages('c-msg')
+    clearRoleMessages('c-msg')
     expect(listUnarchivedMessages('c-msg')).toHaveLength(0)
     expect(latestMessageId('c-msg')).toBeNull()
   })
 
   it('替换未归档消息与批量写入', () => {
     replaceUnarchivedMessages('c-replace', [
-      { id: 10, character_id: 'c-replace', role: 'user', content: '旧', ts: 1, archived: 0 },
-      { character_id: 'c-replace', role: 'assistant', content: '新', ts: 2, archived: 0 },
+      { id: 10, role_id: 'c-replace', role: 'user', content: '旧', ts: 1, archived: 0 },
+      { role_id: 'c-replace', role: 'assistant', content: '新', ts: 2, archived: 0 },
     ])
     const rows = listUnarchivedMessages('c-replace')
     expect(rows).toHaveLength(2)
@@ -168,9 +168,9 @@ describe('memoryDb', () => {
   })
 
   it('事实整表替换只影响指定角色', () => {
-    insertFactRow('c-fact-a', fact('fa', { character_id: 'c-fact-a' }))
-    insertFactRow('c-fact-b', fact('fb', { character_id: 'c-fact-b' }))
-    saveFacts('c-fact-a', [fact('fa2', { character_id: 'c-fact-a', text: '替换后' })])
+    insertFactRow('c-fact-a', fact('fa', { role_id: 'c-fact-a' }))
+    insertFactRow('c-fact-b', fact('fb', { role_id: 'c-fact-b' }))
+    saveFacts('c-fact-a', [fact('fa2', { role_id: 'c-fact-a', text: '替换后' })])
     expect(listFacts('c-fact-a').map((f) => f.text)).toEqual(['替换后'])
     expect(listFacts('c-fact-b').map((f) => f.text)).toEqual(['事实 fb'])
   })
@@ -185,15 +185,15 @@ describe('memoryDb', () => {
     saveStories('c-story', [story('s3', { text: '只剩一条' })])
     expect(listStories('c-story').map((s) => s.text)).toEqual(['只剩一条'])
 
-    clearCharacterMemory('c-story')
+    clearRoleMemory('c-story')
     expect(listStories('c-story')).toHaveLength(0)
   })
 
   it('清理角色记忆不会误删消息', () => {
-    appendMessage({ character_id: 'c-clear', role: 'user', content: '保留', ts: 1, archived: 0 })
-    insertFactRow('c-clear', fact('fc', { character_id: 'c-clear' }))
-    insertStoryRow('c-clear', story('sc', { character_id: 'c-clear' }))
-    clearCharacterMemory('c-clear')
+    appendMessage({ role_id: 'c-clear', role: 'user', content: '保留', ts: 1, archived: 0 })
+    insertFactRow('c-clear', fact('fc', { role_id: 'c-clear' }))
+    insertStoryRow('c-clear', story('sc', { role_id: 'c-clear' }))
+    clearRoleMemory('c-clear')
     expect(listFacts('c-clear')).toHaveLength(0)
     expect(listStories('c-clear')).toHaveLength(0)
     expect(listUnarchivedMessages('c-clear')).toHaveLength(1)

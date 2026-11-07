@@ -52,14 +52,14 @@ export function indexMessage(id: number, content: string): void {
   ])
 }
 
-export const MESSAGE_COLUMNS = 'id, character_id, role, content, ts, archived, kind'
+export const MESSAGE_COLUMNS = 'id, role_id, role, content, ts, archived, kind'
 
 function likePattern(term: string): string {
   return `%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
 }
 
 function searchMessagesInternal(
-  characterId: string,
+  roleId: string,
   query: string,
   limit: number,
   radius: number,
@@ -76,11 +76,11 @@ function searchMessagesInternal(
   if (tokens.length > 0) {
     const match = tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ')
     const found = rows(
-      `SELECT m.id, m.character_id, m.role, m.content, m.ts, m.archived, m.kind
+      `SELECT m.id, m.role_id, m.role, m.content, m.ts, m.archived, m.kind
        FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid
-       WHERE messages_fts MATCH ? AND m.character_id = ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
+       WHERE messages_fts MATCH ? AND m.role_id = ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
        ORDER BY bm25(messages_fts) LIMIT ?`,
-      [match, characterId, ...rangeParams, limit]
+      [match, roleId, ...rangeParams, limit]
     ) as unknown as MessageRow[]
     for (const row of found) {
       if (terms.every((term) => visibleMessageText(String(row.content)).includes(term))) hits.push(row)
@@ -91,17 +91,17 @@ function searchMessagesInternal(
   if (hits.length === 0) {
     const where = terms.map(() => "content LIKE ? ESCAPE '\\'").join(' AND ')
     const fallback = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND ${where}${range ? ' AND ts >= ? AND ts <= ?' : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
-      [characterId, ...terms.map(likePattern), ...rangeParams, limit]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE role_id = ? AND ${where}${range ? ' AND ts >= ? AND ts <= ?' : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
+      [roleId, ...terms.map(likePattern), ...rangeParams, limit]
     ) as unknown as MessageRow[]
     hits.push(...fallback)
   }
 
-  return expandNeighbors(characterId, hits, radius, fromTs, toTs)
+  return expandNeighbors(roleId, hits, radius, fromTs, toTs)
 }
 
 function expandNeighbors(
-  characterId: string,
+  roleId: string,
   hits: MessageRow[],
   radius: number,
   fromTs?: number,
@@ -116,12 +116,12 @@ function expandNeighbors(
     found.set(id, hit)
     if (radius <= 0) continue
     const before = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
-      [characterId, id, ...rangeParams, radius]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE role_id = ? AND id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
+      [roleId, id, ...rangeParams, radius]
     ) as unknown as MessageRow[]
     const after = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE character_id = ? AND id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
-      [characterId, id, ...rangeParams, radius]
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE role_id = ? AND id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
+      [roleId, id, ...rangeParams, radius]
     ) as unknown as MessageRow[]
     for (const row of [...before, ...after]) found.set(row.id as number, row)
   }
@@ -131,9 +131,9 @@ function expandNeighbors(
 
 /** 中文原文检索：先走相邻双字索引，未命中再退回子串；结果含相邻上下文。 */
 export function searchMessages(
-  characterId: string,
+  roleId: string,
   query: string,
   opts: MessageSearchOptions = {},
 ): MessageRow[] {
-  return searchMessagesInternal(characterId, query, opts.limit ?? 3, opts.radius ?? 1, opts.fromTs, opts.toTs)
+  return searchMessagesInternal(roleId, query, opts.limit ?? 3, opts.radius ?? 1, opts.fromTs, opts.toTs)
 }

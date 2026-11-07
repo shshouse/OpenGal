@@ -15,7 +15,7 @@ const GPTSOVITS_DIR = path.join('TTS', 'GPT-SoVITS-v2pro-20250604')
 // “服务起在全局端口、请求发往角色卡端口”的错位（ECONNREFUSED）
 function effectiveTtsBaseURL(): string {
   const cfg = readConfig()
-  const card = cfg.activeCharacterId ? getRoleCard(cfg.activeCharacterId) : null
+  const card = cfg.activeRoleId ? getRoleCard(cfg.activeRoleId) : null
   const cardURL = card ? readRoleVoiceConfig(card)?.baseURL : undefined
   return typeof cardURL === 'string' && cardURL ? cardURL : cfg.tts.baseURL
 }

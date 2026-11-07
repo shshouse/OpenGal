@@ -5,13 +5,15 @@ import path from 'node:path'
 import { listRoleCardsDetailed } from '../../src/main/services/roleCardLoader'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-mod-manifest-'))
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'og-mod-manifest-data-'))
 const previous = process.env.OPENGAL_MOD_ROOT
+const previousData = process.env.OPENGAL_DATA_DIR
 
 function writeCard(folder: string, manifest: unknown, legacy?: unknown) {
   const dir = path.join(root, 'Role', folder)
   fs.mkdirSync(dir, { recursive: true })
   if (manifest) fs.writeFileSync(path.join(dir, 'opengal.json'), JSON.stringify(manifest))
-  if (legacy) fs.writeFileSync(path.join(dir, 'character.json'), JSON.stringify(legacy))
+  if (legacy) fs.writeFileSync(path.join(dir, 'role.json'), JSON.stringify(legacy))
 }
 
 const persona = {
@@ -21,6 +23,7 @@ const persona = {
 
 beforeAll(() => {
   process.env.OPENGAL_MOD_ROOT = root
+  process.env.OPENGAL_DATA_DIR = dataRoot
   writeCard(
     'sonetto',
     {
@@ -36,14 +39,14 @@ beforeAll(() => {
       resources: { expressions: ['neutral', 'happy'], motions: ['Idle'] },
       voice: { engine: 'gpt-sovits', config: 'voice/config.json' },
     },
-    { id: 'sonetto', name: '旧卡', displayName: '旧卡', persona: { description: '来自 character.json', personality: '旧' } },
+    { id: 'sonetto', name: '旧卡', displayName: '旧卡', persona: { description: '来自 role.json', personality: '旧' } },
   )
   writeCard('legacy-only', null, {
     id: 'legacy-only',
     name: '旧角色',
     displayName: '旧角色',
     performance: { mode: 'live2d', live2d: { modelPath: 'model/b.model3.json' } },
-    persona: { description: '只有 character.json', personality: '旧' },
+    persona: { description: '只有 role.json', personality: '旧' },
   })
   writeCard('sprite', {
     id: 'sprite', name: '立绘', windowMode: 'theater', persona,
@@ -58,7 +61,10 @@ beforeAll(() => {
 afterAll(() => {
   if (previous === undefined) delete process.env.OPENGAL_MOD_ROOT
   else process.env.OPENGAL_MOD_ROOT = previous
+  if (previousData === undefined) delete process.env.OPENGAL_DATA_DIR
+  else process.env.OPENGAL_DATA_DIR = previousData
   fs.rmSync(root, { recursive: true, force: true })
+  fs.rmSync(dataRoot, { recursive: true, force: true })
 })
 
 describe('模组清单', () => {
@@ -68,16 +74,16 @@ describe('模组清单', () => {
     expect(frames?.talk).toBe('opengal://mods/Role/sprite/sprites/talk.png')
     expect(frames?.blink).toBeUndefined()
   })
-  it('存在 opengal.json 时优先于 character.json', () => {
+  it('存在 opengal.json 时优先于 role.json', () => {
     const loaded = listRoleCardsDetailed()
     const card = loaded.find((item) => item.entry.id === 'sonetto')
     expect(card?.entry.persona.description).toBe('来自 opengal.json')
   })
 
-  it('没有 opengal.json 时回退到 character.json', () => {
+  it('没有 opengal.json 时回退到 role.json', () => {
     const loaded = listRoleCardsDetailed()
     const legacy = loaded.find((item) => item.entry.id === 'legacy-only')
-    expect(legacy?.entry.persona.description).toBe('只有 character.json')
+    expect(legacy?.entry.persona.description).toBe('只有 role.json')
   })
 
   it('voice.config 映射成角色卡的 configRef', () => {

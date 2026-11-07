@@ -10,8 +10,8 @@ const MAX_SUMMARY_FAILURES = 3
 let summaryFailures = 0
 let cachedSummariesText: string | null = null
 
-async function loadSummariesText(characterId: string): Promise<string | null> {
-  const res = await window.opengal.chatHistory.summaries(characterId)
+async function loadSummariesText(roleId: string): Promise<string | null> {
+  const res = await window.opengal.chatHistory.summaries(roleId)
   const rows = res.success && res.data ? res.data : []
   if (rows.length === 0) {
     cachedSummariesText = null
@@ -28,13 +28,13 @@ export function getCachedSummariesText(): string | null {
 // 存档式压缩：超阈值时把旧段摘要追加进 L1（SQLite summaries 分段），原文标记 archived 永不删除
 // 头部若干条始终保留，避免把开场设定摘要掉
 export async function compressHistory(
-  characterId: string,
+  roleId: string,
   history: ChatMessage[],
   turnBudget: number,
   systemTokens: number,
   stale: () => boolean,
 ): Promise<ChatMessage[]> {
-  const summariesText = await loadSummariesText(characterId)
+  const summariesText = await loadSummariesText(roleId)
   if (stale()) return history
   const summaryMessage: ChatMessage | null = summariesText
     ? { role: 'system', content: `[既往对话摘要]\n${summariesText}`, contextTag: 'summary' }
@@ -119,7 +119,7 @@ export async function compressHistory(
     useLogsStore.getState().appendLocal('warn', 'llm-worker', '待压缩消息缺少数据库 ID，跳过本轮归档')
     return unchanged()
   }
-  const committed = await window.opengal.chatHistory.commitCompression(characterId, fromId, toId, {
+  const committed = await window.opengal.chatHistory.commitCompression(roleId, fromId, toId, {
     start_ts: Date.now(),
     end_ts: Date.now(),
     text: newText,

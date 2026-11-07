@@ -20,11 +20,11 @@ vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
 vi.mock('../../src/renderer/src/features/logs/logsStore', () => ({
   useLogsStore: { getState: () => ({ appendLocal: () => {} }) },
 }))
-vi.mock('../../src/renderer/src/features/character/characterRuntimeStore', () => ({
-  useCharacterRuntimeStore: { getState: () => ({ byId: { sonetto: state.running } }) },
+vi.mock('../../src/renderer/src/features/role/roleRuntimeStore', () => ({
+  useRoleRuntimeStore: { getState: () => ({ byId: { sonetto: state.running } }) },
 }))
-vi.mock('../../src/renderer/src/features/character/characterStore', () => ({
-  useCharacterStore: { getState: () => ({ activeId: 'sonetto', list: [{ id: 'sonetto', language: 'en' }] }) },
+vi.mock('../../src/renderer/src/features/role/roleStore', () => ({
+  useRoleStore: { getState: () => ({ activeId: 'sonetto', list: [{ id: 'sonetto', language: 'en' }] }) },
 }))
 
 async function boot(): Promise<void> {

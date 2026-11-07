@@ -1,5 +1,5 @@
 export interface CorpusEntry {
-  characterId: string
+  roleId: string
   role: 'user' | 'assistant'
   text: string
   source?: string
@@ -35,8 +35,8 @@ export class CorpusBuffer {
     return { entries: this.items.slice(), maxSeq }
   }
 
-  dropExtracted(characterId: string, upToSeq: number): void {
-    this.items = this.items.filter((e) => e.characterId !== characterId || e.seq > upToSeq)
+  dropExtracted(roleId: string, upToSeq: number): void {
+    this.items = this.items.filter((e) => e.roleId !== roleId || e.seq > upToSeq)
   }
 
   hasPendingUser(): boolean {

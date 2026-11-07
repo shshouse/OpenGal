@@ -59,8 +59,8 @@ const defaultConfig: AppConfig = {
     directorIdleMinutes: 10
   },
   model: null,
-  activeCharacterId: null,
-  runningCharacters: {},
+  activeRoleId: null,
+  runningRoles: {},
   showLive2D: true,
   tools: {
     webSearch: {
