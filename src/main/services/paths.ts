@@ -1,18 +1,31 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { getRolesRoot } from './roleStore'
+
+// 测试与脚本环境没有 Electron app，取不到路径时按非打包形态降级
+function getExePath(): string | null {
+  try {
+    return app.getPath('exe')
+  } catch {
+    return null
+  }
+}
 
 // 环境变量 ELECTRON_FORCE_IS_PACKAGED 会颠倒 app.isPackaged，
 // 用 exe 是否位于 node_modules 判定真实运行形态
 export function isDevRuntime(): boolean {
-  return app.getPath('exe').replace(/\\/g, '/').includes('node_modules')
+  const exe = getExePath()
+  return exe ? exe.replace(/\\/g, '/').includes('node_modules') : false
 }
 
 export function getModRoot(): string {
   if (process.env.OPENGAL_MOD_ROOT && fs.existsSync(process.env.OPENGAL_MOD_ROOT)) {
     return process.env.OPENGAL_MOD_ROOT
   }
-  const exeDir = path.dirname(app.getPath('exe'))
+  const exe = getExePath()
+  if (!exe) return path.join(process.cwd(), 'mods')
+  const exeDir = path.dirname(exe)
   const candidates = isDevRuntime()
     ? [
         // dev 下 exe 在 node_modules/electron/dist，项目根为其余三层
@@ -35,19 +48,28 @@ export function getDataRoot(): string {
   if (cachedDataRoot) return cachedDataRoot
   const candidates: string[] = []
   if (process.env.OPENGAL_DATA_DIR) candidates.push(process.env.OPENGAL_DATA_DIR)
-  const exeDir = path.dirname(app.getPath('exe'))
-  candidates.push(
-    isDevRuntime()
-      ? path.join(path.resolve(exeDir, '../../../'), 'data')
-      : path.join(exeDir, 'data')
-  )
+  const exe = getExePath()
+  if (exe) {
+    const exeDir = path.dirname(exe)
+    candidates.push(
+      isDevRuntime()
+        ? path.join(path.resolve(exeDir, '../../../'), 'data')
+        : path.join(exeDir, 'data')
+    )
+  }
   for (const candidate of candidates) {
     if (ensureWritableDir(candidate)) {
       cachedDataRoot = candidate
       return candidate
     }
   }
-  const fallback = path.join(app.getPath('userData'), 'data')
+  let userData: string | null = null
+  try {
+    userData = app.getPath('userData')
+  } catch {
+    userData = null
+  }
+  const fallback = userData ? path.join(userData, 'data') : path.join(process.cwd(), 'data')
   ensureWritableDir(fallback)
   console.warn(`[paths] 安装目录不可写，数据回退到 ${fallback}`)
   cachedDataRoot = fallback
@@ -83,15 +105,24 @@ function ensureWritableDir(dir: string): boolean {
 
 const CUSTOM_SCHEME = 'opengal'
 const MOD_HOST = 'mods'
+const ROLE_HOST = 'roles'
 
-export function toModUrl(absPath: string): string {
-  const root = getModRoot()
+function toAssetUrl(root: string, absPath: string, host: string): string {
   const rel = path.relative(root, absPath).replace(/\\/g, '/')
   const encoded = rel
     .split('/')
     .map((segment) => encodeURIComponent(segment))
     .join('/')
-  return `${CUSTOM_SCHEME}://${MOD_HOST}/${encoded}`
+  return `${CUSTOM_SCHEME}://${host}/${encoded}`
+}
+
+export function toModUrl(absPath: string): string {
+  return toAssetUrl(getModRoot(), absPath, MOD_HOST)
+}
+
+// 实体化角色在 data/roles 下，不在 mods 根内，需要单独的 host
+export function toRoleUrl(absPath: string): string {
+  return toAssetUrl(getRolesRoot(getDataRoot()), absPath, ROLE_HOST)
 }
 export function modUrlToAbsPath(url: string): string | null {
   let parsed: URL
@@ -101,12 +132,17 @@ export function modUrlToAbsPath(url: string): string | null {
     return null
   }
   if (parsed.protocol !== `${CUSTOM_SCHEME}:`) return null
-  if (parsed.hostname !== MOD_HOST) return null
+  const roots: Record<string, string> = {
+    [MOD_HOST]: getModRoot(),
+    [ROLE_HOST]: getRolesRoot(getDataRoot()),
+  }
+  const root = roots[parsed.hostname]
+  if (!root) return null
   const relative = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''))
-  const resolved = path.resolve(getModRoot(), relative)
-  const root = path.resolve(getModRoot())
-  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep
-  if (resolved !== root && !resolved.startsWith(rootWithSep)) return null
+  const resolved = path.resolve(root, relative)
+  const base = path.resolve(root)
+  const baseWithSep = base.endsWith(path.sep) ? base : base + path.sep
+  if (resolved !== base && !resolved.startsWith(baseWithSep)) return null
   return resolved
 }
 function getFirstRoleVoiceDir(): string | null {
@@ -166,4 +202,4 @@ export function getGeniePythonExe(): string {
   return path.join(root, 'runtime', 'python.exe')
 }
 
-export { CUSTOM_SCHEME, MOD_HOST }
+export { CUSTOM_SCHEME, MOD_HOST, ROLE_HOST }

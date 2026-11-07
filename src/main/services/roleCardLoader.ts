@@ -2,14 +2,26 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { RoleCardEntry } from '@shared/types'
 import { validateRoleCard, type RoleCardIssue } from '@shared/roleCardSchema'
-import { getModRoot, toModUrl } from './paths'
+import { getDataRoot, getModRoot, toRoleUrl, toModUrl } from './paths'
+import { getRolesRoot } from './roleStore'
 
 const ROLE_CARD_DIR_REL = 'Role'
-const CARD_FILE = 'character.json'
+const CARD_FILE = 'role.json'
 const MANIFEST_FILE = 'opengal.json'
 
-function getRoleCardRoot(): string {
-  return path.join(getModRoot(), ROLE_CARD_DIR_REL)
+interface CardRoot {
+  root: string
+  owned: boolean
+}
+
+// 已创建的角色优先，模组目录退化为创建时的模板来源
+function getRoleCardRoots(): CardRoot[] {
+  const roots: CardRoot[] = []
+  const owned = getRolesRoot(getDataRoot())
+  if (fs.existsSync(owned)) roots.push({ root: owned, owned: true })
+  const templates = path.join(getModRoot(), ROLE_CARD_DIR_REL)
+  if (fs.existsSync(templates)) roots.push({ root: templates, owned: false })
+  return roots
 }
 
 export interface LoadedRoleCard {
@@ -32,7 +44,12 @@ function manifestToCard(raw: unknown): unknown {
   return card
 }
 
-function normalizeEntry(folderName: string, rootPath: string, raw: unknown): LoadedRoleCard | null {
+function normalizeEntry(
+  folderName: string,
+  rootPath: string,
+  raw: unknown,
+  owned: boolean,
+): LoadedRoleCard | null {
   const result = validateRoleCard(raw, folderName)
   if (!result.card) {
     const detail = result.issues
@@ -46,7 +63,7 @@ function normalizeEntry(folderName: string, rootPath: string, raw: unknown): Loa
     ...result.card,
     rootPath,
     folderName,
-    builtin: true,
+    builtin: !owned,
   }
   const sprite = entry.performance.sprite
   if (sprite && entry.performance.mode === 'sprite') {
@@ -55,7 +72,7 @@ function normalizeEntry(folderName: string, rootPath: string, raw: unknown): Loa
       const file = path.resolve(dir, name)
       const relative = path.relative(rootPath, file)
       if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(file)) return undefined
-      return toModUrl(file)
+      return owned ? toRoleUrl(file) : toModUrl(file)
     }
     const idle = frame(sprite.defaultSprite)
     if (idle) entry.spriteFrames = {
@@ -71,31 +88,35 @@ function normalizeEntry(folderName: string, rootPath: string, raw: unknown): Loa
 }
 
 export function listRoleCardsDetailed(): LoadedRoleCard[] {
-  const root = getRoleCardRoot()
-  if (!fs.existsSync(root)) return []
-
   const loaded: LoadedRoleCard[] = []
-  for (const folder of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!folder.isDirectory()) continue
-    const folderPath = path.join(root, folder.name)
-    const manifestPath = path.join(folderPath, MANIFEST_FILE)
-    const useManifest = fs.existsSync(manifestPath)
-    const cardPath = useManifest ? manifestPath : path.join(folderPath, CARD_FILE)
-    if (!fs.existsSync(cardPath)) continue
+  const seen = new Set<string>()
 
-    try {
-      const raw = JSON.parse(fs.readFileSync(cardPath, 'utf-8')) as unknown
-      const source = useManifest ? manifestToCard(raw) : raw
-      const result = normalizeEntry(folder.name, folderPath, source)
-      if (!result) continue
-      for (const issue of result.issues) {
-        if (issue.severity === 'warning') {
-          console.warn(`[roleCardLoader] ${folder.name} ${issue.path}: ${issue.message}`)
+  for (const { root, owned } of getRoleCardRoots()) {
+    for (const folder of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!folder.isDirectory()) continue
+      const folderPath = path.join(root, folder.name)
+      const manifestPath = path.join(folderPath, MANIFEST_FILE)
+      const useManifest = fs.existsSync(manifestPath)
+      const cardPath = useManifest ? manifestPath : path.join(folderPath, CARD_FILE)
+      if (!fs.existsSync(cardPath)) continue
+
+      try {
+        const raw = JSON.parse(fs.readFileSync(cardPath, 'utf-8')) as unknown
+        const source = useManifest ? manifestToCard(raw) : raw
+        const result = normalizeEntry(folder.name, folderPath, source, owned)
+        if (!result) continue
+        // 已实体化的角色与来源模组同 id 时保留实体角色，模组只作为模板
+        if (seen.has(result.entry.id)) continue
+        seen.add(result.entry.id)
+        for (const issue of result.issues) {
+          if (issue.severity === 'warning') {
+            console.warn(`[roleCardLoader] ${folder.name} ${issue.path}: ${issue.message}`)
+          }
         }
+        loaded.push(result)
+      } catch (err) {
+        console.error(`[roleCardLoader] failed to load ${cardPath}:`, err)
       }
-      loaded.push(result)
-    } catch (err) {
-      console.error(`[roleCardLoader] failed to load ${cardPath}:`, err)
     }
   }
   return loaded
