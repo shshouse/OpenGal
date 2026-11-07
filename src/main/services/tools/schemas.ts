@@ -2,6 +2,16 @@ import { z } from 'zod'
 
 export const screenshotSchema = z.object({})
 
+export const lookScreenSchema = z.object({
+  seconds: z
+    .number()
+    .int()
+    .min(5)
+    .max(30)
+    .default(15)
+    .describe('回看多少秒，5 到 30，默认 15'),
+})
+
 export const localFileSearchSchema = z.object({
   query: z
     .string()

@@ -116,6 +116,8 @@ export interface GameModeConfig {
 export interface ScreenConfig {
   /** 截图时排除相伴窗口自身，避免角色不认识屏幕上的自己；关掉后 OBS 才能录到相伴窗口 */
   excludeSelf: boolean
+  /** 让角色能看到屏幕变没变，并自己决定要不要细看。关闭时不采集任何画面 */
+  watch: boolean
 }
 
 export interface StartupConfig {

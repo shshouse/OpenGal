@@ -1,6 +1,7 @@
 import { readConfig } from '../services/configStore'
 import { getBackupRoot, getDataRoot } from '../services/paths'
 import { startEnvMonitor } from '../services/envContext'
+import { setScreenWatchEnabled } from '../services/screenWatch'
 import { setMemoryDbLogger } from '../services/memoryDb'
 import { logBus } from '../services/logBus'
 import { initTools } from '../services/tools'
@@ -22,6 +23,7 @@ export function registerIpc(windows: WindowManager): void {
   initMemoryStore(getDataRoot(), readConfig().memory, getBackupRoot())
   startEnvMonitor()
   windows.setSelfExclusion(readConfig().screen?.excludeSelf ?? true)
+  setScreenWatchEnabled(readConfig().screen?.watch ?? false)
 
   registerConfigIpc(windows)
   registerLlmIpc()

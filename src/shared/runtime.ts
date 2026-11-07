@@ -1,3 +1,5 @@
+import type { ScreenPulse } from './screen'
+
 export interface IpcResult<T = unknown> {
   success: boolean
   data?: T
@@ -5,7 +7,6 @@ export interface IpcResult<T = unknown> {
 }
 
 export type BootStepStatus = 'pending' | 'running' | 'ok' | 'failed' | 'skipped'
-
 export interface BootStep {
   id: 'live2d' | 'memory' | 'tts'
   label: string
@@ -25,4 +26,6 @@ export interface EnvSnapshot {
   awayMinutes: number
   game: { name: string; fullscreen: boolean } | null
   foreground: { app: string; title: string; fullscreen: boolean } | null
+  /** 屏幕观察打开时才有值；关闭时为 null */
+  screen: ScreenPulse | null
 }

@@ -1,5 +1,6 @@
 import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
 import { isRoleRunning } from '@shared/roleRuntime'
+import { SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { packContext, type ContextItem } from './contextAssembler'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, ToolCall, ToolDefinition } from '@shared/types'
@@ -82,7 +83,6 @@ const MAX_TOOL_ROUNDS = 5
 const MAX_RETRIES = 1
 const RETRY_BASE_MS = 2000
 const TURN_DEADLINE_MS = 5 * 60_000
-const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
 
 function isRetryableError(error: string): boolean {
   return /timeout|network|ECONNRESET|502|503|504|rate limit|overloaded/i.test(error)
@@ -311,19 +311,25 @@ export function startLLMWorker(): () => void {
             delta: `[tool:${tc.function.name}] ${resultContent.slice(0, 200)}${resultContent.length > 200 ? '…' : ''}\n`,
             accumulated: '',
           })
-          if (ok && resultContent.startsWith(SCREENSHOT_MARKER)) {
-            const dataUrl = resultContent.slice(SCREENSHOT_MARKER.length)
+          if (ok && (resultContent.startsWith(SCREEN_FRAME_MARKER) || resultContent.startsWith(SCREEN_SHEET_MARKER))) {
+            const isSheet = resultContent.startsWith(SCREEN_SHEET_MARKER)
+            const marker = isSheet ? SCREEN_SHEET_MARKER : SCREEN_FRAME_MARKER
             toolMessages.push({
               role: 'tool',
               tool_call_id: tc.id,
               name: tc.function.name,
-              content: '已拍摄屏幕截图，图片见紧随其后的消息。',
+              content: isSheet ? '已取得屏幕画面，图片见紧随其后的消息。' : '已拍摄屏幕截图，图片见紧随其后的消息。',
             })
             imageMessages.push({
               role: 'user',
               content: [
-                { type: 'text', text: '[系统注入的屏幕截图，供你查看用户当前屏幕]' },
-                { type: 'image_url', image_url: { url: dataUrl } },
+                {
+                  type: 'text',
+                  text: isSheet
+                    ? '[系统注入的连续屏幕画面：一张拼图，格子按时间从左到右、从上到下排列，用来看这段时间发生了什么]'
+                    : '[系统注入的屏幕截图，供你查看用户当前屏幕]',
+                },
+                { type: 'image_url', image_url: { url: resultContent.slice(marker.length) } },
               ] as MessageContentPart[],
             })
           } else {

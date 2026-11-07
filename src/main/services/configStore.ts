@@ -77,7 +77,8 @@ const defaultConfig: AppConfig = {
     greetingEnabled: true
   },
   screen: {
-    excludeSelf: true
+    excludeSelf: true,
+    watch: false
   }
 }
 
@@ -190,6 +191,7 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
       fileSearchDirs: patch.tools?.fileSearchDirs ?? current.tools.fileSearchDirs,
     },
     gameMode: { ...current.gameMode, ...(patch.gameMode ?? {}) },
+    screen: { ...current.screen, ...(patch.screen ?? {}) },
     model: patch.model === undefined ? current.model : patch.model
   }
   const persisted: Record<string, unknown> = {

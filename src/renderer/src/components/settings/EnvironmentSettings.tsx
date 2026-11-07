@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Gamepad2, Plus, Trash2, Globe, FolderOpen } from 'lucide-react'
+import { Gamepad2, Plus, Trash2, Globe, FolderOpen, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
@@ -20,6 +20,7 @@ interface EnvironmentSettingsProps {
 
 export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps) {
   const [gameEnabled, setGameEnabled] = React.useState(true)
+  const [screenWatch, setScreenWatch] = React.useState(false)
   const [games, setGames] = React.useState<string[]>([])
   const [newGame, setNewGame] = React.useState('')
   const [provider, setProvider] = React.useState<'local' | 'bing' | 'tavily'>('local')
@@ -32,6 +33,7 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
   React.useEffect(() => {
     if (!config) return
     setGameEnabled(config.gameMode.enabled)
+    setScreenWatch(config.screen?.watch ?? false)
     setGames(config.gameMode.games)
     setProvider(config.tools.webSearch.provider === 'bing' ? 'local' : config.tools.webSearch.provider)
     setTavilyKey(config.tools.webSearch.tavilyKey)
@@ -44,6 +46,7 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
     try {
       await onSave({
         gameMode: { enabled: gameEnabled, games: games.map((g) => g.trim()).filter(Boolean) },
+        screen: { watch: screenWatch, excludeSelf: config?.screen?.excludeSelf ?? true },
         tools: {
           webSearch: { provider, tavilyKey: tavilyKey.trim() },
           fileSearchDirs: fileDirs.map((d) => d.trim()).filter(Boolean),
@@ -60,6 +63,25 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
   return (
     <div className="space-y-5">
       <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Monitor className="size-4" /> 屏幕
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-muted-foreground">让角色能看到屏幕</label>
+          <span className="relative inline-flex">
+            <Checkbox
+              checked={screenWatch}
+              onChange={(e) => setScreenWatch(e.target.checked)}
+            />
+            <CheckboxIndicator />
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          打开后角色能察觉屏幕的变化，并自己决定要不要细看。画面留在本机，只有角色真的要看的时候才发给模型。关闭时完全不采集。
+        </p>
+      </div>
+
+      <div className="space-y-3 border-t pt-4">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Gamepad2 className="size-4" /> 游戏模式
         </div>

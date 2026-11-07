@@ -9,6 +9,7 @@ const env: EnvSnapshot = {
   awayMinutes: 0,
   game: null,
   foreground: { app: 'Code.exe', title: 'OpenGal - VS Code', fullscreen: false },
+  screen: null,
 }
 
 describe('主动时刻感知', () => {

@@ -5,6 +5,7 @@ import { readConfig, writeConfig } from '../services/configStore'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/roleCardLoader'
 import { warmupTTS } from '../services/ttsClient'
+import { setScreenWatchEnabled } from '../services/screenWatch'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
 import { handleValidated } from './validated'
@@ -20,6 +21,8 @@ export function registerConfigIpc(windows: WindowManager): void {
     if (patch.activeRoleId !== undefined) void warmupTTS()
     const excludeSelf = patch.screen?.excludeSelf
     if (typeof excludeSelf === 'boolean') windows.setSelfExclusion(excludeSelf)
+    const watch = patch.screen?.watch
+    if (typeof watch === 'boolean') setScreenWatchEnabled(watch)
     return next
   })
 

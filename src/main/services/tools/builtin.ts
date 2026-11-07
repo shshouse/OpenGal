@@ -5,6 +5,7 @@ import { registerTool } from './registry'
 import { defineTool, type DefinedTool } from './defineTool'
 import {
   localFileSearchSchema,
+  lookScreenSchema,
   readWebPageSchema,
   recallMemorySchema,
   screenshotSchema,
@@ -14,6 +15,8 @@ import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewal
 import { readConfig } from '../configStore'
 import { getMemoryBlock, recallVerbatim } from '../memoryStore'
 import { logBus } from '../logBus'
+import { isScreenWatchEnabled, lookAtScreen } from '../screenWatch'
+import { SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
 async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
@@ -22,7 +25,7 @@ async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
   return pRetry(task, { retries })
 }
 
-export const SCREENSHOT_MARKER = 'OPENGAL_SCREENSHOT:'
+export const SCREENSHOT_MARKER = SCREEN_FRAME_MARKER
 
 const SCREENSHOT_COOLDOWN_MS = 10_000
 let lastShotAt = 0
@@ -44,6 +47,16 @@ async function handleScreenshot(): Promise<string> {
   if (!primary) throw new Error('无可用屏幕')
   lastShotAt = Date.now()
   return `${SCREENSHOT_MARKER}data:image/png;base64,${primary.thumbnail.toPNG().toString('base64')}`
+}
+
+/** 回看一段时间：抓一小段，挑出关键时刻拼成一张图。 */
+async function handleLookScreen(seconds: number): Promise<string> {
+  if (!isScreenWatchEnabled()) {
+    return '用户没有开启屏幕观察，看不到这段时间的画面。需要的话请用户到设置里打开；只想看此刻的一帧，改用 screenshot。'
+  }
+  const shot = await lookAtScreen(seconds * 1000)
+  if (!shot) return '这次没能抓到画面，稍后再试一次。'
+  return `${SCREEN_SHEET_MARKER}${shot.png}`
 }
 
 function fileSearchRoots(): string[] {
@@ -341,6 +354,15 @@ export function registerBuiltinTools(): void {
         schema: screenshotSchema,
       },
       async () => handleScreenshot(),
+    ),
+    defineTool(
+      {
+        name: 'look_screen',
+        description:
+          '回看最近一段时间的屏幕，返回一张拼图：最多 4 格，按时间从左到右、从上到下排列。用户提到"刚才那个""你看到了吗"、或需要知道屏幕上做了什么操作时使用。只想知道此刻屏幕上是什么，用 screenshot 更省。',
+        schema: lookScreenSchema,
+      },
+      async (args) => handleLookScreen(args.seconds),
     ),
     defineTool(
       {

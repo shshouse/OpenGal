@@ -10,6 +10,7 @@ function env(justReturned: boolean): EnvSnapshot {
     awayMinutes: justReturned ? 30 : 0,
     game: null,
     foreground: null,
+    screen: null,
   }
 }
 

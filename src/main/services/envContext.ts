@@ -1,5 +1,6 @@
 import { powerMonitor, screen } from 'electron'
 import { readConfig } from './configStore'
+import { getScreenPulse } from './screenWatch'
 import type { EnvSnapshot } from '@shared/types'
 import { getErrorMessage } from '@shared/errors'
 
@@ -132,5 +133,6 @@ export function getEnvSnapshot(): EnvSnapshot {
     foreground: lastForeground
       ? { app: lastForeground.app, title: lastForeground.title, fullscreen: lastForeground.fullscreen }
       : null,
+    screen: getScreenPulse(),
   }
 }

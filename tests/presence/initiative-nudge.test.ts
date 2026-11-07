@@ -10,6 +10,7 @@ function env(overrides: Partial<EnvSnapshot> = {}): EnvSnapshot {
     awayMinutes: 0,
     game: null,
     foreground: null,
+    screen: null,
     ...overrides,
   }
 }
