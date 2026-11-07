@@ -4,7 +4,6 @@
 // 一次采集会话，实测单次 575ms，按秒轮询会吃掉一个核。常驻流上取一帧只要 1.3ms。
 
 import { BrowserWindow, desktopCapturer } from 'electron'
-import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import type { SampledFrame, ScreenPulse } from '@shared/screen'
 import { logBus } from './logBus'
@@ -22,8 +21,9 @@ let pulse: ScreenPulse | null = null
 let polling = false
 
 function pageSource(): { url?: string; file?: string } {
+  // 开发期由 electron-vite 注入渲染层地址；打包后没有这个变量，直接读构建产物
   const devUrl = process.env.ELECTRON_RENDERER_URL
-  if (is.dev && devUrl) return { url: `${devUrl}/capture.html` }
+  if (devUrl) return { url: `${devUrl}/capture.html` }
   return { file: join(__dirname, '../renderer/capture.html') }
 }
 
