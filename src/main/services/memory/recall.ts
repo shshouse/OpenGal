@@ -97,20 +97,10 @@ function bucketMemories(
   }
 }
 
-function takeWithin(items: Scored[], budget: Budget): string[] {
+// 按顺序往预算里塞，塞不下就停；组之间共用同一个预算
+function takeLines(lines: string[], budget: Budget): string[] {
   const kept: string[] = []
-  for (const item of items) {
-    if (budget.used + item.text.length > budget.cap) break
-    budget.used += item.text.length
-    kept.push(item.text)
-  }
-  return kept
-}
-
-function takeHistory(past: Memory[], budget: Budget): string[] {
-  const kept: string[] = []
-  for (const memory of past) {
-    const text = shortText(memory)
+  for (const text of lines) {
     if (budget.used + text.length > budget.cap) break
     budget.used += text.length
     kept.push(text)
@@ -134,11 +124,11 @@ export function assembleBlock(memories: Memory[], query: string | null, options:
   const budget: Budget = { used: 0, cap: options.charCap }
   const lines: string[] = []
   for (const key of ['user', 'character', 'relationship'] as const) {
-    const kept = takeWithin(buckets[key], budget)
+    const kept = takeLines(buckets[key].map((item) => item.text), budget)
     if (kept.length > 0) lines.push(`${GROUP_LABELS[key]}：${kept.join('；')}`)
   }
 
-  const past = takeHistory(buckets.past, budget)
+  const past = takeLines(buckets.past.map(shortText), budget)
   if (past.length > 0) lines.push(`以前记下的（可能已过时）：${past.join('；')}`)
 
   if (lines.length === 0) return null
