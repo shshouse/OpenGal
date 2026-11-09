@@ -154,6 +154,7 @@ export async function assembleWithVectors(
   memories: Memory[],
   context: string,
   charCap: number,
+  onUsed?: (memory: Memory) => void,
 ): Promise<string | null> {
   const candidates = memories.filter((memory) => memory.kind === 'fact' && memory.state === 'active')
   const hits = new Map<string, number>()
@@ -171,5 +172,6 @@ export async function assembleWithVectors(
   return assembleBlock(memories, context, {
     charCap,
     relevance: (memory) => hits.get(memory.id) ?? relevanceScore(memory.text, context),
+    onUsed,
   })
 }

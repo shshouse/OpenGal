@@ -6,6 +6,8 @@ export interface RecallOptions {
   now?: number
   /** 相关性由调用方提供（向量或词面），缺省视为全部同等相关。 */
   relevance?: (memory: Memory) => number
+  /** 真正写进上下文的记忆；历史区不算，避免让过期记忆一直续命。 */
+  onUsed?: (memory: Memory) => void
 }
 
 interface Scored {
@@ -98,6 +100,16 @@ function bucketMemories(
 }
 
 // 按顺序往预算里塞，塞不下就停；组之间共用同一个预算
+function takeScored(items: Scored[], budget: Budget): Scored[] {
+  const kept: Scored[] = []
+  for (const item of items) {
+    if (budget.used + item.text.length > budget.cap) break
+    budget.used += item.text.length
+    kept.push(item)
+  }
+  return kept
+}
+
 function takeLines(lines: string[], budget: Budget): string[] {
   const kept: string[] = []
   for (const text of lines) {
@@ -124,8 +136,10 @@ export function assembleBlock(memories: Memory[], query: string | null, options:
   const budget: Budget = { used: 0, cap: options.charCap }
   const lines: string[] = []
   for (const key of ['user', 'character', 'relationship'] as const) {
-    const kept = takeLines(buckets[key].map((item) => item.text), budget)
-    if (kept.length > 0) lines.push(`${GROUP_LABELS[key]}：${kept.join('；')}`)
+    const kept = takeScored(buckets[key], budget)
+    if (kept.length === 0) continue
+    lines.push(`${GROUP_LABELS[key]}：${kept.map((item) => item.text).join('；')}`)
+    for (const item of kept) options.onUsed?.(item.memory)
   }
 
   const past = takeLines(buckets.past.map(shortText), budget)

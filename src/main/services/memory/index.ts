@@ -11,9 +11,9 @@ import {
 } from './memories'
 import { memoryEvidence } from './messages'
 import { searchMessages, visibleMessageText } from './search'
-import { listMemories, clearMemories } from './store'
+import { listMemories, clearMemories, markRecalled } from './store'
 import { relevanceScore } from './lexical'
-import { similarity, normalizeText, retentionOf } from './model'
+import { similarity, normalizeText, retentionOf, type Memory } from './model'
 import { assembleBlock } from './recall'
 import { searchSimilarAsync } from './vector'
 import { assembleWithVectors, buildMemoryBlock, buildMemoryBlockVector, toFactView, toStoryView } from './project'
@@ -70,11 +70,23 @@ export async function getMemoryBlock(
 ): Promise<string | null> {
   await memoryDbReady()
   const memories = listMemories(roleId)
-  if (useVector && context) return assembleWithVectors(memories, context, charCap)
-  return assembleBlock(memories, context ?? null, {
-    charCap,
-    relevance: context ? (memory) => relevanceScore(memory.text, context) : undefined,
-  })
+  if (!context) return assembleBlock(memories, null, { charCap })
+
+  const used: string[] = []
+  const onUsed = (memory: Memory): void => {
+    used.push(memory.id)
+  }
+  const block = useVector
+    ? await assembleWithVectors(memories, context, charCap, onUsed)
+    : assembleBlock(memories, context, {
+        charCap,
+        relevance: (memory) => relevanceScore(memory.text, context),
+        onUsed,
+      })
+
+  // 只有真正进了上下文的才算"被想起"；历史区不计，避免过期记忆一直续命
+  markRecalled([...new Set(used)])
+  return block
 }
 
 function formatMessageTime(ts: number): string {

@@ -275,6 +275,14 @@ export function MemorySettings() {
                     {f.entity === 'user' ? '用户' : f.entity === 'character' ? '角色' : '关系'}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">重要度{f.importance}</span>
+                  {(f.evidence?.reinforce ?? 0) > 0 && (
+                    <span
+                      className="shrink-0 text-xs text-muted-foreground"
+                      title={`最后确认 ${new Date(f.last_confirmed_at).toLocaleString()}`}
+                    >
+                      想起{f.evidence.reinforce}
+                    </span>
+                  )}
                   <div className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-muted">
                     <div
                       className={cn(

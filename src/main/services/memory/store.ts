@@ -59,6 +59,15 @@ export function clearMemories(roleId: string): void {
   clearRoleMemories(roleId)
 }
 
+/** 被写进上下文：只累加印证次数。确认时间代表"用户说过"，不能被读取行为刷新。 */
+export function markRecalled(ids: string[]): void {
+  if (ids.length === 0) return
+  withTx(() => {
+    const placeholders = ids.map(() => '?').join(', ')
+    db!.prepare(`UPDATE memories SET reinforce = reinforce + 1 WHERE id IN (${placeholders})`).run(...ids)
+  })
+}
+
 /** 被重新确认：刷新确认时间，并累加印证次数。 */
 export function reinforceMemory(id: string, at = Date.now()): void {
   withTx(() => {
