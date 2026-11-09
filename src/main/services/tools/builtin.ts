@@ -13,7 +13,7 @@ import {
 } from './schemas'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
 import { readConfig } from '../configStore'
-import { getMemoryBlock, recallVerbatim } from '../memoryStore'
+import { getMemoryBlock, recallVerbatim } from '../memory'
 import { logBus } from '../logBus'
 import { isScreenWatchEnabled, lookAtScreen } from '../screenWatch'
 import { SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'

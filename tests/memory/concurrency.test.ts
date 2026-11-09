@@ -9,7 +9,7 @@ import {
   initMemoryStore,
   loadFacts,
   manualAddFact,
-} from '../../src/main/services/memoryStore'
+} from '../../src/main/services/memory'
 import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
 
 let root = ''

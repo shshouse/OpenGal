@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  authorityOf,
   cardinalityOf,
   resolveCurrent,
-  scoreOf,
+  retentionOf,
   slotOf,
   wantsHistory,
-  type FactLike,
-} from '../../src/main/services/memoryArbitration'
+  type SlotFact,
+} from '../../src/main/services/memory/model'
 
-function fact(over: Partial<FactLike>): FactLike {
+function fact(over: Partial<SlotFact>): SlotFact {
   return {
     id: 'f1',
     text: '',
@@ -48,13 +49,13 @@ describe('memory resolution', () => {
     expect(states[0].current.map((item) => item.id)).not.toContain('a')
   })
 
-  it('否定之后不再成立，但历史保留', () => {
+  it('否定也是成立的陈述：留在当前值，旧的正向值进历史', () => {
     const [state] = resolveCurrent([
       fact({ id: 'a', text: '用户喜欢咖啡', attribute: '喜欢的饮料', object: '咖啡', valid_from: '2026-01-01T00:00:00.000Z' }),
       fact({ id: 'b', text: '用户不喜欢咖啡了', attribute: '喜欢的饮料', object: '咖啡', polarity: false, valid_from: '2026-02-01T00:00:00.000Z' }),
     ])
-    expect(state.current).toHaveLength(0)
-    expect(state.history.map((item) => item.id).sort()).toEqual(['a', 'b'])
+    expect(state.current.map((item) => item.id)).toEqual(['b'])
+    expect(state.history.map((item) => item.id)).toEqual(['a'])
   })
 
   it('推断不能覆盖同一槽位里的用户原话', () => {
@@ -99,9 +100,10 @@ describe('memory resolution', () => {
     expect(wantsHistory('今天吃什么')).toBe(false)
   })
 
-  it('推断来源与未确认证据的分数更低', () => {
-    const base = fact({ text: '用户喜欢咖啡' })
-    expect(scoreOf({ ...base, source: 'llm_inferred' })).toBeLessThan(scoreOf(base))
-    expect(scoreOf({ ...base, evidence: { reinforce: 5, negate: 0 } })).toBeGreaterThan(scoreOf(base))
+  it('来源权威与新鲜度分开计算', () => {
+    expect(authorityOf('user_statement')).toBeGreaterThan(authorityOf('llm_inferred'))
+    const fresh = retentionOf({ last_confirmed_at: new Date().toISOString(), importance: 8 })
+    const stale = retentionOf({ last_confirmed_at: new Date(Date.now() - 200 * 86_400_000).toISOString(), importance: 3 })
+    expect(fresh).toBeGreaterThan(stale)
   })
 })

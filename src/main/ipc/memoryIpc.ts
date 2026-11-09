@@ -15,7 +15,7 @@ import {
   advanceCursor,
   rebuildMemory,
   pruneOverflow,
-} from '../services/memoryStore'
+} from '../services/memory'
 import {
   memoryDbReady,
   listUnarchivedMessages,
@@ -175,10 +175,9 @@ export function registerMemoryIpc(): void {
   handleValidated(IpcChannels.memory.deleteFact, [roleIdSchema, z.string().min(1)], (roleId, factId) =>
     deleteFact(roleId, factId),
   )
+  // 只回记忆块：每轮都调用，不该把整张记忆表序列化过去
   ipcMain.handle(IpcChannels.memory.getRelevant, (_, roleId: string, context: string) =>
     wrap(async () => ({
-      facts: await loadFacts(roleId),
-      stories: await loadStories(roleId),
       block: await getMemoryBlock(roleId, context, true)
     }))
   )

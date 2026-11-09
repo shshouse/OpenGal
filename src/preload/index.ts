@@ -109,7 +109,7 @@ const api = {
     changes: (roleId: string, memoryId: string, limit?: number) =>
       invoke<MemoryChange[]>(IpcChannels.memory.changes, roleId, memoryId, limit),
     getRelevant: (roleId: string, context: string) =>
-      invoke<{ facts: MemoryFact[]; stories: MemoryStory[]; block: string | null }>(
+      invoke<{ block: string | null }>(
         IpcChannels.memory.getRelevant,
         roleId,
         context

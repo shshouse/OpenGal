@@ -10,7 +10,7 @@ import {
   loadStories,
   pendingFromArchive,
   rebuildMemory,
-} from '../../src/main/services/memoryStore'
+} from '../../src/main/services/memory'
 import {
   addSummary,
   appendMessage,

@@ -7,7 +7,7 @@ import {
   buildMemoryBlock,
   initMemoryStore,
   loadFacts,
-} from '../../src/main/services/memoryStore'
+} from '../../src/main/services/memory'
 import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
 
 const root = path.join(os.tmpdir(), `og-memory-history-${Date.now()}`)
@@ -89,8 +89,10 @@ describe('memory history and correction', () => {
       stories: [],
     })
     const facts = await loadFacts('h4')
-    expect(buildMemoryBlock(facts, [], 900, '我喜欢喝什么') ?? '').not.toContain('喜欢咖啡')
-    expect(buildMemoryBlock(facts, [], 900, '我以前喜欢喝什么') ?? '').toContain('喜欢咖啡')
+    const current = buildMemoryBlock(facts, [], 900, '我喜欢喝什么') ?? ''
+    expect(current).toContain('用户不喜欢咖啡')
+    expect(current).not.toContain('用户喜欢咖啡')
+    expect(buildMemoryBlock(facts, [], 900, '我以前喜欢喝什么') ?? '').toContain('用户喜欢咖啡')
   })
 
   it('用户钉住的记忆不会被后来的说法覆盖', async () => {

@@ -108,6 +108,21 @@ stories 是故事：kind 取值 event（共同经历）/ promise（约定）/ mi
 {"facts":[{"text":"不超过40字","entity":"user","subject":"用户","attribute":"生日","object":"3月15日","polarity":true,"attributed_to":"user","importance":10,"confidence":1.0,"reason":"简短理由","valid_until":null,"frozen":false}],"stories":[{"kind":"promise","text":"不超过40字","importance":7,"reason":"简短理由","due_at":null}]}
 没有可提取的就输出 {"facts":[],"stories":[]}`
 
+async function slotHint(roleId: string): Promise<string> {
+  try {
+    const res = await window.opengal.memory.get(roleId)
+    const slots = [...new Set((res.data?.facts ?? [])
+      .filter((fact) => fact.attribute && fact.status === 'active')
+      .map((fact) => `${fact.subject ?? ''}·${fact.attribute}`))]
+      .filter(Boolean)
+      .slice(0, 60)
+    if (slots.length === 0) return ''
+    return `\n\n这个角色已有的槽位（同一件事必须沿用这里的写法，不要换同义词）：\n${slots.join('、')}`
+  } catch {
+    return ''
+  }
+}
+
 async function runExtract(force = false): Promise<void> {
   // 看门狗：闩锁带 TTL，防止上游 Promise 永不 settle 导致永久锁死
   if (extractBusySince && Date.now() - extractBusySince < EXTRACT_LATCH_TTL_MS) return
@@ -135,10 +150,11 @@ async function runExtract(force = false): Promise<void> {
   try {
     for (const [roleId, entries] of groups) {
       if (!entries.some((e) => e.role === 'user')) continue
+      const system = EXTRACTION_SYSTEM_PROMPT + await slotHint(roleId)
       const res = await window.opengal.llm.chat({
         slot: 'sub',
         messages: [
-          { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
+          { role: 'system', content: system },
           { role: 'user', content: buildTranscript(entries) }
         ]
       })

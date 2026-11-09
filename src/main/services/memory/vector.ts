@@ -1,11 +1,16 @@
-import type { MemoryFact } from '@shared/types'
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers'
 import path from 'node:path'
 import fs from 'node:fs'
 import { getErrorMessage } from '@shared/errors'
 
-export interface VectorSearchResult {
-  fact: MemoryFact
+export interface VectorItem {
+  id: string
+  text: string
+  embedding: number[] | null
+}
+
+export interface VectorHit {
+  id: string
   similarity: number
 }
 
@@ -25,8 +30,8 @@ function localModelPath(): string | null {
   } catch {
     /* 非 Electron 环境 */
   }
-  for (const p of candidates) {
-    if (fs.existsSync(path.join(p, 'onnx', 'model_quantized.onnx'))) return p
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'onnx', 'model_quantized.onnx'))) return candidate
   }
   return null
 }
@@ -70,40 +75,37 @@ function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0
   let magA = 0
   let magB = 0
-  for (let i = 0; i < a.length; i++) {
-    const ai = a[i] ?? 0
-    const bi = b[i] ?? 0
-    dot += ai * bi
-    magA += ai * ai
-    magB += bi * bi
+  for (let index = 0; index < a.length; index++) {
+    const left = a[index] ?? 0
+    const right = b[index] ?? 0
+    dot += left * right
+    magA += left * left
+    magB += right * right
   }
   const denom = Math.sqrt(magA) * Math.sqrt(magB)
   return denom > 0 ? dot / denom : 0
 }
 
 export async function computeEmbeddingAsync(text: string): Promise<number[]> {
-  const ext = await getExtractor()
-  const output = await ext(text, { pooling: 'mean', normalize: true })
-  const vec = Array.from(output.data as Float32Array)
-  if (vec.length === VECTOR_DIM) return vec
-  return vec.slice(0, VECTOR_DIM)
+  const extractorInstance = await getExtractor()
+  const output = await extractorInstance(text, { pooling: 'mean', normalize: true })
+  const vector = Array.from(output.data as Float32Array)
+  if (vector.length === VECTOR_DIM) return vector
+  return vector.slice(0, VECTOR_DIM)
 }
 
 export async function searchSimilarAsync(
-  facts: MemoryFact[],
+  items: VectorItem[],
   query: string,
   topK = 5,
   minScore = 0.3,
-): Promise<VectorSearchResult[]> {
-  const queryVec = await computeEmbeddingAsync(query)
-  const scored: VectorSearchResult[] = []
-  for (const f of facts) {
-    if (f.status !== 'active') continue
-    const factVec = f.embedding ?? (await computeEmbeddingAsync(f.text))
-    const sim = cosineSimilarity(queryVec, factVec)
-    if (sim >= minScore) {
-      scored.push({ fact: f, similarity: sim })
-    }
+): Promise<VectorHit[]> {
+  const queryVector = await computeEmbeddingAsync(query)
+  const scored: VectorHit[] = []
+  for (const item of items) {
+    const vector = item.embedding ?? (await computeEmbeddingAsync(item.text))
+    const similarity = cosineSimilarity(queryVector, vector)
+    if (similarity >= minScore) scored.push({ id: item.id, similarity })
   }
   return scored.sort((a, b) => b.similarity - a.similarity).slice(0, topK)
 }

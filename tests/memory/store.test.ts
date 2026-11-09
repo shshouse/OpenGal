@@ -19,7 +19,7 @@ import {
   retentionScore,
   textSimilarity,
   unfreezeFact,
-} from '../../src/main/services/memoryStore'
+} from '../../src/main/services/memory'
 import {
   addSummary,
   appendMessage,
@@ -169,10 +169,12 @@ describe('memory persistence pipeline', () => {
       )
       assert.ok(v2Block?.includes('樱花'))
       const soonTs = new Date(Date.now() + 3 * 86400000).toISOString()
+      const expiredTs = new Date(Date.now() - 3 * 86400000).toISOString()
       const badDueBlock = buildMemoryBlock(
         [
           { id: 'fa', text: '日期损坏的普通事实', entity: 'user', importance: 2, confidence: 0.3, source: 'llm_inferred', created_at: '', last_confirmed_at: '', status: 'active', evidence: { reinforce: 0, negate: 0 }, valid_until: 'not-a-date', frozen_at: null, embedding: null },
           { id: 'fb', text: '临近到期的普通事实', entity: 'user', importance: 2, confidence: 0.3, source: 'llm_inferred', created_at: '', last_confirmed_at: '', status: 'active', evidence: { reinforce: 0, negate: 0 }, valid_until: soonTs, frozen_at: null, embedding: null },
+          { id: 'fc', text: '已经过期的事实', entity: 'user', importance: 9, confidence: 1, source: 'user_statement', created_at: '', last_confirmed_at: '', status: 'active', evidence: { reinforce: 0, negate: 0 }, valid_until: expiredTs, frozen_at: null, embedding: null },
         ],
         [
           { id: 'sb', kind: 'promise', text: '日期损坏的约定', occurred_at: '', due_at: 'garbage', fulfilled: false, importance: 9, status: 'active', created_at: '' },
@@ -181,10 +183,8 @@ describe('memory persistence pipeline', () => {
         '今天吃什么',
       )
       assert.ok(badDueBlock?.includes('日期损坏'))
-      assert.ok(
-        badDueBlock !== null &&
-          badDueBlock.indexOf('临近到期') < badDueBlock.indexOf('日期损坏的普通事实'),
-      )
+      assert.ok(badDueBlock?.includes('临近到期'))
+      assert.ok(!badDueBlock?.includes('已经过期'))
 
       const synced = listUnarchivedMessages('c1')
       assert.strictEqual(synced.length, 2)
