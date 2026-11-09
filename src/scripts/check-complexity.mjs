@@ -96,6 +96,27 @@ function collect() {
 
 const { counts, offenders } = collect()
 
+function groupByFile() {
+  const byFile = new Map()
+  for (const offender of offenders) {
+    const list = byFile.get(offender.file) ?? []
+    list.push(offender)
+    byFile.set(offender.file, list)
+  }
+  return [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)
+}
+
+if (process.argv.includes('--list')) {
+  for (const [file, list] of groupByFile()) {
+    console.log(`${list.length}  ${file}`)
+    for (const offender of list) {
+      console.log(`    L${offender.line} ${offender.name}  CC=${offender.cc} 行数=${offender.lines} 参数=${offender.params}`)
+    }
+  }
+  console.log(`\n共 ${offenders.length} 个超标函数，${counts.size} 个文件`)
+  process.exit(0)
+}
+
 if (process.argv.includes('--update')) {
   const payload = {
     generatedAt: new Date().toISOString().slice(0, 10),
@@ -118,17 +139,41 @@ const baseFiles = baseline.files ?? {}
 const baseTotal = baseline.total ?? 0
 
 const regressions = []
-for (const [file, count] of counts) {
-  const allowed = baseFiles[file] ?? 0
-  if (count > allowed) regressions.push({ file, now: count, allowed })
-}
-
 const improved = []
 let currentTotal = 0
-for (const [file, count] of counts) {
-  currentTotal += count
+// 基线里有、当前已经没有的文件也要算进来，否则“整文件清零”不会被识别成改进
+for (const file of new Set([...counts.keys(), ...Object.keys(baseFiles)])) {
+  const now = counts.get(file) ?? 0
   const allowed = baseFiles[file] ?? 0
-  if (count < allowed) improved.push({ file, now: count, allowed })
+  currentTotal += now
+  if (now > allowed) regressions.push({ file, now, allowed })
+  if (now < allowed) improved.push({ file, now, allowed })
+}
+
+// 债务数字同时写进 Actions 摘要，避免绿灯把债务藏起来
+function writeStepSummary(status, totals) {
+  const target = process.env.GITHUB_STEP_SUMMARY
+  if (!target) return
+  const top = groupByFile().slice(0, 5)
+  const rows = [
+    `### 复杂度门禁：${status}`,
+    '',
+    '| 指标 | 值 |',
+    '| --- | --- |',
+    `| 当前超标函数 | ${totals.currentTotal} |`,
+    `| 基线 | ${totals.baseTotal} |`,
+    `| 回归文件 | ${regressions.length} |`,
+    `| 可收紧文件 | ${improved.length} |`,
+  ]
+  if (top.length > 0) {
+    rows.push('', '债务最多的文件：', '')
+    for (const [file, list] of top) rows.push(`- \`${file}\`：${list.length}`)
+  }
+  if (regressions.length > 0) {
+    rows.push('', '回归：', '')
+    for (const r of regressions) rows.push(`- \`${r.file}\`：${r.allowed} → ${r.now}`)
+  }
+  fs.appendFileSync(target, rows.join('\n') + '\n')
 }
 
 if (regressions.length > 0) {
@@ -141,10 +186,14 @@ if (regressions.length > 0) {
   }
   console.error(`\n总计：基线 ${baseTotal} → 当前 ${currentTotal}`)
   console.error('拆分函数后重跑；确需调整基线请运行 --update 并在评审中说明原因。')
+  writeStepSummary('未通过', { currentTotal, baseTotal })
   process.exit(1)
 }
 
-console.log(`复杂度检查通过：${currentTotal} 个超标函数（基线 ${baseTotal}）`)
-if (improved.length > 0 || currentTotal < baseTotal) {
-  console.log('有文件低于基线，可运行 node src/scripts/check-complexity.mjs --update 收紧基线')
+console.log(`复杂度检查通过：${currentTotal} 个超标函数（基线 ${baseTotal}，未新增）`)
+if (improved.length > 0) {
+  const files = improved.map((item) => `${item.file}（${item.allowed} → ${item.now}）`).join('、')
+  console.log(`已有文件低于基线：${files}`)
+  console.log('运行 node src/scripts/check-complexity.mjs --update 收紧基线，把收益锁定')
 }
+writeStepSummary('通过', { currentTotal, baseTotal })
