@@ -47,16 +47,18 @@ export function recordMemoryChange(input: {
   }
 }
 
-export function recordMemoryFieldChange(
-  roleId: string,
-  memoryId: string,
-  field: MemoryChangeField,
-  oldValue: string | null,
-  newValue: string | null,
-  actor: MemoryChangeActor = 'system',
-): void {
-  if (oldValue === newValue) return
-  recordMemoryChange({ memoryId, roleId, action: 'update', field, oldValue, newValue, actor })
+export interface MemoryFieldChange {
+  roleId: string
+  memoryId: string
+  field: MemoryChangeField
+  oldValue: string | null
+  newValue: string | null
+  actor?: MemoryChangeActor
+}
+
+export function recordMemoryFieldChange(change: MemoryFieldChange): void {
+  if (change.oldValue === change.newValue) return
+  recordMemoryChange({ ...change, action: 'update', actor: change.actor ?? 'system' })
 }
 
 // 批量重写只留一条汇总，逐条记录会让一次重建刷出上千行

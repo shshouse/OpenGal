@@ -27,6 +27,19 @@ export interface SampledFrame {
   score: number
 }
 
+function hueOf(r: number, g: number, b: number): number {
+  const max = Math.max(r, g, b)
+  const delta = max - Math.min(r, g, b)
+  if (delta === 0) return 0
+  const raw = max === r
+    ? ((g - b) / delta) % 6
+    : max === g
+      ? (b - r) / delta + 2
+      : (r - g) / delta + 4
+  const hue = raw * 60
+  return hue < 0 ? hue + 360 : hue
+}
+
 /** RGBA 像素转 HSV，各通道归一到 0–255，只为算差，不追求色彩准确。 */
 export function toHsv(rgba: Uint8ClampedArray | Uint8Array): Uint8Array {
   const pixels = Math.floor(rgba.length / 4)
@@ -35,19 +48,10 @@ export function toHsv(rgba: Uint8ClampedArray | Uint8Array): Uint8Array {
     const r = (rgba[i] ?? 0) / 255
     const g = (rgba[i + 1] ?? 0) / 255
     const b = (rgba[i + 2] ?? 0) / 255
-    const max = r > g ? (r > b ? r : b) : g > b ? g : b
-    const min = r < g ? (r < b ? r : b) : g < b ? g : b
-    const d = max - min
-    let h = 0
-    if (d !== 0) {
-      if (max === r) h = ((g - b) / d) % 6
-      else if (max === g) h = (b - r) / d + 2
-      else h = (r - g) / d + 4
-      h *= 60
-      if (h < 0) h += 360
-    }
-    out[j] = (h / 360) * 255
-    out[j + 1] = max === 0 ? 0 : (d / max) * 255
+    const max = Math.max(r, g, b)
+    const delta = max - Math.min(r, g, b)
+    out[j] = (hueOf(r, g, b) / 360) * 255
+    out[j + 1] = max === 0 ? 0 : (delta / max) * 255
     out[j + 2] = max * 255
   }
   return out
@@ -81,6 +85,18 @@ export function hsvDiffScore(prev: Uint8Array, cur: Uint8Array): number {
  * 最后一帧必留（那是用户此刻的屏幕）。其余按分数从高到低取，彼此至少隔 minGapMs，
  * 低于 CHANGE_FLOOR 的一律不要——画面没动的时候，一张图就够了。
  */
+function isSpacedApart(
+  frames: readonly SampledFrame[],
+  kept: Set<number>,
+  at: number,
+  minGapMs: number,
+): boolean {
+  for (const index of kept) {
+    if (Math.abs(at - (frames[index]?.at ?? 0)) < minGapMs) return false
+  }
+  return true
+}
+
 export function pickKeyframes(
   frames: readonly SampledFrame[],
   max = 4,
@@ -96,16 +112,9 @@ export function pickKeyframes(
 
   for (const item of ranked) {
     if (kept.size >= max) break
-    if ((frames[item.index]?.score ?? 0) < CHANGE_FLOOR) break
+    if (item.score < CHANGE_FLOOR) break
     const at = frames[item.index]?.at ?? 0
-    let spaced = true
-    for (const index of kept) {
-      if (Math.abs(at - (frames[index]?.at ?? 0)) < minGapMs) {
-        spaced = false
-        break
-      }
-    }
-    if (spaced) kept.add(item.index)
+    if (isSpacedApart(frames, kept, at, minGapMs)) kept.add(item.index)
   }
   return [...kept].sort((a, b) => a - b)
 }

@@ -5,7 +5,7 @@
     "lines": 60,
     "params": 5
   },
-  "total": 87,
+  "total": 83,
   "files": {
     "src/renderer/src/components/live2d/Live2DStage.tsx": 5,
     "src/renderer/src/components/settings/ASRSettings.tsx": 3,
@@ -34,7 +34,6 @@
     "src/main/services/asr/streamingEngine.ts": 1,
     "src/main/services/configStore.ts": 1,
     "src/main/services/llmClient.ts": 1,
-    "src/main/services/memory/changelog.ts": 1,
     "src/main/services/memory/schema.ts": 1,
     "src/main/services/plugins/manifest.ts": 1,
     "src/main/services/tts/gptSovitsAdapter.ts": 1,
@@ -63,10 +62,7 @@
     "src/renderer/src/features/pipeline/llmCompression.ts": 1,
     "src/renderer/src/features/pipeline/llmContext.ts": 1,
     "src/renderer/src/features/pipeline/useChatPipeline.ts": 1,
-    "src/renderer/src/features/role/roleStore.ts": 1,
     "src/renderer/src/features/startup/startupStore.ts": 1,
-    "src/shared/initiativeNudge.ts": 1,
-    "src/shared/screen.ts": 1,
-    "src/shared/subtitles.ts": 1
+    "src/shared/initiativeNudge.ts": 1
   }
 }

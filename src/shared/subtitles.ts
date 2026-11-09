@@ -31,22 +31,26 @@ export function speechLanguageLabel(value: string): string | null {
  * 台词的主要书写系统。只用于判断「这段文字喂给某个语种的音色模型会不会出问题」，
  * 不做严格语种识别：日文有假名就算 ja，韩文有谚文就算 ko，其余汉字占多算 zh。
  */
+type Script = 'han' | 'kana' | 'hangul' | 'latin'
+
+function scriptOf(code: number): Script | null {
+  if (code >= 0x3040 && code <= 0x30ff) return 'kana'
+  if (code >= 0xac00 && code <= 0xd7af) return 'hangul'
+  if (code >= 0x4e00 && code <= 0x9fff) return 'han'
+  if ((code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)) return 'latin'
+  return null
+}
+
 export function scriptLanguage(text: string): 'zh' | 'en' | 'ja' | 'ko' | 'none' {
-  let han = 0
-  let kana = 0
-  let hangul = 0
-  let latin = 0
+  const counts: Record<Script, number> = { han: 0, kana: 0, hangul: 0, latin: 0 }
   for (const ch of text) {
-    const code = ch.codePointAt(0) ?? 0
-    if (code >= 0x3040 && code <= 0x30ff) kana += 1
-    else if (code >= 0xac00 && code <= 0xd7af) hangul += 1
-    else if (code >= 0x4e00 && code <= 0x9fff) han += 1
-    else if ((code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)) latin += 1
+    const script = scriptOf(ch.codePointAt(0) ?? 0)
+    if (script) counts[script] += 1
   }
-  if (kana > 0) return 'ja'
-  if (hangul > 0) return 'ko'
-  if (han === 0 && latin === 0) return 'none'
-  return han > latin ? 'zh' : 'en'
+  if (counts.kana > 0) return 'ja'
+  if (counts.hangul > 0) return 'ko'
+  if (counts.han === 0 && counts.latin === 0) return 'none'
+  return counts.han > counts.latin ? 'zh' : 'en'
 }
 
 /**

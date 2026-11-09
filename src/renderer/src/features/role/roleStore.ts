@@ -15,6 +15,24 @@ interface RoleState {
   getActive: () => RoleCardEntry | null
 }
 
+function interruptBusyTurn(): void {
+  const chat = useChatStore.getState()
+  if (!chat.isSending && chat.streamingSegments.length === 0) return
+  pipelineBus.emit('pipeline:abort', undefined)
+  try {
+    getLive2DModel()?.stopSpeaking()
+  } catch {
+    // 播放器可能已销毁，切角色不该被它挡住
+  }
+}
+
+function applyActiveRole(card: RoleCardEntry, set: (partial: Partial<RoleState>) => void): void {
+  useChatStore.getState().switchSession(card.id)
+  set({ activeId: card.id, error: null })
+  wireLLMWorkerRoleCard(card)
+  void useChatStore.getState().ensureHydrated(card.id)
+}
+
 export const useRoleStore = create<RoleState>((set, get) => ({
   list: [],
   activeId: null,
@@ -50,15 +68,8 @@ export const useRoleStore = create<RoleState>((set, get) => ({
       return
     }
     if (id === get().activeId) return
-    const chat = useChatStore.getState()
-    if (chat.isSending || chat.streamingSegments.length > 0) {
-      pipelineBus.emit('pipeline:abort', undefined)
-      try { getLive2DModel()?.stopSpeaking() } catch { /* ignore */ }
-    }
-    chat.switchSession(id)
-    set({ activeId: id, error: null })
-    wireLLMWorkerRoleCard(card)
-    void useChatStore.getState().ensureHydrated(id)
+    interruptBusyTurn()
+    applyActiveRole(card, set)
     await window.opengal.config.set({ activeRoleId: id })
     void window.opengal.tts.reset()
     void window.opengal.boot.recheckTts()

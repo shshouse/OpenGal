@@ -37,7 +37,7 @@ export function setMemoryStateRow(id: string, state: string): number {
     const before = loadForChange(id)
     const changed = Number(db!.prepare('UPDATE memories SET state = ? WHERE id = ?').run(state, id).changes)
     if (before && changed > 0) {
-      recordMemoryFieldChange(before.role_id, id, 'state', before.state, state)
+      recordMemoryFieldChange({ roleId: before.role_id, memoryId: id, field: 'state', oldValue: before.state, newValue: state })
     }
     return changed
   })
@@ -48,7 +48,7 @@ export function setMemoryPinnedRow(id: string, pinned: boolean): number {
     const before = loadForChange(id)
     const changed = Number(db!.prepare('UPDATE memories SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, id).changes)
     if (before && changed > 0) {
-      recordMemoryFieldChange(before.role_id, id, 'pinned', String(before.pinned), pinned ? '1' : '0')
+      recordMemoryFieldChange({ roleId: before.role_id, memoryId: id, field: 'pinned', oldValue: String(before.pinned), newValue: pinned ? '1' : '0' })
     }
     return changed
   })
@@ -65,13 +65,13 @@ export function confirmMemoryRow(id: string, ts: number): number {
     const before = loadForChange(id)
     const changed = Number(db!.prepare('UPDATE memories SET confirmed_at = ? WHERE id = ?').run(ts, id).changes)
     if (before && changed > 0) {
-      recordMemoryFieldChange(
-        before.role_id,
-        id,
-        'confirmed_at',
-        before.confirmed_at === null || before.confirmed_at === undefined ? null : String(before.confirmed_at),
-        String(ts),
-      )
+      recordMemoryFieldChange({
+        roleId: before.role_id,
+        memoryId: id,
+        field: 'confirmed_at',
+        oldValue: before.confirmed_at === null || before.confirmed_at === undefined ? null : String(before.confirmed_at),
+        newValue: String(ts),
+      })
     }
     return changed
   })
@@ -156,8 +156,8 @@ export function setFactFrozenRow(id: string, frozenAt: string | null): number {
         .run(frozenAt, frozenAt ? 1 : 0, id).changes
     )
     if (before && changed > 0) {
-      recordMemoryFieldChange(before.role_id, id, 'frozen_at', before.frozen_at ?? null, frozenAt, 'user')
-      recordMemoryFieldChange(before.role_id, id, 'pinned', String(before.pinned), frozenAt ? '1' : '0', 'user')
+      recordMemoryFieldChange({ roleId: before.role_id, memoryId: id, field: 'frozen_at', oldValue: before.frozen_at ?? null, newValue: frozenAt, actor: 'user' })
+      recordMemoryFieldChange({ roleId: before.role_id, memoryId: id, field: 'pinned', oldValue: String(before.pinned), newValue: frozenAt ? '1' : '0', actor: 'user' })
     }
     return changed
   })
