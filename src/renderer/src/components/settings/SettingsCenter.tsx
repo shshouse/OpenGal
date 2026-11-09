@@ -30,6 +30,58 @@ const SECTIONS = [
   { value: 'environment', label: '环境', icon: Gamepad2, description: '游戏模式、联网搜索与文件搜索目录' }
 ] as const
 
+function SettingsNav(): React.JSX.Element {
+  return (
+    <TabsList className="h-full w-14 shrink-0 flex-col items-stretch justify-start gap-0.5 rounded-none border-r bg-transparent p-2 sm:w-44">
+      {SECTIONS.map((s) => (
+        <TabsTrigger
+          key={s.value}
+          value={s.value}
+          title={s.label}
+          className="w-full justify-start gap-2.5 px-2.5 py-2 text-muted-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none"
+        >
+          <s.icon className="size-4 shrink-0" />
+          <span className="hidden sm:inline">{s.label}</span>
+        </TabsTrigger>
+      ))}
+    </TabsList>
+  )
+}
+
+function SettingsPanels({ config, model, onSave }: SettingsCenterProps): React.JSX.Element {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+        <TabsContent value="role" className="mt-0">
+          <RoleSettings />
+        </TabsContent>
+        <TabsContent value="display" className="mt-0">
+          <RoleDisplaySettings config={config} model={model} onSave={onSave} />
+          <SubtitleSettings config={config} onSave={onSave} />
+        </TabsContent>
+        <TabsContent value="llm" className="mt-0">
+          <SettingsDialog config={config} onSave={onSave} />
+        </TabsContent>
+        <TabsContent value="tts" className="mt-0">
+          <TTSSettings config={config} onSave={onSave} />
+        </TabsContent>
+        <TabsContent value="asr" className="mt-0">
+          <ASRSettings config={config} onSave={onSave} />
+        </TabsContent>
+        <TabsContent value="plugins" className="mt-0">
+          <PluginSettings />
+        </TabsContent>
+        <TabsContent value="memory" className="mt-0">
+          <MemorySettings />
+        </TabsContent>
+        <TabsContent value="environment" className="mt-0">
+          <EnvironmentSettings config={config} onSave={onSave} />
+        </TabsContent>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
   const uiLoaded = useUIStateStore((s) => s.loaded)
   const savedTab = useUIStateStore((s) => s.state.settingsTab)
@@ -49,49 +101,8 @@ export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
       orientation="vertical"
       className="flex h-full min-h-0 w-full"
     >
-      <TabsList className="h-full w-14 shrink-0 flex-col items-stretch justify-start gap-0.5 rounded-none border-r bg-transparent p-2 sm:w-44">
-        {SECTIONS.map((s) => (
-          <TabsTrigger
-            key={s.value}
-            value={s.value}
-            title={s.label}
-            className="w-full justify-start gap-2.5 px-2.5 py-2 text-muted-foreground data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-none"
-          >
-            <s.icon className="size-4 shrink-0" />
-            <span className="hidden sm:inline">{s.label}</span>
-          </TabsTrigger>
-        ))}
-      </TabsList>
-
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
-          <TabsContent value="role" className="mt-0">
-            <RoleSettings />
-          </TabsContent>
-          <TabsContent value="display" className="mt-0">
-            <RoleDisplaySettings config={config} model={model} onSave={onSave} />
-            <SubtitleSettings config={config} onSave={onSave} />
-          </TabsContent>
-          <TabsContent value="llm" className="mt-0">
-            <SettingsDialog config={config} onSave={onSave} />
-          </TabsContent>
-          <TabsContent value="tts" className="mt-0">
-            <TTSSettings config={config} onSave={onSave} />
-          </TabsContent>
-          <TabsContent value="asr" className="mt-0">
-            <ASRSettings config={config} onSave={onSave} />
-          </TabsContent>
-          <TabsContent value="plugins" className="mt-0">
-            <PluginSettings />
-          </TabsContent>
-          <TabsContent value="memory" className="mt-0">
-            <MemorySettings />
-          </TabsContent>
-          <TabsContent value="environment" className="mt-0">
-            <EnvironmentSettings config={config} onSave={onSave} />
-          </TabsContent>
-        </div>
-      </div>
+      <SettingsNav />
+      <SettingsPanels config={config} model={model} onSave={onSave} />
     </Tabs>
   )
 }

@@ -287,7 +287,7 @@ describe('memory persistence pipeline', () => {
       await clearMemory(c5)
       await manualAddFact(c5, '用户喜欢草莓蛋糕')
       await manualAddFact(c5, '用户讨厌香菜')
-      const vectorBlock = await buildMemoryBlockVector(c5, await loadFacts(c5), await loadStories(c5), '草莓蛋糕', 900)
+      const vectorBlock = await buildMemoryBlockVector(await loadFacts(c5), await loadStories(c5), '草莓蛋糕', 900)
       assert.ok(vectorBlock?.includes('草莓蛋糕'))
     } finally {
       closeMemoryDb()

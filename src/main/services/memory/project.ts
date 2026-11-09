@@ -138,21 +138,19 @@ export function buildMemoryBlock(
 
 /** 旧签名：向量路径与关键词路径共用同一个装配函数，只是相关性来源不同。 */
 export async function buildMemoryBlockVector(
-  roleId: string,
   facts: MemoryFact[],
   stories: MemoryStory[],
   context: string,
   charCap: number,
 ): Promise<string | null> {
   const memories = [
-    ...facts.map((fact) => factViewToMemory(roleId, fact)),
-    ...stories.map((story) => storyViewToMemory(roleId, story)),
+    ...facts.map((fact) => factViewToMemory('', fact)),
+    ...stories.map((story) => storyViewToMemory('', story)),
   ]
-  return assembleWithVectors(roleId, memories, context, charCap)
+  return assembleWithVectors(memories, context, charCap)
 }
 
 export async function assembleWithVectors(
-  roleId: string,
   memories: Memory[],
   context: string,
   charCap: number,

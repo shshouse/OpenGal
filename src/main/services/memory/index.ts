@@ -70,7 +70,7 @@ export async function getMemoryBlock(
 ): Promise<string | null> {
   await memoryDbReady()
   const memories = listMemories(roleId)
-  if (useVector && context) return assembleWithVectors(roleId, memories, context, charCap)
+  if (useVector && context) return assembleWithVectors(memories, context, charCap)
   return assembleBlock(memories, context ?? null, {
     charCap,
     relevance: context ? (memory) => relevanceScore(memory.text, context) : undefined,

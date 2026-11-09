@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { MemoryApplyPayload, MemoryCandidateFact } from '@shared/types'
+import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } from '@shared/types'
 import { memoryDbReady } from './core'
 import {
   isPositive,
@@ -7,6 +7,7 @@ import {
   slotOf,
   type Memory,
   type MemoryEntity,
+  type MemoryEvidence,
   type MemorySource,
 } from './model'
 import { deleteMemory, insertMemory, listMemories, reinforceMemory, setMemoryFrozen, setMemoryState } from './store'
@@ -70,12 +71,76 @@ export interface ApplyResult {
   insertedStories: number
 }
 
+interface ApplyContext {
+  roleId: string
+  existing: Memory[]
+  at: number
+  evidence?: MemoryEvidence
+  result: ApplyResult
+}
+
+function applyFactCandidate(context: ApplyContext, candidate: MemoryCandidateFact): void {
+  const { roleId, existing, at, evidence, result } = context
+  const entry = toMemory(roleId, candidate, at)
+  if (evidence) entry.evidence = { ...entry.evidence, ...evidence }
+
+  // 只处理“同一件事又说了一遍”：同槽位、同极性、几乎同一句话。其余一律追加，旧值留给读时解析
+  const repeated = existing.find((memory) =>
+    memory.kind === 'fact'
+    && memory.state === 'active'
+    && slotOf(memory) === slotOf(entry)
+    && isPositive({ polarity: !memory.negated }) === isPositive({ polarity: !entry.negated })
+    && similarity(memory.text, entry.text) >= 0.9,
+  )
+  if (repeated) {
+    reinforceMemory(repeated.id, at)
+    result.refreshedFacts++
+    return
+  }
+  insertMemory(roleId, entry, 'llm')
+  existing.push(entry)
+  result.insertedFacts++
+}
+
+function applyEpisodeCandidate(
+  roleId: string,
+  candidate: MemoryCandidateStory,
+  at: number,
+  evidence: MemoryEvidence | undefined,
+): void {
+  insertMemory(roleId, {
+    id: newId('s'),
+    roleId,
+    kind: 'episode',
+    episodeKind: candidate.kind,
+    text: candidate.text.trim(),
+    entity: 'relationship',
+    subject: null,
+    attribute: null,
+    value: null,
+    negated: false,
+    importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
+    source: 'llm_inferred',
+    state: 'active',
+    happenedAt: at,
+    dueAt: candidate.due_at ?? null,
+    validFrom: new Date(at).toISOString(),
+    invalidAt: null,
+    confirmedAt: at,
+    evidence: evidence ? { ...evidence } : { reinforce: 0, negate: 0 },
+    pinned: false,
+    frozen: false,
+    embedding: null,
+    createdAt: at,
+  }, 'llm')
+}
+
 export async function applyCandidates(roleId: string, payload: MemoryApplyPayload): Promise<ApplyResult> {
   await memoryDbReady()
   const existing = listMemories(roleId)
   const result: ApplyResult = { insertedFacts: 0, refreshedFacts: 0, insertedStories: 0 }
   const at = nowMs()
-  const evidence = payload.evidence
+  const evidence: MemoryEvidence | undefined = payload.evidence
     ? {
         fromTs: payload.evidence.fromTs,
         toTs: payload.evidence.toTs,
@@ -85,56 +150,13 @@ export async function applyCandidates(roleId: string, payload: MemoryApplyPayloa
       }
     : undefined
 
+  const context: ApplyContext = { roleId, existing, at, evidence, result }
   for (const candidate of (payload.facts ?? []).filter((item) => item.text?.trim())) {
-    const entry = toMemory(roleId, candidate, at)
-    if (evidence) entry.evidence = { ...entry.evidence, ...evidence }
-
-    // 只处理“同一件事又说了一遍”：同槽位、同极性、几乎同一句话。其余一律追加，旧值留给读时解析
-    const repeated = existing.find((memory) =>
-      memory.kind === 'fact'
-      && memory.state === 'active'
-      && slotOf(memory) === slotOf(entry)
-      && isPositive({ polarity: !memory.negated }) === isPositive({ polarity: !entry.negated })
-      && similarity(memory.text, entry.text) >= 0.9,
-    )
-    if (repeated) {
-      reinforceMemory(repeated.id, at)
-      result.refreshedFacts++
-      continue
-    }
-    insertMemory(roleId, entry, 'llm')
-    existing.push(entry)
-    result.insertedFacts++
+    applyFactCandidate(context, candidate)
   }
 
   for (const candidate of (payload.stories ?? []).filter((item) => item.text?.trim())) {
-    const entry: Memory = {
-      id: newId('s'),
-      roleId,
-      kind: 'episode',
-      episodeKind: candidate.kind,
-      text: candidate.text.trim(),
-      entity: 'relationship',
-      subject: null,
-      attribute: null,
-      value: null,
-      negated: false,
-      importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
-      source: 'llm_inferred',
-      state: 'active',
-      happenedAt: at,
-      dueAt: candidate.due_at ?? null,
-      validFrom: new Date(at).toISOString(),
-      invalidAt: null,
-      confirmedAt: at,
-      evidence: evidence ? { ...evidence } : { reinforce: 0, negate: 0 },
-      pinned: false,
-      frozen: false,
-      embedding: null,
-      createdAt: at,
-    }
-    insertMemory(roleId, entry, 'llm')
-    existing.push(entry)
+    applyEpisodeCandidate(roleId, candidate, at, evidence)
     result.insertedStories++
   }
 

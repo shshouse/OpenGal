@@ -345,19 +345,35 @@ export function isExpired(memory: { invalidAt?: string | null }, now = Date.now(
   return !Number.isNaN(expiry) && expiry <= now
 }
 
+export interface RetentionInput {
+  frozen?: boolean
+  frozen_at?: string | null
+  invalidAt?: string | null
+  valid_until?: string | null
+  confirmedAt?: number
+  last_confirmed_at?: string | null
+  createdAt?: number
+  created_at?: string | null
+  importance?: number
+}
+
+function hasExpired(memory: RetentionInput, now: number): boolean {
+  const stamp = memory.invalidAt ?? memory.valid_until
+  if (!stamp) return false
+  const expiry = Date.parse(stamp)
+  return !Number.isNaN(expiry) && expiry <= now
+}
+
+function confirmedStamp(memory: RetentionInput): number {
+  if (memory.confirmedAt) return memory.confirmedAt
+  return epochOf(memory.last_confirmed_at) || epochOf(memory.created_at) || memory.createdAt || 0
+}
+
 /** 新鲜度：按重要度给出不同半衰期（重要度 × 7 天），冻结或钉住的不衰减。 */
-export function retentionOf(
-  memory: { frozen?: boolean, frozen_at?: string | null, invalidAt?: string | null, valid_until?: string | null, confirmedAt?: number, last_confirmed_at?: string | null, createdAt?: number, created_at?: string | null, importance?: number },
-  now = Date.now(),
-): number {
+export function retentionOf(memory: RetentionInput, now = Date.now()): number {
   if (memory.frozen || memory.frozen_at) return 1
-  if (memory.invalidAt && isExpired(memory, now)) return 0
-  if (memory.valid_until) {
-    const expiry = Date.parse(memory.valid_until)
-    if (!Number.isNaN(expiry) && expiry < now) return 0
-  }
-  const confirmed = memory.confirmedAt ?? epochOf(memory.last_confirmed_at) ?? 0
-  const stamp = confirmed || epochOf(memory.created_at) || memory.createdAt || 0
+  if (hasExpired(memory, now)) return 0
+  const stamp = confirmedStamp(memory)
   if (!stamp) return 1
   const days = Math.max(0, (now - stamp) / 86_400_000)
   const stability = Math.max(1, (memory.importance ?? 5) * 7)

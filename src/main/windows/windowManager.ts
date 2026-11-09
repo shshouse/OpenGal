@@ -75,6 +75,25 @@ export class WindowManager {
     if (this.mate && !this.mate.isDestroyed()) this.mate.setContentProtection(enabled)
   }
 
+  private trackMainBounds(window: BrowserWindow): () => void {
+    const saveBounds = (): void => {
+      if (window.isDestroyed() || window.isMinimized()) return
+      try {
+        const maximized = window.isMaximized()
+        const bounds = maximized ? window.getNormalBounds() : window.getBounds()
+        setUIState({ window: { ...bounds, maximized } })
+      } catch {
+        // 窗口销毁或持久化失败不影响关闭流程
+      }
+    }
+    const saveBoundsSoon = debounce(saveBounds, 300)
+    window.on('resize', saveBoundsSoon)
+    window.on('move', saveBoundsSoon)
+    window.on('maximize', saveBounds)
+    window.on('unmaximize', saveBounds)
+    return saveBounds
+  }
+
   createMainWindow(): BrowserWindow {
     if (this.main && !this.main.isDestroyed()) {
       if (this.main.isMinimized()) this.main.restore()
@@ -105,21 +124,7 @@ export class WindowManager {
       if (getUIState().window?.maximized) this.main?.maximize()
       this.main?.show()
     })
-    const saveBounds = (): void => {
-      if (!this.main || this.main.isDestroyed() || this.main.isMinimized()) return
-      try {
-        const maximized = this.main.isMaximized()
-        const bounds = maximized ? this.main.getNormalBounds() : this.main.getBounds()
-        setUIState({ window: { ...bounds, maximized } })
-      } catch {
-        // 窗口销毁或持久化失败不影响关闭流程
-      }
-    }
-    const saveBoundsSoon = debounce(saveBounds, 300)
-    this.main.on('resize', saveBoundsSoon)
-    this.main.on('move', saveBoundsSoon)
-    this.main.on('maximize', saveBounds)
-    this.main.on('unmaximize', saveBounds)
+    const saveBounds = this.trackMainBounds(this.main)
     this.main.on('close', (event) => {
       saveBounds()
       if (this.deps.isQuitting()) return
