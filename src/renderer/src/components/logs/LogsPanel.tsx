@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { LOG_LEVELS, formatLogTimestamp, type LogEntry, type LogLevel } from '@shared/log'
 import { getErrorMessage } from '@shared/errors'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 const LEVEL_META: Record<LogLevel, { label: string; short: string; text: string; dot: string }> = {
   error: { label: '错误', short: 'ERR', text: 'text-red-400', dot: 'bg-red-400' },
@@ -44,6 +45,9 @@ interface Props {
 export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Element {
   const entries = useLogsStore((s) => s.entries)
   const hydrate = useLogsStore((s) => s.hydrate)
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const saved = useUIStateStore((s) => s.state.logs)
+  const logsRestored = React.useRef(false)
 
   const [levels, setLevels] = React.useState<Set<LogLevel>>(() => new Set(LOG_LEVELS))
   const [source, setSource] = React.useState<string>(ALL_SOURCES)
@@ -54,6 +58,25 @@ export function LogsPanel({ onClose, embedded = false }: Props): React.JSX.Eleme
   const [unseen, setUnseen] = React.useState(0)
   const [flash, setFlash] = React.useState<string | null>(null)
   const [confirmClear, setConfirmClear] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!uiLoaded || logsRestored.current || !saved) return
+    logsRestored.current = true
+    if (saved.levels) setLevels(new Set(saved.levels as LogLevel[]))
+    if (saved.source) setSource(saved.source)
+    if (saved.query !== undefined) setQuery(saved.query)
+    if (saved.following !== undefined) setFollowing(saved.following)
+  }, [uiLoaded, saved])
+
+  React.useEffect(() => {
+    if (!uiLoaded) return
+    const timer = window.setTimeout(() => {
+      useUIStateStore.getState().patch({
+        logs: { levels: [...levels], source, query, following },
+      })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [uiLoaded, levels, source, query, following])
 
   const scrollRef = React.useRef<HTMLDivElement | null>(null)
   const followingRef = React.useRef(true)

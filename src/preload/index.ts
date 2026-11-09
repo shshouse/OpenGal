@@ -18,6 +18,8 @@ import type {
 } from '@shared/types'
 import type { LogEntry } from '@shared/log'
 import type { MateControl, MateStatePayload } from '@shared/mate'
+import type { UIState, UIStatePatch } from '@shared/uiState'
+import type { StorageUsage } from '@shared/storage'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, ...args) as Promise<IpcResult<T>>
@@ -35,6 +37,14 @@ const api = {
   config: {
     get: () => invoke<AppConfig>(IpcChannels.config.get),
     set: (patch: Partial<AppConfig>) => invoke<AppConfig>(IpcChannels.config.set, patch)
+  },
+  uiState: {
+    get: () => invoke<UIState>(IpcChannels.uiState.get),
+    set: (patch: UIStatePatch) => invoke<UIState>(IpcChannels.uiState.set, patch)
+  },
+  storage: {
+    usage: () => invoke<StorageUsage>(IpcChannels.storage.usage),
+    reveal: () => invoke<void>(IpcChannels.storage.reveal)
   },
   llm: {
     chat: (request: LLMRequest) => invoke<LLMResponse>(IpcChannels.llm.chat, request),

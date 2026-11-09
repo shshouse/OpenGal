@@ -17,6 +17,8 @@ import { initUpdater } from './services/updater'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
+// 打包态仍把 Chromium 的 userData 放在安装目录，保持便携；
+// 小型配置/UI 状态由 getPreferenceRoot() 单独放到用户 AppData。
 if (!isDevRuntime()) {
   const portableUserData = path.join(path.dirname(app.getPath('exe')), 'userdata')
   try {
@@ -27,6 +29,7 @@ if (!isDevRuntime()) {
     // 目录不可写则保持默认 AppData
   }
 }
+
 if (process.env.OPENGAL_CDP_PORT) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env.OPENGAL_CDP_PORT)
 }

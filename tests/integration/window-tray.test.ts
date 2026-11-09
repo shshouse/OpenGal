@@ -78,6 +78,9 @@ vi.mock('electron', () => {
     isMaximized(): boolean { return this.maximized }
     isMinimized(): boolean { return this.minimized }
     isDestroyed(): boolean { return this.destroyed }
+    private bounds = { x: 0, y: 0, width: 1200, height: 780 }
+    getBounds(): { x: number; y: number; width: number; height: number } { return this.bounds }
+    getNormalBounds(): { x: number; y: number; width: number; height: number } { return this.bounds }
     loadFile(): void {}
     loadURL(): void {}
   }
@@ -112,12 +115,21 @@ vi.mock('electron', () => {
     BrowserWindow,
     Tray,
     Menu: { buildFromTemplate: (template: Array<{ click?: () => void }>) => ({ template }) },
-    screen: { getPrimaryDisplay: () => ({ workAreaSize: { width: 1920, height: 1080 } }), getCursorScreenPoint: () => ({ x: 0, y: 0 }) },
+    screen: {
+      getPrimaryDisplay: () => ({ workAreaSize: { width: 1920, height: 1080 } }),
+      getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }],
+      getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+    },
     shell: { openExternal: () => {} },
   }
 })
 
 vi.mock('@electron-toolkit/utils', () => ({ is: { dev: true } }))
+
+vi.mock('../../src/main/services/uiStateStore', () => ({
+  getUIState: () => ({}),
+  setUIState: () => ({}),
+}))
 
 function setup(quitting = false) {
   let isQuitting = quitting

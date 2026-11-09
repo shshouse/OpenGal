@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { ModCard } from './ModCard'
 import { ModDetail } from './ModDetail'
 import type { MarketListResult, MarketMod } from '@shared/types'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 const SORTS = [
   { value: 'latest', label: '最新发布' },
@@ -23,10 +24,27 @@ export function MarketPage() {
   const [data, setData] = React.useState<MarketListResult | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [page, setPage] = React.useState(1)
-  const [sort, setSort] = React.useState('latest')
-  const [category, setCategory] = React.useState<string | undefined>(undefined)
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const saved = useUIStateStore((s) => s.state.market)
+  const [page, setPage] = React.useState(saved?.page ?? 1)
+  const [sort, setSort] = React.useState(saved?.sort ?? 'latest')
+  const [category, setCategory] = React.useState<string | undefined>(saved?.category)
   const [selected, setSelected] = React.useState<MarketMod | null>(null)
+
+  React.useEffect(() => {
+    if (!uiLoaded || !saved) return
+    setPage(saved.page)
+    setSort(saved.sort)
+    setCategory(saved.category)
+  }, [uiLoaded, saved])
+
+  React.useEffect(() => {
+    if (!uiLoaded) return
+    const timer = window.setTimeout(() => {
+      useUIStateStore.getState().patch({ market: { page, sort, category } })
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [uiLoaded, page, sort, category])
 
   async function handleGet(mod: MarketMod, versionId?: string): Promise<void> {
     const version = versionId

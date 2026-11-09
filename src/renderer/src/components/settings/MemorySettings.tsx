@@ -7,6 +7,7 @@ import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
 import type { MemoryChange, MemoryFact, MemoryStory } from '@shared/types'
 import { getErrorMessage } from '@shared/errors'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 function sourceText(content: string): string {
   try {
@@ -53,7 +54,10 @@ export function MemorySettings() {
   const [stories, setStories] = React.useState<MemoryStory[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [search, setSearch] = React.useState('')
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const savedSearch = useUIStateStore((s) => s.state.memorySearch)
+  const searchRestored = React.useRef(false)
+  const [search, setSearch] = React.useState(savedSearch ?? '')
   const [newFactText, setNewFactText] = React.useState('')
   const [adding, setAdding] = React.useState(false)
   const [rebuilding, setRebuilding] = React.useState(false)
@@ -63,6 +67,20 @@ export function MemorySettings() {
 
   const activeChar = roles.find((c) => c.id === activeId)
   const charName = activeChar?.displayName ?? activeChar?.name ?? '未选择角色'
+
+  React.useEffect(() => {
+    if (!uiLoaded || searchRestored.current) return
+    searchRestored.current = true
+    if (savedSearch !== undefined) setSearch(savedSearch)
+  }, [uiLoaded, savedSearch])
+
+  React.useEffect(() => {
+    if (!searchRestored.current) return
+    const timer = window.setTimeout(() => {
+      useUIStateStore.getState().patch({ memorySearch: search })
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [search])
 
   const load = React.useCallback(async () => {
     if (!activeId) return

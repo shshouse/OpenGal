@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { X } from 'lucide-react'
-import { AppBar, type AppView } from '@/components/nav/AppBar'
+import { AppBar } from '@/components/nav/AppBar'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
@@ -23,16 +23,20 @@ import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
+import type { AppViewName } from '@shared/uiState'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
-const VIEW_ORDER: AppView[] = ['home', 'chat', 'market', 'settings', 'logs']
+const VIEW_ORDER: AppViewName[] = ['home', 'chat', 'market', 'settings', 'logs']
 
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
   const [mateOpen, setMateOpen] = React.useState(false)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [view, setView] = React.useState<AppView>('home')
+  const [view, setView] = React.useState<AppViewName>('home')
   const [actionError, setActionError] = React.useState('')
+  const uiStateLoaded = useUIStateStore((s) => s.loaded)
+  const uiRestored = React.useRef(false)
   const roles = useRoleStore((s) => s.list)
   const bootSteps = useStartupStore((s) => s.steps)
   const loadRoles = useRoleStore((s) => s.loadRoles)
@@ -40,6 +44,27 @@ export default function App() {
   const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
   const runningById = useRoleRuntimeStore((s) => s.byId)
   const activeRunning = isRoleRunning(runningById, activeId)
+
+  React.useEffect(() => {
+    void useUIStateStore.getState().load()
+  }, [])
+
+  React.useEffect(() => {
+    if (!uiStateLoaded || uiRestored.current) return
+    uiRestored.current = true
+    const saved = useUIStateStore.getState().state
+    if (saved.view) setView(saved.view)
+    if (saved.mate?.open) {
+      void window.opengal.mate.open().then((res) => {
+        if (res.success) setMateOpen(true)
+      }).catch(() => {})
+    }
+  }, [uiStateLoaded])
+
+  React.useEffect(() => {
+    if (!uiRestored.current) return
+    useUIStateStore.getState().patch({ view })
+  }, [view])
 
   React.useEffect(() => {
     if (activeCard?.performance.mode === 'sprite') setAvatarUrl(activeCard.spriteFrames?.idle ?? null)
@@ -204,9 +229,13 @@ export default function App() {
     if (mateOpen) {
       await window.opengal.mate.close()
       setMateOpen(false)
+      useUIStateStore.getState().patch({ mate: { open: false } })
     } else {
-      await window.opengal.mate.open()
-      setMateOpen(true)
+      const res = await window.opengal.mate.open()
+      if (res.success) {
+        setMateOpen(true)
+        useUIStateStore.getState().patch({ mate: { open: true } })
+      }
     }
   }
 

@@ -3,6 +3,14 @@ export const IpcChannels = {
     get: 'config:get',
     set: 'config:set'
   },
+  uiState: {
+    get: 'uiState:get',
+    set: 'uiState:set'
+  },
+  storage: {
+    usage: 'storage:usage',
+    reveal: 'storage:reveal'
+  },
   llm: {
     chat: 'llm:chat',
     chatStream: 'llm:chatStream',

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Gamepad2, Plus, Trash2, Globe, FolderOpen, Monitor } from 'lucide-react'
+import { Gamepad2, Plus, Trash2, Globe, FolderOpen, Monitor, HardDrive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
@@ -11,11 +11,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { AppConfig } from '@shared/types'
+import type { StorageUsage } from '@shared/storage'
 import { getErrorMessage } from '@shared/errors'
 
 interface EnvironmentSettingsProps {
   config: AppConfig | null
   onSave: (next: Partial<AppConfig>) => Promise<void>
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
 export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps) {
@@ -29,6 +37,17 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
   const [newDir, setNewDir] = React.useState('')
   const [saving, setSaving] = React.useState(false)
   const [status, setStatus] = React.useState<string | null>(null)
+  const [usage, setUsage] = React.useState<StorageUsage | null>(null)
+
+  React.useEffect(() => {
+    try {
+      void window.opengal.storage.usage().then((res) => {
+        if (res.success && res.data) setUsage(res.data)
+      }).catch(() => {})
+    } catch {
+      // 旧版 preload 没有存储接口
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!config) return
@@ -231,6 +250,51 @@ export function EnvironmentSettings({ config, onSave }: EnvironmentSettingsProps
             ))}
           </div>
         )}
+      </div>
+
+      <div className="space-y-3 border-t pt-4">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <HardDrive className="size-4" /> 存储
+        </div>
+        {usage ? (
+          <div className="rounded-lg border text-xs">
+            {([
+              ['记忆', usage.memory],
+              ['角色素材', usage.roles],
+              ['运行记录', usage.logs],
+              ['临时文件', usage.cache],
+              ['设置与偏好', usage.preferences],
+              ['备份', usage.backups],
+            ] as const).map(([label, bytes]) => (
+              <div key={label} className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
+                <span className="text-muted-foreground">{label}</span>
+                <span className="tabular-nums">{formatBytes(bytes)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between px-3 py-2 font-medium">
+              <span>合计</span>
+              <span className="tabular-nums">{formatBytes(usage.total)}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">读取中...</p>
+        )}
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => {
+            try {
+              void window.opengal.storage.reveal()
+            } catch {
+              // 旧版 preload 没有存储接口
+            }
+          }}>
+            <FolderOpen className="size-3.5" /> 打开数据目录
+          </Button>
+          {usage && (
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={usage.dataRoot}>
+              {usage.dataRoot}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 border-t pt-4">

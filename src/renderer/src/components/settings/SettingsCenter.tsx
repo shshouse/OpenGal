@@ -11,6 +11,7 @@ import { MemorySettings } from './MemorySettings'
 import { EnvironmentSettings } from './EnvironmentSettings'
 import { SubtitleSettings } from './SubtitleSettings'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 interface SettingsCenterProps {
   config: AppConfig | null
@@ -30,12 +31,21 @@ const SECTIONS = [
 ] as const
 
 export function SettingsCenter({ config, model, onSave }: SettingsCenterProps) {
-  const [tab, setTab] = React.useState<string>('character')
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const savedTab = useUIStateStore((s) => s.state.settingsTab)
+  const [tab, setTab] = React.useState<string>(savedTab ?? 'character')
+
+  React.useEffect(() => {
+    if (uiLoaded && savedTab) setTab(savedTab)
+  }, [uiLoaded, savedTab])
 
   return (
     <Tabs
       value={tab}
-      onValueChange={setTab}
+      onValueChange={(value) => {
+        setTab(value)
+        useUIStateStore.getState().patch({ settingsTab: value })
+      }}
       orientation="vertical"
       className="flex h-full min-h-0 w-full"
     >

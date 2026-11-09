@@ -1,7 +1,8 @@
 import Store from 'electron-store'
 import { app, safeStorage } from 'electron'
 import type { AppConfig } from '@shared/types'
-import { toModUrl, getDataRoot } from './paths'
+import { toModUrl, getDataRoot, getPreferenceRoot } from './paths'
+import { resolveConfigDir } from './configMigration'
 import { logBus } from './logBus'
 import { normalizeAsrEngine, normalizeAsrMode } from '../../shared/asrKinds'
 
@@ -84,11 +85,19 @@ const defaultConfig: AppConfig = {
 
 let store: Store<Record<string, unknown>> | null = null
 
+// 配置是小型偏好：优先用户 AppData；首次启动把安装目录 data 里的旧配置复制过来。
+function configDir(): string {
+  const result = resolveConfigDir(getPreferenceRoot(), getDataRoot())
+  if (result.migrated) logBus.info('config', `配置已复制到 ${result.dir}（旧文件保留）`)
+  if (result.error) logBus.warn('config', `配置迁移失败，继续使用 ${result.dir}: ${result.error}`)
+  return result.dir
+}
+
 function getStore(): Store<Record<string, unknown>> {
   if (!store) {
     store = new Store<Record<string, unknown>>({
       name: 'opengal-config',
-      cwd: getDataRoot(),
+      cwd: configDir(),
       defaults: { ...defaultConfig } as unknown as Record<string, unknown>
     })
     if (store.get('migrations.memoryGenerousDefaults') !== true) {

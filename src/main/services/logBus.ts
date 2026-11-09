@@ -7,6 +7,7 @@ import type { LogEntry, LogLevel } from '@shared/log'
 
 const MAX_ENTRIES = 2000
 const MAX_LOG_FILES = 14
+const MAX_DIRECTOR_LOG_FILES = 30
 
 const buffer: LogEntry[] = []
 const subscribers = new Set<WebContents>()
@@ -24,6 +25,13 @@ export function initLogFile(dir: string): void {
       .sort()
     while (files.length > MAX_LOG_FILES) {
       fs.rmSync(path.join(dir, files.shift() as string), { force: true })
+    }
+    const directorFiles = fs
+      .readdirSync(dir)
+      .filter((f) => /^director-\d{8}\.ndjson$/.test(f))
+      .sort()
+    while (directorFiles.length > MAX_DIRECTOR_LOG_FILES) {
+      fs.rmSync(path.join(dir, directorFiles.shift() as string), { force: true })
     }
   } catch {
     logDir = null

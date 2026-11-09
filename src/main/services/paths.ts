@@ -76,6 +76,44 @@ export function getDataRoot(): string {
   return fallback
 }
 
+// 小型偏好（配置、UI 状态、localStorage）的根目录。
+// 标准模式放用户 AppData；OPENGAL_PORTABLE=1 时留在安装目录。
+let cachedPreferenceRoot: string | null = null
+
+export function getPreferenceRoot(): string {
+  if (cachedPreferenceRoot) return cachedPreferenceRoot
+  if (process.env.OPENGAL_PREFERENCE_DIR) {
+    const explicit = process.env.OPENGAL_PREFERENCE_DIR
+    if (ensureWritableDir(explicit)) {
+      cachedPreferenceRoot = explicit
+      return explicit
+    }
+  }
+  const exe = getExePath()
+  if (process.env.OPENGAL_PORTABLE === '1' && exe) {
+    const portable = path.join(path.dirname(exe), 'userdata')
+    if (ensureWritableDir(portable)) {
+      cachedPreferenceRoot = portable
+      return portable
+    }
+  }
+  let base: string
+  try {
+    base = app.getPath('appData')
+  } catch {
+    base = exe ? path.dirname(exe) : process.cwd()
+  }
+  const preferred = path.join(base, isDevRuntime() ? 'OpenGal-dev' : 'OpenGal')
+  if (ensureWritableDir(preferred)) {
+    cachedPreferenceRoot = preferred
+    return preferred
+  }
+  const fallback = exe ? path.join(path.dirname(exe), 'userdata') : path.join(process.cwd(), '.userdata')
+  ensureWritableDir(fallback)
+  cachedPreferenceRoot = fallback
+  return fallback
+}
+
 // 备份必须活在数据目录之外：data 目录被整体删除或安装目录被替换时仍可恢复。
 export function getBackupRoot(): string {
   const fromEnv = process.env.OPENGAL_BACKUP_DIR

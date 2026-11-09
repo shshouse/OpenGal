@@ -1,8 +1,54 @@
-import { BrowserWindow, Menu, screen, shell, Tray } from 'electron'
+import { BrowserWindow, Menu, screen, shell, Tray, type BrowserWindowConstructorOptions } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { MateStatePayload } from '@shared/mate'
+import type { MateState, SavedRect, WindowState } from '@shared/uiState'
+import { getUIState, setUIState } from '../services/uiStateStore'
+
+function intersectsDisplay(rect: SavedRect): boolean {
+  if (rect.x === undefined || rect.y === undefined) return false
+  return screen.getAllDisplays().some(({ workArea }) => {
+    const overlapX =
+      Math.min(rect.x! + rect.width, workArea.x + workArea.width) - Math.max(rect.x!, workArea.x)
+    const overlapY =
+      Math.min(rect.y! + rect.height, workArea.y + workArea.height) - Math.max(rect.y!, workArea.y)
+    return overlapX >= 80 && overlapY >= 80
+  })
+}
+
+function mainWindowBounds(saved?: WindowState): BrowserWindowConstructorOptions {
+  if (!saved) return { width: 1200, height: 780 }
+  const width = Number.isFinite(saved.width) ? Math.max(960, Math.min(saved.width, 10000)) : 1200
+  const height = Number.isFinite(saved.height) ? Math.max(640, Math.min(saved.height, 10000)) : 780
+  if (intersectsDisplay({ ...saved, width, height })) {
+    return { x: saved.x, y: saved.y, width, height }
+  }
+  return { width, height }
+}
+
+function mateWindowBounds(saved?: MateState): BrowserWindowConstructorOptions {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize
+  const fallback = { width: 320, height: 420, x: width - 340, y: height - 440 }
+  if (!saved || !intersectsDisplay(saved)) return fallback
+  return {
+    x: saved.x,
+    y: saved.y,
+    width: Number.isFinite(saved.width) ? Math.max(180, Math.min(saved.width, 1200)) : 320,
+    height: Number.isFinite(saved.height) ? Math.max(240, Math.min(saved.height, 1600)) : 420,
+  }
+}
+
+function debounce(fn: () => void, ms: number): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      timer = null
+      fn()
+    }, ms)
+  }
+}
 
 const windowIcon = is.dev
   ? join(process.cwd(), 'public/Logo/icon.png')
@@ -38,8 +84,7 @@ export class WindowManager {
     }
 
     this.main = new BrowserWindow({
-      width: 1200,
-      height: 780,
+      ...mainWindowBounds(getUIState().window),
       minWidth: 960,
       minHeight: 640,
       show: false,
@@ -56,8 +101,27 @@ export class WindowManager {
       }
     })
 
-    this.main.on('ready-to-show', () => this.main?.show())
+    this.main.on('ready-to-show', () => {
+      if (getUIState().window?.maximized) this.main?.maximize()
+      this.main?.show()
+    })
+    const saveBounds = (): void => {
+      if (!this.main || this.main.isDestroyed() || this.main.isMinimized()) return
+      try {
+        const maximized = this.main.isMaximized()
+        const bounds = maximized ? this.main.getNormalBounds() : this.main.getBounds()
+        setUIState({ window: { ...bounds, maximized } })
+      } catch {
+        // 窗口销毁或持久化失败不影响关闭流程
+      }
+    }
+    const saveBoundsSoon = debounce(saveBounds, 300)
+    this.main.on('resize', saveBoundsSoon)
+    this.main.on('move', saveBoundsSoon)
+    this.main.on('maximize', saveBounds)
+    this.main.on('unmaximize', saveBounds)
     this.main.on('close', (event) => {
+      saveBounds()
       if (this.deps.isQuitting()) return
       event.preventDefault()
       this.main?.hide()
@@ -92,14 +156,8 @@ export class WindowManager {
       return { success: true }
     }
 
-    const primary = screen.getPrimaryDisplay()
-    const { width, height } = primary.workAreaSize
-
     this.mate = new BrowserWindow({
-      width: 320,
-      height: 420,
-      x: width - 340,
-      y: height - 440,
+      ...mateWindowBounds(getUIState().mate),
       frame: false,
       transparent: true,
       alwaysOnTop: true,
@@ -119,8 +177,22 @@ export class WindowManager {
     this.mate.setAlwaysOnTop(true, 'screen-saver')
     this.mate.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     this.mate.setContentProtection(this.excludeSelf)
+    setUIState({ mate: { open: true } })
+    const saveBounds = (): void => {
+      if (!this.mate || this.mate.isDestroyed()) return
+      try {
+        const bounds = this.mate.getBounds()
+        setUIState({ mate: { ...bounds, open: true } })
+      } catch {
+        // 窗口销毁或持久化失败不影响关闭流程
+      }
+    }
+    const saveBoundsSoon = debounce(saveBounds, 300)
+    this.mate.on('resize', saveBoundsSoon)
+    this.mate.on('move', saveBoundsSoon)
     this.loadRoute(this.mate, 'mate')
     this.mate.on('closed', () => {
+      setUIState({ mate: { open: false } })
       this.mate = null
     })
     return { success: true }
@@ -131,6 +203,7 @@ export class WindowManager {
       this.mate.close()
     }
     this.mate = null
+    setUIState({ mate: { open: false } })
     return { success: true }
   }
 

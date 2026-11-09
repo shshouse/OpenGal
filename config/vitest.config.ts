@@ -14,6 +14,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    env: {
+      // 测试不写用户 AppData，也不在仓库根目录生成 OpenGal/
+      OPENGAL_PREFERENCE_DIR: path.resolve(process.cwd(), 'tmp/test-preferences'),
+    },
     testTimeout: 30_000,
     hookTimeout: 30_000,
     coverage: {

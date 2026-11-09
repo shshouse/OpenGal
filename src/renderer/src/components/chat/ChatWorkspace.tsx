@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { PanelRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 const DEFAULT_RATIO = 0.5
 const MIN_RATIO = 0.35
@@ -27,6 +28,22 @@ export function ChatWorkspace({ chat, stage }: Props): React.JSX.Element {
   const [frozenStageWidth, setFrozenStageWidth] = React.useState<number | null>(null)
   // 拖动开始时的比例，Esc 恢复到这里
   const restoreRef = React.useRef(DEFAULT_RATIO)
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const savedChat = useUIStateStore((s) => s.state.chat)
+
+  React.useEffect(() => {
+    if (!uiLoaded || !savedChat) return
+    setRatio(clampRatio(savedChat.ratio))
+    setCollapsed(savedChat.collapsed)
+  }, [uiLoaded, savedChat])
+
+  React.useEffect(() => {
+    if (!uiLoaded) return
+    const timer = window.setTimeout(() => {
+      useUIStateStore.getState().patch({ chat: { ratio, collapsed } })
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [uiLoaded, ratio, collapsed])
 
   React.useEffect(() => {
     if (!dragging) return

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { isRoleRunning, type RoleRunningMap } from '@shared/roleRuntime'
 import type { BootStep, RoleCardEntry } from '@shared/types'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 interface Props {
   roles: RoleCardEntry[]
@@ -41,7 +42,15 @@ export function HomePage({
   onOpenRole,
   onToggleRunning
 }: Props): React.JSX.Element {
-  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const [selectedId, setSelectedId] = React.useState<string | null>(
+    useUIStateStore.getState().state.homeSelectedId ?? null,
+  )
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const savedSelectedId = useUIStateStore((s) => s.state.homeSelectedId)
+
+  React.useEffect(() => {
+    if (uiLoaded && savedSelectedId !== undefined) setSelectedId(savedSelectedId)
+  }, [uiLoaded, savedSelectedId])
   const runningCount = roles.filter((role) => isRoleRunning(runningById, role.id)).length
   const selected = roles.find((role) => role.id === (selectedId ?? activeId)) ?? roles[0] ?? null
   const selectedRunning = selected ? isRoleRunning(runningById, selected.id) : false
@@ -103,7 +112,10 @@ export function HomePage({
                 <button
                   key={role.id}
                   type="button"
-                  onClick={() => setSelectedId(role.id)}
+                  onClick={() => {
+                    setSelectedId(role.id)
+                    useUIStateStore.getState().patch({ homeSelectedId: role.id })
+                  }}
                   className={cn(
                     'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70 active:bg-accent',

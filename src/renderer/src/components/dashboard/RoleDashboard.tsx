@@ -8,6 +8,7 @@ import { useStartupStore } from '@/features/startup/startupStore'
 import type { RoleCardEntry } from '@shared/types'
 import { ActivityTimeline } from './ActivityTimeline'
 import { MemoryDashboard } from './MemoryDashboard'
+import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 interface Props {
   role: RoleCardEntry
@@ -24,9 +25,23 @@ export function RoleDashboard({ role, running, onToggleRunning }: Props): React.
   const errorCount = activities.filter((entry) => entry.kind === 'error').length
   const healthyCount = steps.filter((step) => step.status === 'ok').length
   const label = role.displayName ?? role.name
+  const uiLoaded = useUIStateStore((s) => s.loaded)
+  const savedTab = useUIStateStore((s) => s.state.roleTab)
+  const [tab, setTab] = React.useState(savedTab ?? 'overview')
+
+  React.useEffect(() => {
+    if (uiLoaded && savedTab) setTab(savedTab)
+  }, [uiLoaded, savedTab])
 
   return (
-    <Tabs defaultValue="overview" className="flex h-full min-w-0 flex-col">
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        setTab(value)
+        useUIStateStore.getState().patch({ roleTab: value })
+      }}
+      className="flex h-full min-w-0 flex-col"
+    >
       <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-medium">{label}</h1>
