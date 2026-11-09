@@ -68,12 +68,18 @@ export function memoryEvidence(roleId: string, memoryId: string, limit = 5): Mes
   const found = rows('SELECT * FROM memories WHERE id = ? AND role_id = ?', [memoryId, roleId])
   if (found.length === 0) return []
   const row = found[0] as unknown as MemoryRow
+  const linked = rows(
+    'SELECT message_id FROM memory_sources WHERE memory_id = ? AND role_id = ? ORDER BY message_id LIMIT ?',
+    [memoryId, roleId, limit],
+  ).map((item) => Number(item.message_id))
   const evidence = row.evidence
     ? (JSON.parse(row.evidence) as { messageIds?: unknown })
     : null
-  const ids = Array.isArray(evidence?.messageIds)
-    ? evidence.messageIds.filter((id): id is number => typeof id === 'number').slice(0, limit)
-    : []
+  const ids = linked.length > 0
+    ? linked
+    : Array.isArray(evidence?.messageIds)
+      ? evidence.messageIds.filter((id): id is number => typeof id === 'number').slice(0, limit)
+      : []
   if (ids.length > 0) {
     const placeholders = ids.map(() => '?').join(', ')
     return rows(

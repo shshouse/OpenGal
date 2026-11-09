@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { backupRootDir, db, logger, rows, setMeta, withTx } from './core'
-import { sqliteSnapshot } from './backup'
+import { backupRootDir, db, getMeta, logger, rows, setMeta, withTx } from './core'
+import { backupBeforeMigration, sqliteSnapshot } from './backup'
 import { indexMessage } from './search'
 import { factRowToMemory, insertMemoryRowRaw, storyRowToMemory } from './memoryRows'
 import type { FactRow, StoryRow } from './types'
@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS memories (
   source_to INTEGER,
   supersedes TEXT,
   pinned INTEGER NOT NULL DEFAULT 0,
+  reinforce INTEGER NOT NULL DEFAULT 0,
   embedding TEXT,
   valid_from TEXT,
   invalid_at TEXT,
@@ -70,6 +71,14 @@ CREATE TABLE IF NOT EXISTS summaries (
   message_count INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_sources (
+  memory_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  message_id INTEGER NOT NULL,
+  PRIMARY KEY (memory_id, message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_memory_sources_msg ON memory_sources(message_id);
 
 CREATE TABLE IF NOT EXISTS memory_changelog (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,6 +225,73 @@ export function migrateFactsSchema(): void {
     })
   } catch (err) {
     logger.error('memory', `facts schema 迁移失败: ${getErrorMessage(err)}`)
+    throw err
+  }
+}
+
+const SCHEMA_VERSION = 2
+
+interface LegacyEvidence {
+  reinforce?: unknown
+  messageIds?: unknown
+}
+
+function parseLegacyEvidence(raw: string | null): LegacyEvidence | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return parsed && typeof parsed === 'object' ? (parsed as LegacyEvidence) : null
+  } catch {
+    return null
+  }
+}
+
+// v2：印证次数从 evidence JSON 搬到独立列，消息来源搬到 memory_sources。
+// 只加不删，旧版本仍能读写同一个库；evidence 列留给旧数据，新行不再写入。
+export function migrateMemoryV2(): void {
+  if (Number(getMeta('schema_version') ?? 0) >= SCHEMA_VERSION) return
+  const backup = backupBeforeMigration('v2')
+  if (!backup) throw new Error('schema v2 迁移前备份失败，已中止')
+
+  try {
+    withTx(() => {
+      ensureColumns('memories', [['reinforce', 'INTEGER NOT NULL DEFAULT 0']])
+      db!.exec(`
+        CREATE TABLE IF NOT EXISTS memory_sources (
+          memory_id TEXT NOT NULL,
+          role_id TEXT NOT NULL,
+          message_id INTEGER NOT NULL,
+          PRIMARY KEY (memory_id, message_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_memory_sources_msg ON memory_sources(message_id);
+      `)
+
+      let reinforced = 0
+      let sourced = 0
+      for (const row of rows('SELECT id, role_id, evidence FROM memories WHERE evidence IS NOT NULL', [])) {
+        const evidence = parseLegacyEvidence(row.evidence as string | null)
+        if (!evidence) continue
+        const count = Number(evidence.reinforce ?? 0)
+        if (Number.isFinite(count) && count > 0) {
+          db!.prepare('UPDATE memories SET reinforce = ? WHERE id = ?').run(count, String(row.id))
+          reinforced++
+        }
+        const ids = Array.isArray(evidence.messageIds)
+          ? evidence.messageIds.filter((id): id is number => typeof id === 'number')
+          : []
+        for (const messageId of ids) {
+          db!.prepare('INSERT OR IGNORE INTO memory_sources(memory_id, role_id, message_id) VALUES(?, ?, ?)')
+            .run(String(row.id), String(row.role_id), messageId)
+          sourced++
+        }
+      }
+
+      setMeta('schema_version', String(SCHEMA_VERSION))
+      setMeta('schema_version_migrated_at', new Date().toISOString())
+      logger.info('memory', `schema v2 完成：回填印证 ${reinforced} 条、来源 ${sourced} 条（备份 ${backup}）`)
+    })
+  } catch (err) {
+    logger.error('memory', `schema v2 迁移失败，事务已回滚，备份在 ${backup}: ${getErrorMessage(err)}`)
     throw err
   }
 }

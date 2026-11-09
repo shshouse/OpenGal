@@ -20,6 +20,7 @@ import {
   listSummaries,
   listUnarchivedMessages,
   memoryDbReady,
+  memoryEvidence,
 } from '../../src/main/services/memoryDb'
 
 const root = path.join(os.tmpdir(), `og-memory-cursor-${Date.now()}`)
@@ -86,8 +87,8 @@ describe('提取游标与来源', () => {
     })
 
     const stored = listFacts('k3')[0]
-    const evidence = JSON.parse(stored.source_evidence ?? '{}') as { messageIds?: number[] }
-    expect(evidence.messageIds).toContain(messageId)
+    const sources = memoryEvidence('k3', stored.id)
+    expect(sources.map((row) => row.id)).toContain(messageId)
   })
 
   it('重建必须显式确认，只清派生数据，不动原文', async () => {

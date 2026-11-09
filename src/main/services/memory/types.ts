@@ -35,6 +35,7 @@ export interface MemoryRow {
   source_to: number | null
   supersedes: string | null
   pinned: number
+  reinforce?: number
   embedding: string | null
   valid_from?: string | null
   invalid_at?: string | null

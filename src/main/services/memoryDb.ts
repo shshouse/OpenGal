@@ -1,6 +1,6 @@
 import { checkpoint, db, dbFile, logger, openMemoryDb, prepareMemoryDb, readyPromise, setReadyPromise } from './memory/core'
 import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './memory/backup'
-import { SCHEMA, migrateFactsSchema, migrateMessagesSchema } from './memory/schema'
+import { SCHEMA, migrateFactsSchema, migrateMemoryV2, migrateMessagesSchema } from './memory/schema'
 import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './memory/legacy'
 import { getErrorMessage } from '@shared/errors'
 
@@ -14,6 +14,7 @@ export type {
   MemoryDbLogger,
 } from './memory/types'
 export { setMemoryDbLogger, memoryDbReady, closeMemoryDb, withTx, getMeta, setMeta } from './memory/core'
+export { migrateMemoryV2 } from './memory/schema'
 export { searchTokens, visibleMessageText, searchMessages } from './memory/search'
 export * from './memory/messages'
 export * from './memory/memories'
@@ -37,6 +38,7 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
     db!.exec(SCHEMA)
     migrateMessagesSchema()
     migrateFactsSchema()
+    migrateMemoryV2()
     checkpoint()
     snapshotBackup()
     syncLegacyMemoryFromJson(dataRoot)

@@ -1,9 +1,9 @@
-import { db, rows, withTx } from './core'
-import { toMemory, toRow, parseEvidence, formatEvidence, type Memory, type MemoryState } from './model'
+import { db, run, withTx } from './core'
+import { toMemory, toRow, type Memory, type MemoryState } from './model'
+import { insertMemoryRowRaw } from './memoryRows'
 import {
   clearRoleMemories,
   deleteMemoryRow,
-  insertMemoryRow,
   listMemoryRows,
   setFactFrozenRow,
   setMemoryEmbeddingRow,
@@ -11,7 +11,6 @@ import {
   setMemoryStateRow,
 } from './memories'
 import type { MemoryChangeActor } from './changelog'
-import type { MemoryRow } from './types'
 
 /**
  * 运行期只认 Memory 一种模型：读写、召回、写入都走这里。
@@ -24,7 +23,15 @@ export function listMemories(roleId: string): Memory[] {
 }
 
 export function insertMemory(roleId: string, memory: Memory, actor: MemoryChangeActor = 'system'): void {
-  insertMemoryRow(roleId, toRow(memory), actor)
+  withTx(() => {
+    insertMemoryRowRaw(roleId, toRow(memory), { actor })
+    for (const messageId of memory.evidence.messageIds ?? []) {
+      run(
+        'INSERT OR IGNORE INTO memory_sources(memory_id, role_id, message_id) VALUES(?, ?, ?)',
+        [memory.id, roleId, messageId],
+      )
+    }
+  })
 }
 
 export function setMemoryState(id: string, state: MemoryState): number {
@@ -44,6 +51,7 @@ export function setMemoryEmbedding(id: string, embedding: number[]): number {
 }
 
 export function deleteMemory(id: string): number {
+  run('DELETE FROM memory_sources WHERE memory_id = ?', [id])
   return deleteMemoryRow(id)
 }
 
@@ -51,14 +59,9 @@ export function clearMemories(roleId: string): void {
   clearRoleMemories(roleId)
 }
 
-/** 被想起或被重新确认：刷新确认时间，并把印证次数写进 evidence。 */
+/** 被重新确认：刷新确认时间，并累加印证次数。 */
 export function reinforceMemory(id: string, at = Date.now()): void {
   withTx(() => {
-    const found = rows('SELECT * FROM memories WHERE id = ?', [id])[0] as unknown as MemoryRow | undefined
-    if (!found) return
-    const evidence = parseEvidence(found.evidence)
-    evidence.reinforce += 1
-    db!.prepare('UPDATE memories SET confirmed_at = ?, evidence = ? WHERE id = ?')
-      .run(at, formatEvidence(evidence), id)
+    db!.prepare('UPDATE memories SET confirmed_at = ?, reinforce = reinforce + 1 WHERE id = ?').run(at, id)
   })
 }

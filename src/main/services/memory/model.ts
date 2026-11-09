@@ -62,16 +62,6 @@ export function parseEvidence(raw: string | null | undefined): MemoryEvidence {
   }
 }
 
-export function formatEvidence(evidence: MemoryEvidence): string {
-  return JSON.stringify({
-    ...(evidence.fromTs !== undefined ? { fromTs: evidence.fromTs } : {}),
-    ...(evidence.toTs !== undefined ? { toTs: evidence.toTs } : {}),
-    ...(evidence.messageIds ? { messageIds: evidence.messageIds } : {}),
-    reinforce: evidence.reinforce,
-    negate: evidence.negate,
-  })
-}
-
 const SOURCES = new Set<MemorySource>(['user_statement', 'character_statement', 'llm_inferred', 'manual'])
 const STATES = new Set<MemoryState>(['active', 'dormant', 'superseded', 'archived', 'fulfilled'])
 const EPISODE_KINDS = new Set<EpisodeKind>(['event', 'promise', 'milestone', 'joke'])
@@ -104,6 +94,7 @@ function parseEmbedding(raw: string | null | undefined): number[] | null {
 }
 
 export function toMemory(row: MemoryRow): Memory {
+  const evidence = parseEvidence(row.evidence)
   return {
     id: row.id,
     roleId: row.role_id,
@@ -123,7 +114,7 @@ export function toMemory(row: MemoryRow): Memory {
     validFrom: row.valid_from ?? null,
     invalidAt: row.invalid_at ?? null,
     confirmedAt: row.confirmed_at ?? row.created_at,
-    evidence: parseEvidence(row.evidence),
+    evidence: { ...evidence, reinforce: row.reinforce ?? evidence.reinforce },
     pinned: row.pinned === 1,
     frozen: Boolean(row.frozen_at),
     embedding: parseEmbedding(row.embedding),
@@ -153,12 +144,13 @@ export function toRow(memory: Memory): MemoryRow {
     source_to: memory.evidence.toTs ?? null,
     supersedes: null,
     pinned: memory.pinned || memory.frozen ? 1 : 0,
+    reinforce: memory.evidence.reinforce,
     embedding: memory.embedding ? JSON.stringify(memory.embedding) : null,
     valid_from: memory.validFrom,
     invalid_at: memory.invalidAt,
     due_at: memory.dueAt,
     frozen_at: memory.frozen ? new Date(memory.confirmedAt).toISOString() : null,
-    evidence: formatEvidence(memory.evidence),
+    evidence: null,
   }
 }
 

@@ -11,8 +11,8 @@ export function insertMemoryRowRaw(
     ? false
     : rows('SELECT 1 FROM memories WHERE id = ?', [row.id]).length > 0
   run(
-      `INSERT OR REPLACE INTO memories(id, role_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO memories(id, role_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, reinforce, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         row.id,
         roleId,
@@ -34,6 +34,7 @@ export function insertMemoryRowRaw(
         row.source_to,
         row.supersedes,
         row.pinned,
+        row.reinforce ?? 0,
         row.embedding,
         row.valid_from ?? null,
         row.invalid_at ?? null,

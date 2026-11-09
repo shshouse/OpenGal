@@ -81,6 +81,21 @@ export function preUpgradeBackup(): boolean {
   }
 }
 
+// 每次结构迁移前都生成一份新的带时间戳快照：pre-upgrade 只保留首次的，
+// 重复升级时不能拿几个月前的备份当保险
+export function backupBeforeMigration(label: string): string | null {
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const target = path.join(backupRootDir, `memory-pre-${label}-${stamp}.db`)
+    if (!sqliteSnapshot(target, 'messages')) return null
+    logger.info('memory', `迁移前备份: ${target}`)
+    return target
+  } catch (err) {
+    logger.error('memory', `迁移前备份失败: ${getErrorMessage(err)}`)
+    return null
+  }
+}
+
 export function snapshotBackup(): void {
   try {
     if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return
