@@ -144,6 +144,16 @@ function ensureWritableDir(dir: string): boolean {
 const CUSTOM_SCHEME = 'opengal'
 const MOD_HOST = 'mods'
 const ROLE_HOST = 'roles'
+const ATTACHMENT_HOST = 'attachments'
+
+// 图片等二进制附件落在 data/attachments，库里只留 opengal://attachments/<文件名>
+export function getAttachmentsRoot(): string {
+  return path.join(getDataRoot(), ATTACHMENT_HOST)
+}
+
+export function toAttachmentUrl(fileName: string): string {
+  return `${CUSTOM_SCHEME}://${ATTACHMENT_HOST}/${encodeURIComponent(fileName)}`
+}
 
 function toAssetUrl(root: string, absPath: string, host: string): string {
   const rel = path.relative(root, absPath).replace(/\\/g, '/')
@@ -173,6 +183,7 @@ export function modUrlToAbsPath(url: string): string | null {
   const roots: Record<string, string> = {
     [MOD_HOST]: getModRoot(),
     [ROLE_HOST]: getRolesRoot(getDataRoot()),
+    [ATTACHMENT_HOST]: getAttachmentsRoot(),
   }
   const root = roots[parsed.hostname]
   if (!root) return null

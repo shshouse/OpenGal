@@ -3,6 +3,7 @@ import { IpcChannels } from '@shared/ipc-channels'
 import type { LLMRequest } from '@shared/types'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
 import { getToolDefinitions, executeTool } from '../services/tools'
+import { inlineAttachments } from '../services/media'
 import { scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
 import { wrap } from './wrap'
 import { handleValidated, handleValidatedRaw, handleValidatedWithEvent } from './validated'
@@ -11,10 +12,12 @@ import { z } from 'zod'
 
 export function registerLlmIpc(): void {
 
-  handleValidated(IpcChannels.llm.chat, [llmRequestSchema], (request) =>
+  handleValidated(IpcChannels.llm.chat, [llmRequestSchema], (request) => {
     // schema 已校验结构；passthrough 允许的额外字段使推导类型比 LLMRequest 宽
-    callLLM(request as LLMRequest),
-  )
+    const typed = request as LLMRequest
+    // 库里只存附件引用，发请求前再还原成 data URL
+    return callLLM({ ...typed, messages: inlineAttachments(typed.messages) })
+  })
 
   ipcMain.handle(
     IpcChannels.llm.chatStream,
@@ -24,7 +27,8 @@ export function registerLlmIpc(): void {
       if (!parsed.success || !sid.success) return { success: false, error: '参数不合法' }
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return { success: false, error: 'No window' }
-      void callLLMStream(parsed.data as LLMRequest, sid.data, win.webContents).catch(() => {})
+      const typed = parsed.data as LLMRequest
+      void callLLMStream({ ...typed, messages: inlineAttachments(typed.messages) }, sid.data, win.webContents).catch(() => {})
       return { success: true }
     }
   )

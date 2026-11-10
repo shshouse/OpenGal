@@ -36,6 +36,7 @@ import {
   memoryEntitySchema,
   summarySchema,
 } from '@shared/schemas'
+import { externalizeMessage } from '../services/media'
 import { handleValidated, handleValidatedWithEvent } from './validated'
 import { wrap } from './wrap'
 import { z } from 'zod'
@@ -66,7 +67,7 @@ export function registerMemoryIpc(): void {
     [roleIdSchema, z.array(chatMessageSchema)],
     async (roleId, messages) => {
       await memoryDbReady()
-      return saveChatMessages(roleId, messages)
+      return saveChatMessages(roleId, messages.map((message) => externalizeMessage(message)))
     },
   )
   handleValidated(
@@ -79,7 +80,7 @@ export function registerMemoryIpc(): void {
           id: m.dbId,
           role_id: roleId,
           role: m.role,
-          content: JSON.stringify(m),
+          content: JSON.stringify(externalizeMessage(m)),
           ts: m.ts ?? Date.now(),
           archived: 0,
         })),

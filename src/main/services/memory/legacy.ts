@@ -3,6 +3,7 @@ import path from 'node:path'
 import { getMeta, logger, setMeta, withTx } from './core'
 import { insertMemoryRowRaw, isoToMs } from './memoryRows'
 import { appendMissingMessages } from './messages'
+import { externalizeMessage } from '../media'
 import { getErrorMessage } from '@shared/errors'
 
 // ---- 旧 JSON 记忆一次性迁移（JSON 原地保留，只读） ----
@@ -143,7 +144,7 @@ export async function syncChatHistoryFromJson(dataRoot: string): Promise<void> {
       const items = msgs.map((m, i) => ({
         role_id: roleId,
         role: m.role,
-        content: JSON.stringify(m),
+        content: JSON.stringify(externalizeMessage(m)),
         ts: Math.max(0, Math.round(mtimeMs - (msgs.length - 1 - i) * 1000)),
         archived: 0,
       }))
