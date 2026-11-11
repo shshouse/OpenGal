@@ -1,18 +1,21 @@
 import type { LLMConfig, Live2DModelConfig } from './config'
 
-export type EmotionTag =
-  | 'neutral'
-  | 'happy'
-  | 'sad'
-  | 'angry'
-  | 'surprised'
-  | 'shy'
-  | 'proud'
-  | 'thinking'
-  | 'sleepy'
-  | 'relaxed'
-  | 'excited'
-  | 'worried'
+export const STANDARD_EMOTIONS = [
+  'neutral',
+  'happy',
+  'sad',
+  'angry',
+  'surprised',
+  'shy',
+  'proud',
+  'thinking',
+  'sleepy',
+  'relaxed',
+  'excited',
+  'worried',
+] as const
+
+export type EmotionTag = (typeof STANDARD_EMOTIONS)[number]
 
 export type WindowMode = 'mate' | 'theater'
 

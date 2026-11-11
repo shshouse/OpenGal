@@ -8,6 +8,7 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
+import { timeOfDayLabel } from '@shared/timeOfDay'
 
 export type BootPhase = 'booting' | 'waking' | 'awake'
 
@@ -33,17 +34,6 @@ let greeted = false
 let greetingPending = false
 let llmConfigured = false
 
-function timeBucket(): string {
-  const h = new Date().getHours()
-  if (h < 5) return '凌晨'
-  if (h < 9) return '早上'
-  if (h < 12) return '上午'
-  if (h < 14) return '中午'
-  if (h < 18) return '下午'
-  if (h < 23) return '晚上'
-  return '深夜'
-}
-
 function allSettled(steps: BootStep[]): boolean {
   return steps.every((s) => s.status !== 'pending' && s.status !== 'running')
 }
@@ -63,7 +53,7 @@ export async function maybeGreet(): Promise<void> {
     // 否则中文台词喂给非中文音色模型会被读成参考音频
     const card = useRoleStore.getState().list.find((c) => c.id === activeId)
     const label = card?.language ? speechLanguageLabel(card.language) : null
-    const nudge = `（现在是${timeBucket()}。请用一两句符合角色设定的话向用户打招呼，自然简短，可以结合当前时间，不要提到系统或启动。${label ? `台词必须使用${label}，不要用其他语言。` : ''}）`
+    const nudge = `（现在是${timeOfDayLabel()}。请用一两句符合角色设定的话向用户打招呼，自然简短，可以结合当前时间，不要提到系统或启动。${label ? `台词必须使用${label}，不要用其他语言。` : ''}）`
     useChatStore.getState().setSending(true)
     pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })
   } catch (err) {

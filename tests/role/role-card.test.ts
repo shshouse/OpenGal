@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  STANDARD_EMOTIONS,
   buildSystemPrompt,
   extractAssistantDisplayText,
 } from '../../src/shared/roleCard'
+import { STANDARD_EMOTIONS } from '../../src/shared/role'
 import type { RoleCard } from '../../src/shared/types'
 
 const card = {

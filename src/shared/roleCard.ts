@@ -1,20 +1,6 @@
 import type { LLMDialogueItem, RoleCard } from './types'
+import { STANDARD_EMOTIONS } from './role'
 import { speechLanguageLabel } from './subtitles'
-
-export const STANDARD_EMOTIONS = [
-  'neutral',
-  'happy',
-  'sad',
-  'angry',
-  'surprised',
-  'shy',
-  'proud',
-  'thinking',
-  'sleepy',
-  'relaxed',
-  'excited',
-  'worried',
-] as const
 
 const MOTION_GROUP_LABELS: Record<string, string> = {
   Idle: '待机、平静（一般无需主动触发）',

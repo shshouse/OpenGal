@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import type { AppConfig } from './config'
+import type { ChatMessage, LLMRequest } from './llm'
+import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } from './memory'
 
 /** 各 IPC 通道的入参 schema。跨进程边界的数据一律视为不可信，主进程收到先过这里。 */
 
@@ -134,3 +137,16 @@ export const llmRequestSchema = z.object({
     .optional(),
   toolChoice: z.unknown().optional(),
 })
+
+// 边界 schema 与领域类型必须同进同退：键不一致时类型检查失败，避免 IPC 静默丢字段或拒绝保存
+type KeyDiff<A, B> = Exclude<keyof A, keyof B> | Exclude<keyof B, keyof A>
+type KeyContract<A, B> = [KeyDiff<A, B>] extends [never] ? true : { keysOutOfSync: KeyDiff<A, B> }
+
+const _boundarySchemaContract: [
+  KeyContract<AppConfig, typeof configPatchSchema.shape>,
+  KeyContract<ChatMessage, typeof chatMessageSchema.shape>,
+  KeyContract<LLMRequest, typeof llmRequestSchema.shape>,
+  KeyContract<MemoryApplyPayload, typeof memoryApplyPayloadSchema.shape>,
+  KeyContract<MemoryCandidateFact, typeof memoryCandidateFactSchema.shape>,
+  KeyContract<MemoryCandidateStory, typeof memoryCandidateStorySchema.shape>,
+] = [true, true, true, true, true, true]
