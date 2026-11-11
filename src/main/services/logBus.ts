@@ -69,8 +69,8 @@ export function addLogSubscriber(wc: WebContents): void {
   wc.once('destroyed', () => subscribers.delete(wc))
 }
 
-export function getAllLogs(): LogEntry[] {
-  return buffer.slice()
+export function getRecentLogs(limit = 400): LogEntry[] {
+  return limit >= buffer.length ? buffer.slice() : buffer.slice(buffer.length - limit)
 }
 
 export function clearLogs(): void {

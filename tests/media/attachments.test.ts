@@ -37,9 +37,9 @@ describe('图片附件落盘', () => {
     expect(files).toHaveLength(1)
   })
 
-  it('发请求前能还原成 data URL', () => {
+  it('发请求前能还原成 data URL', async () => {
     const clean = externalizeMessage(message(), root)
-    const restored = inlineAttachments(clean, root)
+    const restored = await inlineAttachments(clean, root)
     expect(restored).toEqual(message())
   })
 
@@ -54,10 +54,10 @@ describe('图片附件落盘', () => {
     expect(JSON.stringify(clean)).toContain(ATTACHMENT_PREFIX)
   })
 
-  it('文件丢了就保留原引用，不抛错', () => {
+  it('文件丢了就保留原引用，不抛错', async () => {
     const clean = externalizeMessage(message(), root)
     fs.rmSync(root, { recursive: true, force: true })
-    const restored = inlineAttachments(clean, root)
+    const restored = await inlineAttachments(clean, root)
     expect(JSON.stringify(restored)).toContain(ATTACHMENT_PREFIX)
     fs.mkdirSync(root, { recursive: true })
   })

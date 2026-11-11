@@ -52,20 +52,39 @@ export function externalizeMessage<T>(message: T, root = getAttachmentsRoot()): 
   return next === json ? message : (JSON.parse(next) as T)
 }
 
+const ATTACHMENT_RE = new RegExp(`"${ATTACHMENT_PREFIX}([^"]+)"`, 'g')
+
+async function readAsDataUrl(encoded: string, root: string): Promise<string | null> {
+  const base = path.resolve(root)
+  const file = path.resolve(base, decodeURIComponent(encoded))
+  if (!file.startsWith(base + path.sep)) return null
+  try {
+    const bytes = await fs.promises.readFile(file)
+    const mime = MIME_BY_EXT[path.extname(file).slice(1).toLowerCase()] ?? 'application/octet-stream'
+    return `data:${mime};base64,${bytes.toString('base64')}`
+  } catch {
+    return null
+  }
+}
+
 /** 调模型前把附件引用换回 data URL：接口只接受 data URL 或公网地址。 */
-export function inlineAttachments<T>(value: T, root = getAttachmentsRoot()): T {
+export async function inlineAttachments<T>(value: T, root = getAttachmentsRoot()): Promise<T> {
   const json = JSON.stringify(value)
   if (!json.includes(ATTACHMENT_PREFIX)) return value
-  const base = path.resolve(root)
-  const next = json.replace(/"opengal:\/\/attachments\/([^"]+)"/g, (whole, encoded: string) => {
-    try {
-      const file = path.resolve(base, decodeURIComponent(encoded))
-      if (!file.startsWith(base + path.sep) || !fs.existsSync(file)) return whole
-      const mime = MIME_BY_EXT[path.extname(file).slice(1).toLowerCase()] ?? 'application/octet-stream'
-      return JSON.stringify(`data:${mime};base64,${fs.readFileSync(file).toString('base64')}`)
-    } catch {
-      return whole
-    }
-  })
+
+  const names = [
+    ...new Set(
+      [...json.matchAll(ATTACHMENT_RE)].map((m) => m[1]).filter((n): n is string => Boolean(n)),
+    ),
+  ]
+  const replacements = new Map<string, string>()
+  await Promise.all(
+    names.map(async (name) => {
+      const url = await readAsDataUrl(name, root)
+      if (url) replacements.set(name, JSON.stringify(url))
+    }),
+  )
+  if (replacements.size === 0) return value
+  const next = json.replace(ATTACHMENT_RE, (whole, encoded: string) => replacements.get(encoded) ?? whole)
   return next === json ? value : (JSON.parse(next) as T)
 }

@@ -12,11 +12,11 @@ import { z } from 'zod'
 
 export function registerLlmIpc(): void {
 
-  handleValidated(IpcChannels.llm.chat, [llmRequestSchema], (request) => {
+  handleValidated(IpcChannels.llm.chat, [llmRequestSchema], async (request) => {
     // schema 已校验结构；passthrough 允许的额外字段使推导类型比 LLMRequest 宽
     const typed = request as LLMRequest
     // 库里只存附件引用，发请求前再还原成 data URL
-    return callLLM({ ...typed, messages: inlineAttachments(typed.messages) })
+    return callLLM({ ...typed, messages: await inlineAttachments(typed.messages) })
   })
 
   ipcMain.handle(
@@ -28,7 +28,9 @@ export function registerLlmIpc(): void {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (!win) return { success: false, error: 'No window' }
       const typed = parsed.data as LLMRequest
-      void callLLMStream({ ...typed, messages: inlineAttachments(typed.messages) }, sid.data, win.webContents).catch(() => {})
+      void inlineAttachments(typed.messages)
+        .then((messages) => callLLMStream({ ...typed, messages }, sid.data, win.webContents))
+        .catch(() => {})
       return { success: true }
     }
   )

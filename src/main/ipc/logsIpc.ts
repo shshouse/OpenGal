@@ -4,7 +4,7 @@ import path from 'node:path'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { IpcResult } from '@shared/types'
 import type { LogEntry } from '@shared/log'
-import { addLogSubscriber, getAllLogs, clearLogs, logBus } from '../services/logBus'
+import { addLogSubscriber, getRecentLogs, clearLogs, logBus } from '../services/logBus'
 import { getDataRoot } from '../services/paths'
 import { wrap } from './wrap'
 import { getErrorMessage } from '@shared/errors'
@@ -20,9 +20,10 @@ export function registerLogsIpc(): void {
       .catch((err) => logBus.warn('director', `决策日志写入失败: ${getErrorMessage(err)}`))
   })
 
-  ipcMain.handle(IpcChannels.logs.list, (event) => {
+  ipcMain.handle(IpcChannels.logs.list, (event, limit?: number) => {
     addLogSubscriber(event.sender)
-    return { success: true, data: getAllLogs() } as IpcResult<LogEntry[]>
+    const take = typeof limit === 'number' && limit > 0 ? Math.min(limit, 2000) : 400
+    return { success: true, data: getRecentLogs(take) } as IpcResult<LogEntry[]>
   })
   ipcMain.handle(IpcChannels.logs.clear, () => {
     clearLogs()
