@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSystemPrompt } from '../../src/shared/roleCard'
+import { buildSystemPrompt } from '@shared/role/prompt'
 import type { RoleCard } from '../../src/shared/types'
 
 const card: RoleCard = {

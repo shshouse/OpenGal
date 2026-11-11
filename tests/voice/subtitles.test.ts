@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { languageCode, roleSpeechLanguage, subtitleText } from '@shared/subtitles'
-import { buildSystemPrompt } from '@shared/roleCard'
+import { buildSystemPrompt } from '@shared/role/prompt'
 
 describe('subtitles', () => {
   it('归一化语言代码并拒绝不支持的合成语言', () => {

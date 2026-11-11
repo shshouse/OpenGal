@@ -6,7 +6,7 @@ import { applyEmotion, playMotionGroup } from '@/features/live2d/live2dBus'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useRoleStore } from '@/features/role/roleStore'
-import { isRoleRunning } from '@shared/roleRuntime'
+import { isRoleRunning } from '@shared/role/runtime'
 
 const DRAG_THRESHOLD_PX = 6
 

@@ -1,5 +1,6 @@
-import { SpeechStreamParser, buildSystemPrompt, extractAssistantDisplayText } from '@shared/roleCard'
-import { isRoleRunning } from '@shared/roleRuntime'
+import { buildSystemPrompt } from '@shared/role/prompt'
+import { SpeechStreamParser, extractAssistantDisplayText } from '@shared/dialogueProtocol'
+import { isRoleRunning } from '@shared/role/runtime'
 import { SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { packContext, type ContextItem } from './contextAssembler'

@@ -4,7 +4,7 @@ import { resolveSlotConfig } from '@shared/llmSlot'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
-import { isRoleRunning } from '@shared/roleRuntime'
+import { isRoleRunning } from '@shared/role/runtime'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { isSpeaking } from './uiHandlers'
 import {
@@ -23,7 +23,7 @@ import { gateUtterance } from '@shared/presence/gate'
 import { nextSilenceDelay } from '@shared/presence/silence'
 import { buildInitiativePerception } from './initiativePerception'
 import { pipelineBus } from './pipelineBus'
-import { parsePerformance } from '@shared/performance'
+import { parsePerformance } from '@shared/dialogueProtocol'
 import { getErrorMessage } from '@shared/errors'
 
 const SILENCE_WINDOW_MS = 2500

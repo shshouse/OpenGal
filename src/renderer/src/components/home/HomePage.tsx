@@ -2,7 +2,7 @@ import * as React from 'react'
 import { ArrowRight, Moon, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { isRoleRunning, type RoleRunningMap } from '@shared/roleRuntime'
+import { isRoleRunning, type RoleRunningMap } from '@shared/role/runtime'
 import type { BootStep, RoleCardEntry } from '@shared/types'
 import { useUIStateStore } from '@/features/uiState/uiStateStore'
 

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  getHeadCrop,
-  isRoleRunning,
-  toggleRoleRunning,
-} from '../../src/shared/roleRuntime'
+import { isRoleRunning, toggleRoleRunning } from '@shared/role/runtime'
+import { getHeadCrop } from '@/lib/headCrop'
 
 describe('角色运行状态', () => {
   it('默认所有角色都是沉睡', () => {

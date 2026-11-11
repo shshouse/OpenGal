@@ -1,4 +1,4 @@
-import type { LLMConfig, Live2DModelConfig } from './config'
+import type { LLMConfig, Live2DModelConfig } from '../config'
 
 export const STANDARD_EMOTIONS = [
   'neutral',

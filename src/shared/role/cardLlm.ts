@@ -1,4 +1,4 @@
-import type { LLMConfig } from './types'
+import type { LLMConfig } from '../config'
 
 // 角色卡只许覆盖生成参数；endpoint 与密钥必须取自全局配置，防恶意卡劫持 LLM 流量与密钥
 const CARD_LLM_KEYS = [

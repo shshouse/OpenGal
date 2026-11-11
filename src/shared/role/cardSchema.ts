@@ -1,6 +1,6 @@
 /** 角色卡校验用手写而不是 zod：读入时要归一化旧字段并过滤敏感字段，这两步 zod 不做。
  *  其余跨进程入参统一走 schemas.ts 的 zod schema。 */
-import type { PerformanceMode, RoleCard, WindowMode } from './types'
+import type { PerformanceMode, RoleCard, WindowMode } from './index'
 import { sanitizeCardLlm } from './cardLlm'
 
 export const CARD_SCHEMA_VERSION = 1

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_SCHEMA_VERSION, isSafeCardRelativePath, validateRoleCard } from '@shared/roleCardSchema'
+import { CARD_SCHEMA_VERSION, isSafeCardRelativePath, validateRoleCard } from '@shared/role/cardSchema'
 
 function baseCard(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { BootStep } from '@shared/types'
-import { isRoleRunning } from '@shared/roleRuntime'
+import { isRoleRunning } from '@shared/role/runtime'
 import { speechLanguageLabel } from '@shared/subtitles'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useRoleStore } from '@/features/role/roleStore'

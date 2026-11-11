@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parsePerformance } from '../../src/shared/performance'
+import { parsePerformance } from '@shared/dialogueProtocol'
 
 describe('表演模块', () => {
   it('同一行输出给出原文、展示、语音、皮套四种视图', () => {

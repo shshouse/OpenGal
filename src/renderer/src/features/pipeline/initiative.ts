@@ -9,7 +9,7 @@ import { buildInitiativeNudge } from '@shared/initiativeNudge'
 import { speechLanguageLabel } from '@shared/subtitles'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
-import { isRoleRunning } from '@shared/roleRuntime'
+import { isRoleRunning } from '@shared/role/runtime'
 import { getErrorMessage } from '@shared/errors'
 
 const TICK_MS = 60_000

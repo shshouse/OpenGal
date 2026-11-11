@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { RoleCardEntry } from '@shared/types'
-import { validateRoleCard, type RoleCardIssue } from '@shared/roleCardSchema'
+import { validateRoleCard, type RoleCardIssue } from '@shared/role/cardSchema'
 import { getDataRoot, getModRoot, toRoleUrl, toModUrl } from './paths'
 import { getRolesRoot } from './roleStore'
 

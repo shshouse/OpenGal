@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { isRoleRunning } from '@shared/roleRuntime'
+import { isRoleRunning } from '@shared/role/runtime'
 
 export type AppView = 'home' | 'chat' | 'market' | 'settings' | 'logs'
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { RoleRunningMap } from '@shared/roleRuntime'
+import type { RoleRunningMap } from '@shared/role/runtime'
 
 interface RoleRuntimeState {
   byId: RoleRunningMap

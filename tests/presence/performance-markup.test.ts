@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SpeechStreamParser } from '../../src/shared/roleCard'
+import { SpeechStreamParser } from '@shared/dialogueProtocol'
 
 function parse(text: string) {
   const parser = new SpeechStreamParser()
