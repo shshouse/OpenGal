@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { appendMessage, closeMemoryDb, flushMemoryDb, initMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
+import { pruneBackups } from '../../src/main/services/memory/backup'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-backup-'))
 
@@ -33,5 +34,20 @@ describe('memory backup', () => {
     } finally {
       probe.close()
     }
+  })
+
+  it('按类别保留备份，未知文件不删', () => {
+    const dir = path.join(root, 'retention')
+    fs.mkdirSync(dir)
+    const daily = Array.from({ length: 9 }, (_, i) => `memory-2026-01-${String(i + 1).padStart(2, '0')}.db`)
+    const migrations = Array.from({ length: 5 }, (_, i) => `memory-pre-v${i}-2026-01-01.db`)
+    for (const [index, name] of [...daily, ...migrations, 'do-not-touch.db'].entries()) {
+      const file = path.join(dir, name)
+      fs.writeFileSync(file, name)
+      fs.utimesSync(file, new Date(index * 1000), new Date(index * 1000))
+    }
+
+    expect(pruneBackups(dir)).toBe(4)
+    expect(fs.readdirSync(dir).sort()).toEqual([...daily.slice(2), ...migrations.slice(2), 'do-not-touch.db'].sort())
   })
 })

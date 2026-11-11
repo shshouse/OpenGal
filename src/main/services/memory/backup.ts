@@ -89,11 +89,39 @@ export function backupBeforeMigration(label: string): string | null {
     const target = path.join(backupRootDir, `memory-pre-${label}-${stamp}.db`)
     if (!sqliteSnapshot(target, 'messages')) return null
     logger.info('memory', `迁移前备份: ${target}`)
+    pruneBackups()
     return target
   } catch (err) {
     logger.error('memory', `迁移前备份失败: ${getErrorMessage(err)}`)
     return null
   }
+}
+
+// 每类备份各自的保留份数；不落入任何一类就不删，宁可留着
+const BACKUP_RETENTION = [
+  { pattern: /^memory-\d{4}-\d{2}-\d{2}\.db$/, keep: 7 },
+  { pattern: /^memory-pre-.*\.db$/, keep: 3 },
+]
+
+export function pruneBackups(root = backupRootDir): number {
+  let removed = 0
+  try {
+    const names = fs.readdirSync(root)
+    for (const { pattern, keep } of BACKUP_RETENTION) {
+      const files = names
+        .filter((name) => pattern.test(name))
+        .map((name) => path.join(root, name))
+        .filter((file) => fs.statSync(file).isFile())
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)
+      for (const file of files.slice(keep)) {
+        fs.rmSync(file, { force: true })
+        removed++
+      }
+    }
+  } catch (err) {
+    logger.warn('memory', `旧备份清理失败: ${getErrorMessage(err)}`)
+  }
+  return removed
 }
 
 export function snapshotBackup(): void {
@@ -105,11 +133,7 @@ export function snapshotBackup(): void {
     if (!sqliteSnapshot(tmp)) return
     fs.rmSync(target, { force: true })
     fs.renameSync(tmp, target)
-    const all = fs
-      .readdirSync(backupRootDir)
-      .filter((f) => /^memory-\d{4}-\d{2}-\d{2}\.db$/.test(f))
-      .sort()
-    while (all.length > 7) fs.rmSync(path.join(backupRootDir, all.shift() as string), { force: true })
+    pruneBackups()
   } catch (err) {
     logger.error('memory', `备份失败: ${getErrorMessage(err)}`)
   }

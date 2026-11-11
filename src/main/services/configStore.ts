@@ -119,7 +119,7 @@ function isCiphertext(value: string): boolean {
   return raw.length > 15 && raw.subarray(0, 3).toString() === 'v10'
 }
 
-function encryptApiKey(key: string): string {
+function encryptSecret(key: string): string {
   if (!key) return ''
   if (!safeStorage.isEncryptionAvailable()) return key
   if (isCiphertext(key)) return key
@@ -127,7 +127,7 @@ function encryptApiKey(key: string): string {
 }
 
 // 解密失败不能把密文当明文返回：否则下次保存会把密文再加密一次，密钥层层嵌套彻底不可用
-function decryptApiKey(value: string): string {
+function decryptSecret(value: string): string {
   if (!value) return ''
   if (!safeStorage.isEncryptionAvailable()) return value
   let cur = value
@@ -164,10 +164,11 @@ export function readConfig(): AppConfig {
   merged.asr.engine = normalizeAsrEngine(merged.asr.engine as string)
   merged.asr.mode = normalizeAsrMode(merged.asr.mode as string)
   merged.systemLocale = app.getPreferredSystemLanguages()[0] || app.getLocale()
-  merged.llm.apiKey = decryptApiKey(merged.llm.apiKey)
+  merged.llm.apiKey = decryptSecret(merged.llm.apiKey)
+  merged.tools.webSearch.tavilyKey = decryptSecret(merged.tools.webSearch.tavilyKey)
   // 缺键时不要制造 undefined 属性：writeConfig 是整对象写回，conf 见到顶层 undefined 会抛错
   if (merged.llmPresets) {
-    merged.llmPresets = merged.llmPresets.map((p) => ({ ...p, apiKey: decryptApiKey(p.apiKey) }))
+    merged.llmPresets = merged.llmPresets.map((p) => ({ ...p, apiKey: decryptSecret(p.apiKey) }))
   }
   if (merged.model && !merged.model.modelUrl && merged.model.modelPath) {
     merged.model.modelUrl = toModUrl(merged.model.modelPath)
@@ -205,10 +206,14 @@ export function writeConfig(patch: Partial<AppConfig>): AppConfig {
   }
   const persisted: Record<string, unknown> = {
     ...next,
-    llm: { ...next.llm, apiKey: encryptApiKey(next.llm.apiKey) }
+    llm: { ...next.llm, apiKey: encryptSecret(next.llm.apiKey) },
+    tools: {
+      ...next.tools,
+      webSearch: { ...next.tools.webSearch, tavilyKey: encryptSecret(next.tools.webSearch.tavilyKey) },
+    },
   }
   if (next.llmPresets) {
-    persisted.llmPresets = next.llmPresets.map((p) => ({ ...p, apiKey: encryptApiKey(p.apiKey) }))
+    persisted.llmPresets = next.llmPresets.map((p) => ({ ...p, apiKey: encryptSecret(p.apiKey) }))
   }
   // conf 的 set(object) 逐键写入，顶层 undefined 会抛 TypeError（JSON 不支持 undefined）
   for (const key of Object.keys(persisted)) {
