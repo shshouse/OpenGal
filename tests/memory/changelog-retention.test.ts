@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import * as db from '../../src/main/services/memoryDb'
+import { setReadyPromise } from '../../src/main/services/memory/core'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-changelog-retention-'))
 
@@ -25,6 +27,7 @@ describe('memory changelog retention', () => {
 
   afterAll(() => {
     db.closeMemoryDb()
+    setReadyPromise(null)
     fs.rmSync(root, { recursive: true, force: true })
   })
 
@@ -44,5 +47,45 @@ describe('memory changelog retention', () => {
       expect(() => db.pruneMemoryChangelog(limit)).toThrow(RangeError)
     }
     expect(db.listRoleMemoryChanges('alpha')).toEqual(before)
+  })
+
+  it('重启时先快照，再按每角色 1000 条清理审计记录', async () => {
+    for (let i = 1; i <= 1002; i++) seed('startup', i)
+    db.closeMemoryDb()
+    setReadyPromise(null)
+
+    await db.initMemoryDb(root)
+    await db.memoryDbReady()
+
+    const day = new Date().toISOString().slice(0, 10)
+    const probe = new DatabaseSync(path.join(root, 'backups', `memory-${day}.db`), { readOnly: true })
+    try {
+      const backup = probe.prepare('SELECT COUNT(*) AS c FROM memory_changelog WHERE role_id = ?').get('startup') as { c: number }
+      expect(backup.c).toBe(1002)
+    } finally {
+      probe.close()
+    }
+    const retained = db.listRoleMemoryChanges('startup', 1100)
+    expect(retained).toHaveLength(1000)
+    expect(retained[0].new_value).toBe('1002')
+    expect(retained.at(-1)?.new_value).toBe('3')
+  })
+
+  it('快照失败时跳过清理，不拿旧备份冒充保险', async () => {
+    seed('startup', 1003)
+    seed('startup', 1004)
+    db.closeMemoryDb()
+    setReadyPromise(null)
+
+    const day = new Date().toISOString().slice(0, 10)
+    const conflict = path.join(root, 'backups', `memory-${day}.db.tmp`)
+    fs.mkdirSync(conflict)
+    try {
+      await db.initMemoryDb(root)
+      await db.memoryDbReady()
+      expect(db.listRoleMemoryChanges('startup', 1100)).toHaveLength(1002)
+    } finally {
+      fs.rmSync(conflict, { recursive: true, force: true })
+    }
   })
 })

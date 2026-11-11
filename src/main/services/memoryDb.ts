@@ -2,6 +2,7 @@ import { checkpoint, db, dbFile, logger, openMemoryDb, prepareMemoryDb, readyPro
 import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './memory/backup'
 import { SCHEMA, migrateFactsSchema, migrateMemoryV2, migrateMessagesSchema } from './memory/schema'
 import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './memory/legacy'
+import { pruneMemoryChangelog } from './memory/changelog'
 import { getErrorMessage } from '@shared/errors'
 
 export type {
@@ -40,9 +41,15 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
     migrateFactsSchema()
     migrateMemoryV2()
     checkpoint()
-    snapshotBackup()
+    const snapshotReady = snapshotBackup()
     syncLegacyMemoryFromJson(dataRoot)
     await syncChatHistoryFromJson(dataRoot)
+    if (!snapshotReady) {
+      logger.warn('memory', '快照失败，已跳过变更审计清理')
+    } else {
+      const pruned = pruneMemoryChangelog(1000)
+      if (pruned > 0) logger.info('memory', `旧变更审计已清理 ${pruned} 条（每角色保留 1000 条）`)
+    }
     logger.info('memory', `记忆库已就绪(WAL): ${dbFile}`)
   })().catch((err) => {
     logger.error('memory', `记忆库初始化失败: ${getErrorMessage(err)}`)

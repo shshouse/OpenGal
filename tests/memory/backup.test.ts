@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { appendMessage, closeMemoryDb, flushMemoryDb, initMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
-import { pruneBackups } from '../../src/main/services/memory/backup'
+import { pruneBackups, snapshotBackup } from '../../src/main/services/memory/backup'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-backup-'))
 
@@ -33,6 +33,19 @@ describe('memory backup', () => {
       expect(rows.n).toBe(1)
     } finally {
       probe.close()
+    }
+  })
+
+  it('向破坏性维护明确报告快照成功或失败', () => {
+    expect(snapshotBackup()).toBe(true)
+
+    const day = new Date().toISOString().slice(0, 10)
+    const conflict = path.join(root, 'backups', `memory-${day}.db.tmp`)
+    fs.mkdirSync(conflict)
+    try {
+      expect(snapshotBackup()).toBe(false)
+    } finally {
+      fs.rmSync(conflict, { recursive: true, force: true })
     }
   })
 

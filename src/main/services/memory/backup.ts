@@ -124,17 +124,19 @@ export function pruneBackups(root = backupRootDir): number {
   return removed
 }
 
-export function snapshotBackup(): void {
+export function snapshotBackup(): boolean {
   try {
-    if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return
+    if (!fs.existsSync(dbFile) || fs.statSync(dbFile).size === 0) return false
     const day = new Date().toISOString().slice(0, 10)
     const target = path.join(backupRootDir, `memory-${day}.db`)
     const tmp = `${target}.tmp`
-    if (!sqliteSnapshot(tmp)) return
+    if (!sqliteSnapshot(tmp)) return false
     fs.rmSync(target, { force: true })
     fs.renameSync(tmp, target)
     pruneBackups()
+    return true
   } catch (err) {
     logger.error('memory', `备份失败: ${getErrorMessage(err)}`)
+    return false
   }
 }

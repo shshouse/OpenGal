@@ -92,6 +92,6 @@ export function openMemoryDb(): void {
   db.exec('PRAGMA journal_mode = WAL')
 }
 
-export function setReadyPromise(promise: Promise<void>): void {
+export function setReadyPromise(promise: Promise<void> | null): void {
   readyPromise = promise
 }
