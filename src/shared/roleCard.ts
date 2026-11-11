@@ -352,7 +352,12 @@ function lastIndexMatch(text: string, re: RegExp): number {
 
 // 只剥离行内表演标签，句中的字面小于号（如 <3）必须原样保留
 function stripSpeechTags(text: string): string {
-  return text.replace(/<\s*[ea]\s*:\s*[^<>]*?\s*>/gi, '').replace(/<\s*[ea]\s*:\s*[^<>]*$/i, '')
+  return text
+    .replace(/<\s*[ea]\s*:\s*[^<>]*?\s*>/gi, '')
+    .replace(/<\s*[ea]\s*:\s*[^<>]*$/i, '')
+    // 模型偶尔会吐出 <|AUDIO_START|> 这类特殊 token；不剥离会原样进台词和 TTS
+    .replace(/<\|[^|<>]*\|>/g, '')
+    .replace(/<\|[^|<>]*$/g, '')
 }
 
 function findClosingBrace(s: string): number {

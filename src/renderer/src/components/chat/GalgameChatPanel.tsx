@@ -173,7 +173,7 @@ export function GalgameChatPanel() {
               handleSend()
             }}
             onPaste={pendingImages.handlePaste}
-            placeholder={sleeping ? '她正在沉睡，点击顶栏头像唤醒' : canInteract ? '输入消息，可粘贴图片…' : '正在唤醒…'}
+            placeholder={sleeping ? '她正在沉睡，先在左侧唤醒她' : canInteract ? '输入消息，可粘贴图片…' : '正在唤醒…'}
             disabled={!canInteract}
             className="max-h-52 min-h-10 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-relaxed shadow-none focus-visible:ring-0 [field-sizing:content]"
             rows={1}

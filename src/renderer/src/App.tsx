@@ -220,11 +220,6 @@ export default function App() {
     setView('chat')
   }
 
-  async function handleAvatarClick(roleId: string): Promise<void> {
-    await openRole(roleId)
-    await setRunningFor(roleId)
-  }
-
   async function toggleMate(): Promise<void> {
     if (mateOpen) {
       await window.opengal.mate.close()
@@ -286,7 +281,7 @@ export default function App() {
         view={view}
         onNavigate={setView}
         avatarUrl={avatarUrl}
-        onAvatarClick={(id) => void handleAvatarClick(id)}
+        onSelectRole={(id) => void openRole(id)}
         mateOpen={mateOpen}
         onToggleMate={() => void toggleMate()}
         showLive2D={config?.showLive2D ?? true}

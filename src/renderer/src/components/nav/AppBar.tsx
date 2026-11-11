@@ -34,7 +34,7 @@ interface Props {
   view: AppView
   onNavigate: (view: AppView) => void
   avatarUrl?: string | null
-  onAvatarClick: (roleId: string) => void
+  onSelectRole: (roleId: string) => void
   mateOpen: boolean
   onToggleMate: () => void
   showLive2D: boolean
@@ -75,7 +75,7 @@ export function AppBar({
   view,
   onNavigate,
   avatarUrl,
-  onAvatarClick,
+  onSelectRole,
   mateOpen,
   onToggleMate,
   showLive2D,
@@ -141,8 +141,8 @@ export function AppBar({
             <button
               key={role.id}
               type="button"
-              title={`${label}：${running ? '运行中，点击休眠' : '沉睡中，点击唤醒'}`}
-              onClick={() => onAvatarClick(role.id)}
+              title={`${label}：${running ? '运行中' : '沉睡中'}，点击进入对话`}
+              onClick={() => onSelectRole(role.id)}
               className={cn(
                 'relative flex size-8 items-center justify-center overflow-hidden rounded-full border text-xs transition-colors',
                 active ? 'border-brand ring-1 ring-brand/50' : 'border-border hover:border-muted-foreground/50',
