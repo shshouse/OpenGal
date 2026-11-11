@@ -14,23 +14,14 @@ import { isRoleRunning } from '@shared/roleRuntime'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useStartupStore } from '@/features/startup/startupStore'
-import { displaySubtitle, useSubtitleStore } from '@/features/pipeline/subtitles'
+import { displaySubtitle, subtitleForSegment, useSubtitleStore } from '@/features/pipeline/subtitles'
+import { useSpokenLineStore } from '@/features/pipeline/spokenLine'
 import { consumeVoiceInterruption } from '@/features/pipeline/bargeIn'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
 
 const COMPOSITION_GUARD_MS = 500
-
-// 先按空行分段；整段没有空行时按中文句末标点断句，英文句点不切，避免误伤小数和缩写
-function splitReply(text: string): string[] {
-  const trimmed = text.trim()
-  if (!trimmed) return []
-  const paragraphs = trimmed.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean)
-  if (paragraphs.length > 1) return paragraphs
-  const sentences = trimmed.split(/(?<=[。！？…])\s*|\n+/).map((part) => part.trim()).filter(Boolean)
-  return sentences.length > 1 ? sentences : [trimmed]
-}
 
 function abortPipeline(): void {
   pipelineBus.emit('pipeline:abort', undefined)
@@ -62,7 +53,7 @@ export function GalgameChatPanel() {
   const subtitle = (text: string): string => displaySubtitle(role?.id ?? '', text)
 
   const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
-  const [cursor, setCursor] = React.useState(0)
+  const spoken = useSpokenLineStore((s) => s)
   const replyRef = React.useRef<HTMLDivElement>(null)
 
   function latestReply(): string {
@@ -70,16 +61,22 @@ export function GalgameChatPanel() {
     return last ? subtitle(extractAssistantDisplayText(last.content as string)) : ''
   }
 
-  const reply = streamingDisplay ? subtitle(streamingDisplay) : latestReply()
-  const segments = React.useMemo(() => splitReply(reply), [reply])
-  const visible = streamingDisplay ? reply : (segments[cursor] ?? '')
-  const hasMore = !streamingDisplay && cursor < segments.length - 1
+  // 有语音时文字跟发声逐句推进；语音被跳过或没启用时整段显示。
+  // 第一句还在合成时只露出这一句，避免整段文字先冒出来、开口后又跳回第一句
+  function currentText(): string {
+    if (spoken.mode === 'speech') {
+      const line = spoken.roleId === role?.id && spoken.text
+        ? subtitleForSegment(spoken.roleId, spoken.segmentId, spoken.text)
+        : ''
+      return line || latestReply()
+    }
+    if (spoken.mode === 'text') return streamingDisplay ? subtitle(streamingDisplay) : latestReply()
+    const first = streamingSegments[0]?.item.text
+    return first ? subtitle(first) : latestReply()
+  }
+  const visible = currentText()
 
-  React.useEffect(() => {
-    setCursor(0)
-  }, [messages.length, reply])
-
-  // 流式输出时跟在最新一行，分段阅读时高度不够也能看到末尾
+  // 换句或流式增长时跟到末尾
   React.useEffect(() => {
     const el = replyRef.current
     if (el) el.scrollTop = el.scrollHeight
@@ -128,15 +125,6 @@ export function GalgameChatPanel() {
                 {visible}
               </p>
             </div>
-            {hasMore ? (
-              <button
-                type="button"
-                onClick={() => setCursor((value) => Math.min(value + 1, segments.length - 1))}
-                className="mt-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                继续
-              </button>
-            ) : null}
           </div>
         ) : null}
 

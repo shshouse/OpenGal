@@ -47,6 +47,17 @@ export function displaySubtitle(roleId: string, original: string): string {
   return record ? subtitleText(record.segments, preferences.mode) : original
 }
 
+export function subtitleForSegment(roleId: string, segmentId: string | null, original: string): string {
+  if (!segmentId) return original
+  const { records, preferences } = useSubtitleStore.getState()
+  for (const record of [...records].reverse()) {
+    if (record.roleId !== roleId) continue
+    const segment = record.segments.find((s) => s.id === segmentId)
+    if (segment) return subtitleText([segment], preferences.mode)
+  }
+  return original
+}
+
 export function startSubtitleWorker(): () => void {
   let generation = 0
   let stopped = false

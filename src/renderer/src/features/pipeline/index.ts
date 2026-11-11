@@ -9,6 +9,7 @@ import { pipelineBus } from './pipelineBus'
 import { useChatStore } from '@/features/chat/chatStore'
 import { startASRBridge } from '@/features/asr/asrStore'
 import { startSubtitleWorker, useSubtitleStore } from './subtitles'
+import { startSpokenLineBridge } from './spokenLine'
 import { subtitleText } from '@shared/subtitles'
 import { startBargeInBridge } from './bargeIn'
 import { startActivityBridge } from '@/features/activity/activityBridge'
@@ -112,6 +113,7 @@ export function startPipeline(): PipelineHandle {
   const stopBridge = startChatStreamBridge()
   const stopASR = startASRBridge()
   const stopMateBubble = startMateBubbleBridge()
+  const stopSpokenLine = startSpokenLineBridge()
   const stopInitiative = startInitiative()
   return {
     dispose: () => {
@@ -121,6 +123,7 @@ export function startPipeline(): PipelineHandle {
       stopBargeIn()
       stopSubtitles()
       stopMateBubble()
+      stopSpokenLine()
       stopASR()
       stopBridge()
       stopMemory()
