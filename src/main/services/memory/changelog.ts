@@ -93,6 +93,22 @@ export function listRoleMemoryChanges(roleId: string, limit = 200): MemoryChange
   ) as unknown as MemoryChange[]
 }
 
+// 仅供显式维护调用：按角色保留最近的审计记录，不动 memories 与 messages
+export function pruneMemoryChangelog(keepPerRole: number): number {
+  if (!Number.isSafeInteger(keepPerRole) || keepPerRole < 1) {
+    throw new RangeError('keepPerRole 必须是正整数')
+  }
+  const result = db!.prepare(
+    `DELETE FROM memory_changelog WHERE seq IN (
+      SELECT seq FROM (
+        SELECT seq, ROW_NUMBER() OVER (PARTITION BY role_id ORDER BY seq DESC) AS recency
+        FROM memory_changelog
+      ) WHERE recency > ?
+    )`,
+  ).run(keepPerRole)
+  return Number(result.changes)
+}
+
 // 只回滚 update 与 delete；insert 的撤销等同删除，由调用方决定
 export function restoreMemoryChange(roleId: string, seq: number): boolean {
   const found = rows(`SELECT ${COLUMNS} FROM memory_changelog WHERE seq = ? AND role_id = ?`, [seq, roleId])
