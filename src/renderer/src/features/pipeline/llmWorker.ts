@@ -1,7 +1,7 @@
 import { buildSystemPrompt } from '@shared/role/prompt'
 import { SpeechStreamParser, extractAssistantDisplayText } from '@shared/dialogueProtocol'
 import { isRoleRunning } from '@shared/role/runtime'
-import { SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
+import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { packContext, type ContextItem } from './contextAssembler'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, ToolCall, ToolDefinition } from '@shared/types'
@@ -312,14 +312,22 @@ export function startLLMWorker(): () => void {
             delta: `[tool:${tc.function.name}] ${resultContent.slice(0, 200)}${resultContent.length > 200 ? '…' : ''}\n`,
             accumulated: '',
           })
-          if (ok && (resultContent.startsWith(SCREEN_FRAME_MARKER) || resultContent.startsWith(SCREEN_SHEET_MARKER))) {
-            const isSheet = resultContent.startsWith(SCREEN_SHEET_MARKER)
-            const marker = isSheet ? SCREEN_SHEET_MARKER : SCREEN_FRAME_MARKER
+          const isSheet = resultContent.startsWith(SCREEN_SHEET_MARKER)
+          const isFallback = resultContent.startsWith(SCREEN_FALLBACK_MARKER)
+          if (
+            ok &&
+            (isSheet || isFallback || resultContent.startsWith(SCREEN_FRAME_MARKER))
+          ) {
+            const marker = isSheet ? SCREEN_SHEET_MARKER : isFallback ? SCREEN_FALLBACK_MARKER : SCREEN_FRAME_MARKER
             toolMessages.push({
               role: 'tool',
               tool_call_id: tc.id,
               name: tc.function.name,
-              content: isSheet ? '已取得屏幕画面，图片见紧随其后的消息。' : '已拍摄屏幕截图，图片见紧随其后的消息。',
+              content: isSheet
+                ? '已取得屏幕画面，图片见紧随其后的消息。'
+                : isFallback
+                  ? '只拍到此刻一帧，图片见紧随其后的消息。'
+                  : '已拍摄屏幕截图，图片见紧随其后的消息。',
             })
             imageMessages.push({
               role: 'user',
@@ -328,7 +336,9 @@ export function startLLMWorker(): () => void {
                   type: 'text',
                   text: isSheet
                     ? '[系统注入的连续屏幕画面：一张拼图，格子按时间从左到右、从上到下排列，用来看这段时间发生了什么]'
-                    : '[系统注入的屏幕截图，供你查看用户当前屏幕]',
+                    : isFallback
+                      ? '[系统注入的屏幕截图：只有用户此刻的一帧，没有这段时间的回放。不要描述「刚才发生了什么」，也不要把这一帧当作录像]'
+                      : '[系统注入的屏幕截图，供你查看用户当前屏幕]',
                 },
                 { type: 'image_url', image_url: { url: resultContent.slice(marker.length) } },
               ] as MessageContentPart[],

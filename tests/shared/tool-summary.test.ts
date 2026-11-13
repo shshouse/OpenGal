@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { summarizeToolResult } from '../../src/shared/toolSummary'
+import { SCREEN_FALLBACK_MARKER } from '../../src/shared/screen'
 
 describe('工具轨迹摘要', () => {
   it('web_search 摘出查询与标题，不显示安全包装', () => {
@@ -33,6 +34,8 @@ describe('工具轨迹摘要', () => {
 
   it('其他工具保持可读的短摘要', () => {
     expect(summarizeToolResult('screenshot', 'x'.repeat(500))).toBe('已拍摄屏幕截图')
+    expect(summarizeToolResult('look_screen', 'x'.repeat(500))).toBe('已获取屏幕画面')
+    expect(summarizeToolResult('look_screen', `${SCREEN_FALLBACK_MARKER}data:image/png;base64,xx`)).toBe('只看到此刻一帧')
     expect(summarizeToolResult('local_file_search', 'a'.repeat(500)).length).toBe(240)
   })
 })

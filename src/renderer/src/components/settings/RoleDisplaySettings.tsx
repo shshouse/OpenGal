@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { useRoleStore } from '@/features/role/roleStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { getErrorMessage } from '@shared/errors'
 
@@ -114,8 +115,32 @@ export function RoleDisplaySettings({
     await persist(DEFAULTS.scale, DEFAULTS.xRatio, DEFAULTS.yRatio)
   }
 
+  const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
+  const outfitChoice = useRoleStore((s) => (s.activeId ? s.outfits[s.activeId] : undefined))
+  const setOutfit = useRoleStore((s) => s.setOutfit)
+  const outfitEntries = activeCard?.outfitEntries ?? []
+  const currentOutfitId = outfitChoice ?? activeCard?.performance.defaultOutfit ?? ''
+
   return (
     <div className="space-y-4">
+      {activeCard && outfitEntries.length > 1 ? (
+        <div className="space-y-1.5">
+          <div className="text-sm font-semibold">服装</div>
+          <div className="flex flex-wrap gap-2">
+            {outfitEntries.map((outfit) => (
+              <Button
+                key={outfit.id}
+                size="sm"
+                variant={outfit.id === currentOutfitId ? 'default' : 'outline'}
+                onClick={() => setOutfit(activeCard.id, outfit.id)}
+              >
+                {outfit.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold">显示位置与缩放</div>
         <Button

@@ -1,4 +1,4 @@
-import { desktopCapturer, app } from 'electron'
+import { desktopCapturer, app, screen } from 'electron'
 import path from 'node:path'
 import fg from 'fast-glob'
 import { registerTool } from './registry'
@@ -16,7 +16,7 @@ import { readConfig } from '../configStore'
 import { getMemoryBlock, recallVerbatim } from '../memory'
 import { logBus } from '../logBus'
 import { isScreenWatchEnabled, lookAtScreen } from '../screenWatch'
-import { SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
+import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
 async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
@@ -27,36 +27,51 @@ async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
 
 export const SCREENSHOT_MARKER = SCREEN_FRAME_MARKER
 
-const SCREENSHOT_COOLDOWN_MS = 10_000
+const SCREENSHOT_COOLDOWN_MS = 3_000
 let lastShotAt = 0
+let shooting: Promise<string> | null = null
 
 // 同一查询短时间内只打一次搜索后端：模型换词重试时，重复 query 直接吃缓存
 const SEARCH_CACHE_TTL_MS = 120_000
 const SEARCH_CACHE_MAX = 20
 const searchCache = new Map<string, { at: number; text: string }>()
 
-async function handleScreenshot(): Promise<string> {
-  if (Date.now() - lastShotAt < SCREENSHOT_COOLDOWN_MS) {
-    throw new Error('截图过于频繁（限 10 秒一次）')
-  }
+/** 拍一张当前屏幕，返回 data URL。冷却期没到就先补齐间隔，不把上一张当这一张交出去。 */
+async function captureFrame(): Promise<string> {
+  const wait = lastShotAt + SCREENSHOT_COOLDOWN_MS - Date.now()
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: { width: 1280, height: 1280 },
   })
-  const primary = sources.find((s) => s.display_id !== '') ?? sources[0]
+  const cursorPoint = screen.getCursorScreenPoint?.()
+  const activeDisplay = cursorPoint ? screen.getDisplayNearestPoint?.(cursorPoint) : undefined
+  const primary =
+    (activeDisplay && sources.find((s) => s.display_id === String(activeDisplay.id))) ??
+    sources.find((s) => s.display_id !== '') ??
+    sources[0]
   if (!primary) throw new Error('无可用屏幕')
   lastShotAt = Date.now()
-  return `${SCREENSHOT_MARKER}data:image/png;base64,${primary.thumbnail.toPNG().toString('base64')}`
+  return `data:image/png;base64,${primary.thumbnail.toPNG().toString('base64')}`
 }
 
-/** 回看一段时间：抓一小段，挑出关键时刻拼成一张图。 */
-async function handleLookScreen(seconds: number): Promise<string> {
-  if (!isScreenWatchEnabled()) {
-    return '用户没有开启屏幕观察，看不到这段时间的画面。需要的话请用户到设置里打开；只想看此刻的一帧，改用 screenshot。'
+/** 同一时刻只拍一张，并发调用共用这次结果 */
+export async function handleScreenshot(): Promise<string> {
+  const task = shooting ?? (shooting = captureFrame())
+  try {
+    return `${SCREENSHOT_MARKER}${await task}`
+  } finally {
+    if (shooting === task) shooting = null
   }
-  const shot = await lookAtScreen(seconds * 1000)
-  if (!shot) return '这次没能抓到画面，稍后再试一次。'
-  return `${SCREEN_SHEET_MARKER}${shot.png}`
+}
+
+/** 回看一段时间：优先读常驻视频流拼图；没有可回放的画面时退回此刻一帧，并标明只有一帧 */
+export async function handleLookScreen(seconds: number): Promise<string> {
+  if (isScreenWatchEnabled()) {
+    const shot = await lookAtScreen(seconds * 1000)
+    if (shot) return `${SCREEN_SHEET_MARKER}${shot.png}`
+  }
+  return `${SCREEN_FALLBACK_MARKER}${await captureFrame()}`
 }
 
 function fileSearchRoots(): string[] {
@@ -350,7 +365,7 @@ export function registerBuiltinTools(): void {
       {
         name: 'screenshot',
         description:
-          '拍摄用户屏幕截图并返回图片，让你看到用户当前屏幕内容。限 10 秒一次。适合用户提到"屏幕上/这个画面"时使用。',
+          '拍摄用户当前屏幕截图并返回图片，让你直接看到用户正在看的桌面画面。当用户提到屏幕内容、界面报错、当前代码、正在看的网页、画作、游戏画面，或说「看看这个」「帮我看下」等需要视觉画面的语境时使用。',
         schema: screenshotSchema,
       },
       async () => handleScreenshot(),
@@ -359,7 +374,7 @@ export function registerBuiltinTools(): void {
       {
         name: 'look_screen',
         description:
-          '回看最近一段时间的屏幕，返回一张拼图：最多 4 格，按时间从左到右、从上到下排列。用户提到"刚才那个""你看到了吗"、或需要知道屏幕上做了什么操作时使用。只想知道此刻屏幕上是什么，用 screenshot 更省。',
+          '回看最近一段时间的连续屏幕画面（拼图），或在需要了解刚才发生了什么操作时使用。若只想看此刻屏幕，用 screenshot 更轻量。',
         schema: lookScreenSchema,
       },
       async (args) => handleLookScreen(args.seconds),

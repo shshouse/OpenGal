@@ -5,6 +5,7 @@ import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
 import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SpriteStage } from '@/components/sprite/SpriteStage'
+import { SpineStage } from '@/components/spine/SpineStage'
 import { SettingsCenter } from '@/components/settings/SettingsCenter'
 import { LogsPanel } from '@/components/logs/LogsPanel'
 import { MarketPage } from '@/components/market/MarketPage'
@@ -42,6 +43,7 @@ export default function App() {
   const loadRoles = useRoleStore((s) => s.loadRoles)
   const activeId = useRoleStore((s) => s.activeId)
   const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
+  const outfits = useRoleStore((s) => s.outfits)
   const runningById = useRoleRuntimeStore((s) => s.byId)
   const activeRunning = isRoleRunning(runningById, activeId)
 
@@ -262,15 +264,33 @@ export default function App() {
   )
 
   const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
-  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
-    <SpriteStage frames={activeCard.spriteFrames} roleId={activeCard.id} sleeping={!activeRunning} />
-  ) : (
-    <Live2DStage
-      model={model}
-      sleeping={!activeRunning}
-      onChange={handleModelChange}
-      onSnapshot={handleSnapshot}
-    />
+  const activeOutfit = React.useMemo(() => {
+    const entries = activeCard?.outfitEntries
+    if (!activeCard || !entries?.length) return null
+    const wanted = outfits[activeCard.id] ?? activeCard.performance.defaultOutfit
+    return entries.find((outfit) => outfit.id === wanted) ?? entries[0] ?? null
+  }, [activeCard, outfits])
+
+  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? (
+    activeOutfit?.mode === 'spine' && activeOutfit.spineSkelUrl && activeOutfit.spineAtlasUrl ? (
+      <SpineStage
+        skelUrl={activeOutfit.spineSkelUrl}
+        atlasUrl={activeOutfit.spineAtlasUrl}
+        scale={activeOutfit.spine?.scale}
+        sleeping={!activeRunning}
+      />
+    ) : activeOutfit?.spriteFrames ? (
+      <SpriteStage frames={activeOutfit.spriteFrames} roleId={activeCard?.id ?? ''} sleeping={!activeRunning} />
+    ) : activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
+      <SpriteStage frames={activeCard.spriteFrames} roleId={activeCard.id} sleeping={!activeRunning} />
+    ) : (
+      <Live2DStage
+        model={model}
+        sleeping={!activeRunning}
+        onChange={handleModelChange}
+        onSnapshot={handleSnapshot}
+      />
+    )
   ) : (
     <div className="h-full w-full bg-background" />
   )

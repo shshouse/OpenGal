@@ -55,11 +55,37 @@ export interface RoleASRConfig {
   language?: 'zh' | 'ja' | 'en'
 }
 
+export type OutfitMode = 'sprite' | 'spine'
+
+export interface RoleSpineConfig {
+  skelPath: string
+  atlasPath: string
+  scale?: number
+  xRatio?: number
+  yRatio?: number
+}
+
+export interface RoleOutfit {
+  id: string
+  name: string
+  mode: OutfitMode
+  sprite?: RoleSpriteConfig
+  spine?: RoleSpineConfig
+}
+
+export interface RoleOutfitEntry extends RoleOutfit {
+  spriteFrames?: SpriteFrames
+  spineSkelUrl?: string
+  spineAtlasUrl?: string
+}
+
 export interface RolePerformanceConfig {
   mode: PerformanceMode
   preferred?: ('live2d' | 'sprite')[]
   live2d?: RoleLive2DConfig
   sprite?: RoleSpriteConfig
+  outfits?: RoleOutfit[]
+  defaultOutfit?: string
 }
 
 export interface RolePersona {
@@ -90,4 +116,5 @@ export interface RoleCardEntry extends RoleCard {
   folderName: string
   builtin?: boolean
   spriteFrames?: SpriteFrames
+  outfitEntries?: RoleOutfitEntry[]
 }

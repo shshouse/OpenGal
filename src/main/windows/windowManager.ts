@@ -72,7 +72,8 @@ export class WindowManager {
 
   setSelfExclusion(enabled: boolean): void {
     this.excludeSelf = enabled
-    if (this.mate && !this.mate.isDestroyed()) this.mate.setContentProtection(enabled)
+    if (this.mate && !this.mate.isDestroyed()) this.mate.setContentProtection?.(enabled)
+    if (this.main && !this.main.isDestroyed()) this.main.setContentProtection?.(enabled)
   }
 
   private trackMainBounds(window: BrowserWindow): () => void {
@@ -124,6 +125,7 @@ export class WindowManager {
       if (getUIState().window?.maximized) this.main?.maximize()
       this.main?.show()
     })
+    this.main.setContentProtection?.(this.excludeSelf)
     const saveBounds = this.trackMainBounds(this.main)
     this.main.on('close', (event) => {
       saveBounds()
@@ -181,7 +183,7 @@ export class WindowManager {
     })
     this.mate.setAlwaysOnTop(true, 'screen-saver')
     this.mate.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    this.mate.setContentProtection(this.excludeSelf)
+    this.mate.setContentProtection?.(this.excludeSelf)
     setUIState({ mate: { open: true } })
     const saveBounds = (): void => {
       if (!this.mate || this.mate.isDestroyed()) return

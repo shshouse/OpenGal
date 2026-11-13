@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { RoleCardEntry } from '@shared/types'
+import type { RoleCardEntry, RoleOutfitEntry, RoleSpriteConfig, SpriteFrames } from '@shared/types'
 import { validateRoleCard, type RoleCardIssue } from '@shared/role/cardSchema'
 import { getDataRoot, getModRoot, toRoleUrl, toModUrl } from './paths'
 import { getRolesRoot } from './roleStore'
@@ -67,24 +67,52 @@ function normalizeEntry(
   }
   const sprite = entry.performance.sprite
   if (sprite && entry.performance.mode === 'sprite') {
-    const dir = path.resolve(rootPath, sprite.spriteDir)
-    const frame = (name: string): string | undefined => {
-      const file = path.resolve(dir, name)
-      const relative = path.relative(rootPath, file)
-      if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(file)) return undefined
-      return owned ? toRoleUrl(file) : toModUrl(file)
+    entry.spriteFrames = spriteFramesOf(rootPath, sprite, owned)
+  }
+  if (entry.performance.outfits) {
+    const outfits: RoleOutfitEntry[] = []
+    for (const outfit of entry.performance.outfits) {
+      if (outfit.mode === 'sprite' && outfit.sprite) {
+        const frames = spriteFramesOf(rootPath, outfit.sprite, owned)
+        if (frames) outfits.push({ ...outfit, spriteFrames: frames })
+        continue
+      }
+      if (outfit.mode === 'spine' && outfit.spine) {
+        const skel = cardFileUrl(rootPath, outfit.spine.skelPath, owned)
+        const atlas = cardFileUrl(rootPath, outfit.spine.atlasPath, owned)
+        if (skel && atlas) outfits.push({ ...outfit, spineSkelUrl: skel, spineAtlasUrl: atlas })
+      }
     }
-    const idle = frame(sprite.defaultSprite)
-    if (idle) entry.spriteFrames = {
-      idle,
-      blink: frame('blink.png'),
-      talk: frame('talk.png'),
-      blinkTalk: frame('blink-talk.png'),
-      happy: frame('happy.png'),
-      sad: frame('sad.png'),
-    }
+    if (outfits.length) entry.outfitEntries = outfits
   }
   return { entry, issues: result.issues }
+}
+
+function cardFileUrl(rootPath: string, relPath: string, owned: boolean): string | undefined {
+  const file = path.resolve(rootPath, relPath)
+  const relative = path.relative(rootPath, file)
+  if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(file)) return undefined
+  return owned ? toRoleUrl(file) : toModUrl(file)
+}
+
+function spriteFramesOf(rootPath: string, sprite: RoleSpriteConfig, owned: boolean): SpriteFrames | undefined {
+  const dir = path.join(rootPath, sprite.spriteDir)
+  const frame = (name: string): string | undefined => {
+    const file = path.join(dir, name)
+    const relative = path.relative(rootPath, file)
+    if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(file)) return undefined
+    return owned ? toRoleUrl(file) : toModUrl(file)
+  }
+  const idle = frame(sprite.defaultSprite)
+  if (!idle) return undefined
+  return {
+    idle,
+    blink: frame('blink.png'),
+    talk: frame('talk.png'),
+    blinkTalk: frame('blink-talk.png'),
+    happy: frame('happy.png'),
+    sad: frame('sad.png'),
+  }
 }
 
 export function listRoleCardsDetailed(): LoadedRoleCard[] {

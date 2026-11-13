@@ -3,6 +3,8 @@
 /** 工具结果里带这个前缀，说明后面是一张图，渲染层要转成图片消息 */
 export const SCREEN_FRAME_MARKER = 'OPENGAL_SCREENSHOT:'
 export const SCREEN_SHEET_MARKER = 'OPENGAL_SCREEN_SHEET:'
+/** 想要回放却只拍到此刻一帧时用：模型据此知道不能描述这段时间发生过什么 */
+export const SCREEN_FALLBACK_MARKER = 'OPENGAL_SCREEN_FALLBACK:'
 
 export const SCAN_W = 64
 export const SCAN_H = 36

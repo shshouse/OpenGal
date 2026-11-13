@@ -1,6 +1,14 @@
 /** 角色卡校验用手写而不是 zod：读入时要归一化旧字段并过滤敏感字段，这两步 zod 不做。
  *  其余跨进程入参统一走 schemas.ts 的 zod schema。 */
-import type { PerformanceMode, RoleCard, WindowMode } from './index'
+import type {
+  OutfitMode,
+  PerformanceMode,
+  RoleCard,
+  RoleOutfit,
+  RoleSpineConfig,
+  RoleSpriteConfig,
+  WindowMode,
+} from './index'
 import { sanitizeCardLlm } from './cardLlm'
 
 export const CARD_SCHEMA_VERSION = 1
@@ -130,6 +138,101 @@ function relativePath(
   return value
 }
 
+const OUTFIT_MODES: OutfitMode[] = ['sprite', 'spine']
+
+function validateSpriteBlock(
+  value: unknown,
+  path: string,
+  issues: RoleCardIssue[],
+  required: boolean,
+): RoleSpriteConfig | undefined {
+  if (value === undefined) {
+    if (required) issues.push({ path, code: 'missing', message: 'sprite 模式需要该配置', severity: 'error' })
+    return undefined
+  }
+  if (!isObject(value)) {
+    issues.push({ path, code: 'type', message: '应为对象', severity: 'error' })
+    return undefined
+  }
+  const spriteDir = relativePath(value.spriteDir, `${path}.spriteDir`, issues, true)
+  const defaultSprite = relativePath(value.defaultSprite, `${path}.defaultSprite`, issues, true)
+  if (!spriteDir || !defaultSprite) return undefined
+  return {
+    spriteDir,
+    defaultSprite,
+    ...(typeof value.scale === 'number' ? { scale: value.scale } : {}),
+  }
+}
+
+function validateSpineBlock(
+  value: unknown,
+  path: string,
+  issues: RoleCardIssue[],
+  required: boolean,
+): RoleSpineConfig | undefined {
+  if (value === undefined) {
+    if (required) issues.push({ path, code: 'missing', message: 'spine 模式需要该配置', severity: 'error' })
+    return undefined
+  }
+  if (!isObject(value)) {
+    issues.push({ path, code: 'type', message: '应为对象', severity: 'error' })
+    return undefined
+  }
+  const skelPath = relativePath(value.skelPath, `${path}.skelPath`, issues, true)
+  const atlasPath = relativePath(value.atlasPath, `${path}.atlasPath`, issues, true)
+  if (!skelPath || !atlasPath) return undefined
+  return {
+    skelPath,
+    atlasPath,
+    ...(typeof value.scale === 'number' ? { scale: value.scale } : {}),
+    ...(typeof value.xRatio === 'number' ? { xRatio: value.xRatio } : {}),
+    ...(typeof value.yRatio === 'number' ? { yRatio: value.yRatio } : {}),
+  }
+}
+
+function validateOutfits(value: unknown, issues: RoleCardIssue[]): RoleOutfit[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    issues.push({ path: 'performance.outfits', code: 'type', message: '应为数组', severity: 'error' })
+    return undefined
+  }
+  const outfits: RoleOutfit[] = []
+  const seen = new Set<string>()
+  value.forEach((item, index) => {
+    const at = `performance.outfits[${index}]`
+    if (!isObject(item)) {
+      issues.push({ path: at, code: 'type', message: '应为对象', severity: 'error' })
+      return
+    }
+    const id = text(item.id, `${at}.id`, issues, { required: true, max: MAX_NAME })
+    if (!id) return
+    if (!ID_RE.test(id)) {
+      issues.push({
+        path: `${at}.id`,
+        code: 'format',
+        message: '只能用字母、数字、下划线或短横线，且以字母或数字开头',
+        severity: 'error',
+      })
+      return
+    }
+    if (seen.has(id)) {
+      issues.push({ path: `${at}.id`, code: 'duplicate', message: '服装 id 重复', severity: 'error' })
+      return
+    }
+    seen.add(id)
+    const name = text(item.name, `${at}.name`, issues, { max: MAX_NAME }) || id
+    const mode = enumValue(item.mode, OUTFIT_MODES, `${at}.mode`, issues, 'sprite')
+    if (mode === 'sprite') {
+      const sprite = validateSpriteBlock(item.sprite, `${at}.sprite`, issues, true)
+      if (sprite) outfits.push({ id, name, mode, sprite })
+      return
+    }
+    const spine = validateSpineBlock(item.spine, `${at}.spine`, issues, true)
+    if (spine) outfits.push({ id, name, mode, spine })
+  })
+  return outfits.length ? outfits : undefined
+}
+
 function validatePerformance(value: unknown, issues: RoleCardIssue[]): RoleCard['performance'] {
   if (!isObject(value)) {
     issues.push({ path: 'performance', code: 'missing', message: '必填项缺失', severity: 'error' })
@@ -161,42 +264,35 @@ function validatePerformance(value: unknown, issues: RoleCardIssue[]): RoleCard[
     issues.push({ path: 'performance.live2d', code: 'missing', message: 'live2d 模式需要该配置', severity: 'error' })
   }
 
-  let sprite: RoleCard['performance']['sprite']
-  if (value.sprite !== undefined) {
-    if (!isObject(value.sprite)) {
-      issues.push({ path: 'performance.sprite', code: 'type', message: '应为对象', severity: 'error' })
-    } else {
-      const spriteDir = relativePath(
-        value.sprite.spriteDir,
-        'performance.sprite.spriteDir',
-        issues,
-        mode === 'sprite',
-      )
-      const defaultSprite = relativePath(
-        value.sprite.defaultSprite,
-        'performance.sprite.defaultSprite',
-        issues,
-        mode === 'sprite',
-      )
-      sprite = {
-        spriteDir: spriteDir ?? '',
-        defaultSprite: defaultSprite ?? '',
-        ...(typeof value.sprite.scale === 'number' ? { scale: value.sprite.scale } : {}),
-      }
-    }
-  } else if (mode === 'sprite') {
-    issues.push({ path: 'performance.sprite', code: 'missing', message: 'sprite 模式需要该配置', severity: 'error' })
-  }
+  const sprite = validateSpriteBlock(value.sprite, 'performance.sprite', issues, mode === 'sprite')
 
   const preferred = Array.isArray(value.preferred)
     ? value.preferred.filter((item): item is 'live2d' | 'sprite' => item === 'live2d' || item === 'sprite')
     : undefined
+
+  const outfits = validateOutfits(value.outfits, issues)
+  let defaultOutfit: string | undefined
+  if (outfits) {
+    const firstId = outfits[0]?.id ?? ''
+    const requested = text(value.defaultOutfit, 'performance.defaultOutfit', issues, { max: MAX_NAME })
+    defaultOutfit = requested || firstId
+    if (!outfits.some((outfit) => outfit.id === defaultOutfit)) {
+      issues.push({
+        path: 'performance.defaultOutfit',
+        code: 'not-found',
+        message: '未指向已有服装，已回退到第一套',
+        severity: 'warning',
+      })
+      defaultOutfit = firstId
+    }
+  }
 
   return {
     mode,
     ...(preferred?.length ? { preferred } : {}),
     ...(live2d ? { live2d } : {}),
     ...(sprite ? { sprite } : {}),
+    ...(outfits ? { outfits, defaultOutfit } : {}),
   }
 }
 
