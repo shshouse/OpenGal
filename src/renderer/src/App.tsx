@@ -264,6 +264,13 @@ export default function App() {
   )
 
   const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
+  React.useEffect(
+    () =>
+      window.opengal.role.onOutfitChanged((change) => {
+        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
+      }),
+    [],
+  )
   const activeOutfit = React.useMemo(() => {
     const entries = activeCard?.outfitEntries
     if (!activeCard || !entries?.length) return null

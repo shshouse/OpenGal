@@ -79,6 +79,12 @@ export interface RoleOutfitEntry extends RoleOutfit {
   spineAtlasUrl?: string
 }
 
+/** 换装结果只在进程间传递，不落盘：选择本身由渲染层持久化 */
+export interface RoleOutfitChange {
+  roleId: string
+  outfitId: string
+}
+
 export interface RolePerformanceConfig {
   mode: PerformanceMode
   preferred?: ('live2d' | 'sprite')[]

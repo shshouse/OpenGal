@@ -17,6 +17,7 @@ import type {
   ToolDefinition
 } from '@shared/types'
 import type { LogEntry } from '@shared/log'
+import type { RoleOutfitChange } from '@shared/role'
 import type { MateControl, MateStatePayload } from '@shared/mate'
 import type { UIState, UIStatePatch } from '@shared/uiState'
 import type { StorageUsage } from '@shared/storage'
@@ -136,7 +137,14 @@ const api = {
     list: () => invoke<RoleCardEntry[]>(IpcChannels.role.list),
     get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.role.get, id),
     voiceConfig: (id: string) =>
-      invoke<Record<string, unknown> | null>(IpcChannels.role.voiceConfig, id)
+      invoke<Record<string, unknown> | null>(IpcChannels.role.voiceConfig, id),
+    onOutfitChanged: (listener: (change: RoleOutfitChange) => void) => {
+      const handler = (_: unknown, change: RoleOutfitChange) => listener(change)
+      ipcRenderer.on(IpcChannels.role.outfitChanged, handler)
+      return () => {
+        ipcRenderer.off(IpcChannels.role.outfitChanged, handler)
+      }
+    }
   },
   chatHistory: {
     load: (roleId: string) => invoke<ChatMessage[]>(IpcChannels.chatHistory.load, roleId),

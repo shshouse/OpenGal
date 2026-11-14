@@ -17,6 +17,7 @@ import { getMemoryBlock, recallVerbatim } from '../memory'
 import { logBus } from '../logBus'
 import { isScreenWatchEnabled, lookAtScreen } from '../screenWatch'
 import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
+import { changeOutfitTool } from './outfit'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
 async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
@@ -414,6 +415,7 @@ export function registerBuiltinTools(): void {
       },
       async (args) => handleRecallMemory(args.query, args.from, args.to),
     ),
+    changeOutfitTool,
   ]
   for (const tool of tools) registerTool(tool.def, tool.handle)
   logBus.info('tools', `内置工具已注册: ${tools.map((t) => t.def.function.name).join(', ')}`)
