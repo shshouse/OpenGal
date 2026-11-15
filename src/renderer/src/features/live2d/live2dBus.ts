@@ -1,5 +1,5 @@
 import type { EmotionTag } from '@shared/types'
-import { wakeEyeOpen } from '@shared/wake'
+import { wakeEyeOpen } from './wake'
 import { useLogsStore } from '@/features/logs/logsStore'
 
 export interface Live2DSpeakOptions {

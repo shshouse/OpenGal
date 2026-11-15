@@ -3,7 +3,7 @@ import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './backup
 import { SCHEMA, migrateFactsSchema, migrateMemoryV2, migrateMessagesSchema } from './schema'
 import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './legacy'
 import { pruneMemoryChangelog } from './changelog'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 export type {
   MessageRow,

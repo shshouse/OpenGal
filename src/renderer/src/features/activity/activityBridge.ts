@@ -2,7 +2,7 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore } from '@/features/tools/toolCallsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { useActivityStore, type ActivityEntry } from './activityStore'
-import { summarizeToolResult } from '@shared/toolSummary'
+import { summarizeToolResult } from '@shared/dialogue/toolSummary'
 
 function id(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`

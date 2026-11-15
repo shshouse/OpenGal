@@ -16,7 +16,7 @@ import { readConfig } from '../configStore'
 import { getMemoryBlock, recallVerbatim } from '../memory'
 import { logBus } from '../logBus'
 import { isScreenWatchEnabled, lookAtScreen } from '../screenWatch'
-import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
+import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/presence/screen'
 import { changeOutfitTool } from './outfit'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>

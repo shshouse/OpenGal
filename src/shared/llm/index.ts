@@ -1,4 +1,4 @@
-import type { LLMConfig } from '../config'
+import type { LLMConfig } from '../app/config'
 import type { EmotionTag } from '../role'
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool'

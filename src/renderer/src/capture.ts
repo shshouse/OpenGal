@@ -10,7 +10,7 @@ import {
   toHsv,
   type SampledFrame,
   type ScreenPulse,
-} from '@shared/screen'
+} from '@shared/presence/screen'
 
 const SHEET_W = 798
 const SHEET_H = 450

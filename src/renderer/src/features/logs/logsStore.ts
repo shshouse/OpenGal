@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LogEntry, LogLevel } from '@shared/log'
+import type { LogEntry, LogLevel } from '@shared/app/log'
 
 const MAX_ENTRIES = 2000
 

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import type { AppConfig } from '@shared/types'
 import { readConfig, writeConfig } from '../services/configStore'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/modelScanner'
@@ -9,7 +9,7 @@ import { setScreenWatchEnabled } from '../services/screenWatch'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
 import { handleValidated } from './validated'
-import { configPatchSchema } from '@shared/schemas'
+import { configPatchSchema } from '@shared/app/schemas'
 import { z } from 'zod'
 
 export function registerConfigIpc(windows: WindowManager): void {

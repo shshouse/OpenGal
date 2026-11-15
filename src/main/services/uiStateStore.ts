@@ -1,5 +1,5 @@
 import Store from 'electron-store'
-import { mergeUIState, type UIState, type UIStatePatch } from '@shared/uiState'
+import { mergeUIState, type UIState, type UIStatePatch } from '@shared/ui/uiState'
 import { getPreferenceRoot } from './paths'
 
 let store: Store<UIState> | null = null

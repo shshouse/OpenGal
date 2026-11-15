@@ -5,7 +5,7 @@ import { backupBeforeMigration, sqliteSnapshot } from './backup'
 import { indexMessage } from './search'
 import { factRowToMemory, insertMemoryRowRaw, storyRowToMemory } from './memoryRows'
 import type { FactRow, StoryRow } from './types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);

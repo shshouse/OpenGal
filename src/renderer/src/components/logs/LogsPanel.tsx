@@ -21,8 +21,8 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { LOG_LEVELS, formatLogTimestamp, type LogEntry, type LogLevel } from '@shared/log'
-import { getErrorMessage } from '@shared/errors'
+import { LOG_LEVELS, formatLogTimestamp, type LogEntry, type LogLevel } from '@shared/app/log'
+import { getErrorMessage } from '@shared/app/errors'
 import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 const LEVEL_META: Record<LogLevel, { label: string; short: string; text: string; dot: string }> = {

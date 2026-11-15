@@ -1,4 +1,4 @@
-import type { ScreenPulse } from './screen'
+import type { ScreenPulse } from '../presence/screen'
 
 export interface IpcResult<T = unknown> {
   success: boolean

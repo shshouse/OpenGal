@@ -1,9 +1,9 @@
 import { BrowserWindow, Menu, screen, shell, Tray, type BrowserWindowConstructorOptions } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
-import { IpcChannels } from '@shared/ipc-channels'
-import type { MateStatePayload } from '@shared/mate'
-import type { MateState, SavedRect, WindowState } from '@shared/uiState'
+import { IpcChannels } from '@shared/app/ipc-channels'
+import type { MateStatePayload } from '@shared/ui/mate'
+import type { MateState, SavedRect, WindowState } from '@shared/ui/uiState'
 import { getUIState, setUIState } from '../services/uiStateStore'
 
 function intersectsDisplay(rect: SavedRect): boolean {

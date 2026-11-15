@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
-import type { UIStatePatch } from '@shared/uiState'
+import { IpcChannels } from '@shared/app/ipc-channels'
+import type { UIStatePatch } from '@shared/ui/uiState'
 import { getUIState, setUIState } from '../services/uiStateStore'
 import { wrap } from './wrap'
 

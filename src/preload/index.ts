@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import type {
   AppConfig,
   ChatMessage,
@@ -16,11 +16,11 @@ import type {
   RoleCardEntry,
   ToolDefinition
 } from '@shared/types'
-import type { LogEntry } from '@shared/log'
+import type { LogEntry } from '@shared/app/log'
 import type { RoleOutfitChange } from '@shared/role'
-import type { MateControl, MateStatePayload } from '@shared/mate'
-import type { UIState, UIStatePatch } from '@shared/uiState'
-import type { StorageUsage } from '@shared/storage'
+import type { MateControl, MateStatePayload } from '@shared/ui/mate'
+import type { UIState, UIStatePatch } from '@shared/ui/uiState'
+import type { StorageUsage } from '@shared/app/storage'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, ...args) as Promise<IpcResult<T>>

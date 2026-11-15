@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import { getEngine } from '../services/asr/factory'
 import { wrap } from './wrap'
 

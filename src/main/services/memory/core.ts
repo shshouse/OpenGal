@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { MemoryDbLogger } from './types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 export let logger: MemoryDbLogger = {
   info: () => {},

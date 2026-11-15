@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeUIState, type UIState } from '../../src/shared/uiState'
+import { mergeUIState, type UIState } from '../../src/shared/ui/uiState'
 
 const base: UIState = {
   view: 'home',

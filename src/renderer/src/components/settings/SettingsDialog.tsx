@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { AppConfig, LLMProvider, LLMPreset } from '@shared/types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 interface SettingsDialogProps {
   config: AppConfig | null

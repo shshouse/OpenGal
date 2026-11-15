@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import type { LLMRequest } from '@shared/types'
 import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llm/client'
 import { getToolDefinitions, executeTool } from '../services/tools'
@@ -7,7 +7,7 @@ import { inlineAttachments } from '../services/media'
 import { scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'
 import { wrap } from './wrap'
 import { handleValidated, handleValidatedRaw, handleValidatedWithEvent } from './validated'
-import { llmRequestSchema } from '@shared/schemas'
+import { llmRequestSchema } from '@shared/app/schemas'
 import { z } from 'zod'
 
 export function registerLlmIpc(): void {

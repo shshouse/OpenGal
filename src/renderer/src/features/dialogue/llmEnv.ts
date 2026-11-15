@@ -1,5 +1,5 @@
 import type { ChatMessage } from '@shared/types'
-import { CHANGE_STRONG, type ScreenPulse } from '@shared/screen'
+import { CHANGE_STRONG, type ScreenPulse } from '@shared/presence/screen'
 
 export function buildEnvBlock(env: {
   timeText: string

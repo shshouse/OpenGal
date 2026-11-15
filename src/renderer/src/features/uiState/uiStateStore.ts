@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { mergeUIState, type UIState, type UIStatePatch } from '@shared/uiState'
+import { mergeUIState, type UIState, type UIStatePatch } from '@shared/ui/uiState'
 
 interface UIStateStore {
   state: UIState

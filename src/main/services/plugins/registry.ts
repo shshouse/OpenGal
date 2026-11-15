@@ -5,7 +5,7 @@ import { McpSession } from './mcpHost'
 import { validateManifest } from './manifest'
 import { registerTool, unregisterTool } from '../tools'
 import { logBus } from '../logBus'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 let dataRoot = ''
 let enabledMap: Record<string, boolean> = {}

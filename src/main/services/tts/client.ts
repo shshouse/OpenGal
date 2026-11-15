@@ -4,7 +4,7 @@ import { getRoleCard } from '../roleCardLoader'
 import { chooseTTSAdapter, resetAllTTSAdapters } from './factory'
 import { startGptSovitsServer } from './server'
 import { logBus } from '../logBus'
-import { getErrorMessage, getErrorStack } from '@shared/errors'
+import { getErrorMessage, getErrorStack } from '@shared/app/errors'
 
 export interface TTSSpeakRequest {
   text: string

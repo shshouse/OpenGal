@@ -11,7 +11,7 @@ import type {
 } from './types'
 import { pickString } from './configValue'
 import { fetchReadable, normalizeBaseURL, type TtsEndpoint } from './http'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 interface ResolvedTTSSettings {
   baseURL: string

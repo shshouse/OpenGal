@@ -1,7 +1,7 @@
 import type { LLMDialogMessage, TTSOutputMessage } from '@shared/dialogue/messages'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 let bound = false
 let unsubscribers: Array<() => void> = []

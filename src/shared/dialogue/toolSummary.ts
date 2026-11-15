@@ -4,7 +4,7 @@
  * web_search/read_web_page 的结果前面有一大段安全包装，直接截前 240 字只会显示包装语；
  * 这里把真正的 query、标题和页面地址提出来。
  */
-import { SCREEN_FALLBACK_MARKER } from './screen'
+import { SCREEN_FALLBACK_MARKER } from '../presence/screen'
 
 const MAX_FALLBACK = 240
 

@@ -2,8 +2,8 @@ import type { WebContents } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { IpcChannels } from '@shared/ipc-channels'
-import type { LogEntry, LogLevel } from '@shared/log'
+import { IpcChannels } from '@shared/app/ipc-channels'
+import type { LogEntry, LogLevel } from '@shared/app/log'
 
 const MAX_ENTRIES = 2000
 const MAX_LOG_FILES = 14

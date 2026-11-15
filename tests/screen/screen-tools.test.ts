@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER } from '../../src/shared/screen'
+import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER } from '../../src/shared/presence/screen'
 
 let activePng = Buffer.from('screen2-png')
 const idlePng = Buffer.from('fake-png-data')

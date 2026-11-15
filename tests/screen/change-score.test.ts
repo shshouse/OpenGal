@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHANGE_FLOOR, hsvDiffScore, pickKeyframes, toHsv } from '../../src/shared/screen'
+import { CHANGE_FLOOR, hsvDiffScore, pickKeyframes, toHsv } from '../../src/shared/presence/screen'
 
 function rgba(width: number, height: number, rgb: [number, number, number]): Uint8ClampedArray {
   const out = new Uint8ClampedArray(width * height * 4)

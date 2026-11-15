@@ -11,8 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { AppConfig } from '@shared/types'
-import type { StorageUsage } from '@shared/storage'
-import { getErrorMessage } from '@shared/errors'
+import type { StorageUsage } from '@shared/app/storage'
+import { getErrorMessage } from '@shared/app/errors'
 
 interface EnvironmentSettingsProps {
   config: AppConfig | null

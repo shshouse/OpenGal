@@ -1,7 +1,7 @@
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers'
 import path from 'node:path'
 import fs from 'node:fs'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 export interface VectorItem {
   id: string

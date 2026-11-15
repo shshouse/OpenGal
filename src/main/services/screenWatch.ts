@@ -5,9 +5,9 @@
 
 import { BrowserWindow, desktopCapturer } from 'electron'
 import { join } from 'node:path'
-import type { SampledFrame, ScreenPulse } from '@shared/screen'
+import type { SampledFrame, ScreenPulse } from '@shared/presence/screen'
 import { logBus } from './logBus'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const PULSE_MS = 3_000
 /** 隐藏窗口里的一次调用最多等这么久，超时就当采集卡死 */

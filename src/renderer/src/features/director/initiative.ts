@@ -10,7 +10,7 @@ import { speechLanguageLabel } from '@shared/dialogue/subtitles'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { isRoleRunning } from '@shared/role/runtime'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const TICK_MS = 60_000
 /** 主动开口后多久内不再尝试 */

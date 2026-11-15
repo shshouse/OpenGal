@@ -24,7 +24,7 @@ import { nextSilenceDelay } from '@shared/presence/silence'
 import { buildInitiativePerception } from './initiativePerception'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { parsePerformance } from '@shared/dialogue/protocol'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const SILENCE_WINDOW_MS = 2500
 const MIN_CHARS = 2

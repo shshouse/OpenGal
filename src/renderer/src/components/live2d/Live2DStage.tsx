@@ -6,7 +6,7 @@ import { registerLive2DModel, playMotionGroup, resetPose, setEyesClosed } from '
 import { getHeadCrop } from '@/lib/headCrop'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 ;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
 

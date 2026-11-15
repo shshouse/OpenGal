@@ -6,7 +6,7 @@ import { useRoleStore } from '@/features/role/roleStore'
 import { rebuildMemoryIndex } from '@/features/memory/memoryService'
 import { cn } from '@/lib/utils'
 import type { MemoryChange, MemoryFact, MemoryStory } from '@shared/types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 function sourceText(content: string): string {

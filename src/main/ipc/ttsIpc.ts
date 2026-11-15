@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import { speak, cancelSpeech, pingTTS, resetTTSState, warmupTTS } from '../services/tts/client'
 import type { TTSSpeakRequest, TTSSpeakResponse } from '../services/tts/client'
 import { startTTSServer, stopTTSServer, getTTSServerStatus, getTTSServerLog } from '../services/tts/server'

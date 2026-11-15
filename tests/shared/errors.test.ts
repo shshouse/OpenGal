@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getErrorMessage, getErrorStack, isAbortError } from '../../src/shared/errors'
+import { getErrorMessage, getErrorStack, isAbortError } from '../../src/shared/app/errors'
 
 describe('getErrorMessage', () => {
   it('Error 取 message', () => {

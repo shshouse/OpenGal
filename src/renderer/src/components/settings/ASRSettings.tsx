@@ -14,7 +14,7 @@ import {
 import { listAudioInputs } from '@/features/asr/micCapture'
 import { detectSherpaKind, normalizeAsrEngine, normalizeAsrMode } from '@shared/asr/kinds'
 import type { AppConfig, ASRConfig } from '@shared/types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const LANG_OPTIONS: Array<{ value: ASRConfig['language']; label: string }> = [
   { value: 'auto', label: '自动检测' },

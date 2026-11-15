@@ -1,5 +1,5 @@
 import { db, logger, rows, withTx } from './core'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 import type { MemoryChange } from '@shared/types'
 
 export type MemoryChangeAction = 'insert' | 'update' | 'delete'

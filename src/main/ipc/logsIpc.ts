@@ -1,13 +1,13 @@
 import { ipcMain, BrowserWindow, dialog, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import type { IpcResult } from '@shared/types'
-import type { LogEntry } from '@shared/log'
+import type { LogEntry } from '@shared/app/log'
 import { addLogSubscriber, getRecentLogs, clearLogs, logBus } from '../services/logBus'
 import { getDataRoot } from '../services/paths'
 import { wrap } from './wrap'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 export function registerLogsIpc(): void {
   ipcMain.on(IpcChannels.director.log, (_, entry: Record<string, unknown>) => {

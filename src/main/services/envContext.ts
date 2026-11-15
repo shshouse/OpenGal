@@ -2,7 +2,7 @@ import { powerMonitor, screen } from 'electron'
 import { readConfig } from './configStore'
 import { getScreenPulse } from './screenWatch'
 import type { EnvSnapshot } from '@shared/types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const POLL_MS = 30_000
 const AWAY_THRESHOLD_SEC = 600

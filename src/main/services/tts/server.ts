@@ -7,7 +7,7 @@ import { readConfig } from '../configStore'
 import { getRoleCard, readRoleVoiceConfig } from '../roleCardLoader'
 import { logBus } from '../logBus'
 import { clearTtsPortShift, getTtsPortShift, parseTtsPort, setTtsPortShift } from './port'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const GPTSOVITS_DIR = path.join('TTS', 'GPT-SoVITS-v2pro-20250604')
 

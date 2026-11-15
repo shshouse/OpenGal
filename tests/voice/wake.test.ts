@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WAKE_OPEN_MS, wakeEyeOpen } from '@shared/wake'
+import { WAKE_OPEN_MS, wakeEyeOpen } from '../../src/renderer/src/features/live2d/wake'
 
 describe('wakeEyeOpen', () => {
   it('在开启时长内从 0 单调过渡到 1', () => {

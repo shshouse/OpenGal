@@ -1,7 +1,7 @@
 import { buildSystemPrompt } from '@shared/role/prompt'
 import { SpeechStreamParser, extractAssistantDisplayText } from '@shared/dialogue/protocol'
 import { isRoleRunning } from '@shared/role/runtime'
-import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/screen'
+import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/presence/screen'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { packContext, type ContextItem } from './contextAssembler'
 import type { ChatMessage, LLMDialogueItem, MessageContentPart, ToolCall, ToolDefinition } from '@shared/types'
@@ -16,7 +16,7 @@ import { getActiveRoleCard } from '@/features/pipeline/activeCard'
 import { calibratePromptTokens, computeContextUsage, estimateTokens, messageText, promptRawTokens, type ContextUsage } from './llmContext'
 import { compressHistory, getCachedSummariesText } from './llmCompression'
 import { fetchEnvBlock } from './llmEnv'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 let counter = 0
 let currentStreamId: string | null = null

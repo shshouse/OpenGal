@@ -4,7 +4,7 @@ import { memoryDbReady } from './memory/db'
 import { startTTSServer } from './tts/server'
 import { checkTTSCompat, warmupTTS } from './tts/client'
 import { logBus } from './logBus'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 // 启动自检：记忆库就绪检查 + TTS 服务拉起与预热，逐步通过 IPC 推给渲染进程
 type MainStepId = 'memory' | 'tts'

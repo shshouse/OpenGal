@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import { getStorageUsage, revealDataRoot } from '../services/storageUsage'
 import { wrap } from './wrap'
 

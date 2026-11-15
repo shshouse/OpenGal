@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeToolResult } from '../../src/shared/toolSummary'
-import { SCREEN_FALLBACK_MARKER } from '../../src/shared/screen'
+import { summarizeToolResult } from '../../src/shared/dialogue/toolSummary'
+import { SCREEN_FALLBACK_MARKER } from '../../src/shared/presence/screen'
 
 describe('工具轨迹摘要', () => {
   it('web_search 摘出查询与标题，不显示安全包装', () => {

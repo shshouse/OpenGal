@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { backupRootDir, db, dbFile, logger, rows } from './core'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 // 旧版备份留在 data/backups：首次启动时复制到新备份目录，原文件保留不动
 export function migrateLegacyBackups(dataRoot: string): void {

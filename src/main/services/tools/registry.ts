@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@shared/types'
 import { logBus } from '../logBus'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 export type ToolHandler = (args: Record<string, unknown>) => Promise<string>
 

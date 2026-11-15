@@ -4,7 +4,7 @@ import { getMeta, logger, setMeta, withTx } from './core'
 import { insertMemoryRowRaw, isoToMs } from './memoryRows'
 import { appendMissingMessages } from './messages'
 import { externalizeMessage } from '../media'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 // ---- 旧 JSON 记忆一次性迁移（JSON 原地保留，只读） ----
 

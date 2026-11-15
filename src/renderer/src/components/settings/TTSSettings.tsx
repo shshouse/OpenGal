@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select'
 import type { AppConfig, TTSConfig } from '@shared/types'
 import { useRoleStore } from '@/features/role/roleStore'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const REF_LANG_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'zh', label: '中英混合' },

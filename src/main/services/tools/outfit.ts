@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { z } from 'zod'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import type { RoleCardEntry, RoleOutfitChange } from '@shared/role'
 import { readConfig } from '../configStore'
 import { getRoleCard } from '../roleCardLoader'

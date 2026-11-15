@@ -1,12 +1,12 @@
 import { ipcMain, desktopCapturer } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
-import type { MateStatePayload } from '@shared/mate'
+import { IpcChannels } from '@shared/app/ipc-channels'
+import type { MateStatePayload } from '@shared/ui/mate'
 import { fetchMarketMods, openMarketMod } from '../services/marketService'
 import { getEnvSnapshot } from '../services/envContext'
 import { runBootSequence, recheckTts } from '../services/bootService'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const BUBBLE_MAX_CHARS = 500
 

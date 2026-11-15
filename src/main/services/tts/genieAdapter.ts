@@ -10,7 +10,7 @@ import { pickString } from './configValue'
 import { fetchReadable, normalizeBaseURL, type TtsEndpoint } from './http'
 
 const GENIE_ENDPOINT: TtsEndpoint = { service: 'Genie-TTS' }
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 interface ResolvedGenieSettings {
   baseURL: string

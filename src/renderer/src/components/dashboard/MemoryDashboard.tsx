@@ -3,7 +3,7 @@ import { Brain, CalendarClock, Milestone, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { MemoryFact, MemoryStory } from '@shared/types'
 import { summarizeMemories } from './memorySummary'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const ENTITY_LABELS = { user: '关于你', character: '关于角色', relationship: '关于关系' } as const
 

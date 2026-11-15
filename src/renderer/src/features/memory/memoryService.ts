@@ -5,7 +5,7 @@ import { useRoleStore } from '@/features/role/roleStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { setMemorySnapshot } from './snapshot'
 import { CorpusBuffer, type CorpusEntry } from './corpusBuffer'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 async function refreshSnapshot(roleId: string): Promise<void> {
   try {

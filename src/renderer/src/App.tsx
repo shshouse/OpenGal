@@ -23,8 +23,8 @@ import { isRoleRunning } from '@shared/role/runtime'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { setEyesClosed } from '@/features/live2d/live2dBus'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
-import { getErrorMessage } from '@shared/errors'
-import type { AppViewName } from '@shared/uiState'
+import { getErrorMessage } from '@shared/app/errors'
+import type { AppViewName } from '@shared/ui/uiState'
 import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 const VIEW_ORDER: AppViewName[] = ['home', 'chat', 'market', 'settings', 'logs']

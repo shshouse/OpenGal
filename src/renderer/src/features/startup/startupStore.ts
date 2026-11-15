@@ -7,7 +7,7 @@ import { useRoleStore } from '@/features/role/roleStore'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 import { timeOfDayLabel } from '@shared/presence/timeOfDay'
 
 export type BootPhase = 'booting' | 'waking' | 'awake'

@@ -5,7 +5,7 @@ import { Checkbox, CheckboxIndicator } from '@/components/ui/checkbox'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
-import { getErrorMessage } from '@shared/errors'
+import { getErrorMessage } from '@shared/app/errors'
 
 const DEFAULTS = {
   scale: 1,

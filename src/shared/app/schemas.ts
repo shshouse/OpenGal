@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { AppConfig } from './config'
-import type { ChatMessage, LLMRequest } from './llm'
-import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } from './memory'
+import type { ChatMessage, LLMRequest } from '../llm'
+import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } from '../memory'
 
 /** 各 IPC 通道的入参 schema。跨进程边界的数据一律视为不可信，主进程收到先过这里。 */
 

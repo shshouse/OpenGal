@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
-import { IpcChannels } from '@shared/ipc-channels'
+import { IpcChannels } from '@shared/app/ipc-channels'
 import type { ChatMessage } from '@shared/types'
 import {
   loadFacts,
@@ -35,7 +35,7 @@ import {
   memoryApplyPayloadSchema,
   memoryEntitySchema,
   summarySchema,
-} from '@shared/schemas'
+} from '@shared/app/schemas'
 import { externalizeMessage } from '../services/media'
 import { handleValidated, handleValidatedWithEvent } from './validated'
 import { wrap } from './wrap'
