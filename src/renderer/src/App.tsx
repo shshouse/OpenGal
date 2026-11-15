@@ -6,10 +6,8 @@ import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { SpineStage } from '@/components/spine/SpineStage'
-import { SettingsCenter } from '@/components/settings/SettingsCenter'
-import { LogsPanel } from '@/components/logs/LogsPanel'
-import { MarketPage } from '@/components/market/MarketPage'
 import { HomePage } from '@/components/home/HomePage'
+import { LogsPanel } from '@/components/logs/LogsPanel'
 import { RoleDashboard } from '@/components/dashboard/RoleDashboard'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
@@ -26,6 +24,13 @@ import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/app/errors'
 import type { AppViewName } from '@shared/ui/uiState'
 import { useUIStateStore } from '@/features/uiState/uiStateStore'
+
+const MarketPage = React.lazy(() =>
+  import('@/components/market/MarketPage').then((m) => ({ default: m.MarketPage })),
+)
+const SettingsCenter = React.lazy(() =>
+  import('@/components/settings/SettingsCenter').then((m) => ({ default: m.SettingsCenter })),
+)
 
 const VIEW_ORDER: AppViewName[] = ['home', 'chat', 'market', 'settings', 'logs']
 
@@ -352,7 +357,11 @@ export default function App() {
             />
           </div>
 
-          {view === 'market' && <MarketPage />}
+          {view === 'market' && (
+            <React.Suspense fallback={null}>
+              <MarketPage />
+            </React.Suspense>
+          )}
 
           {view === 'settings' && (
             <div className="flex h-full w-full flex-col bg-background">
@@ -368,7 +377,11 @@ export default function App() {
                 </button>
               </div>
               <div className="min-h-0 flex-1">
-                {config && <SettingsCenter config={config} model={model} onSave={saveConfig} />}
+                {config && (
+                  <React.Suspense fallback={null}>
+                    <SettingsCenter config={config} model={model} onSave={saveConfig} />
+                  </React.Suspense>
+                )}
               </div>
             </div>
           )}
