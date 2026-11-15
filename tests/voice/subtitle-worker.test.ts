@@ -22,7 +22,7 @@ vi.mock('@/features/logs/logsStore', () => ({
 }))
 
 describe('subtitle worker', () => {
-  let mod: typeof import('../../src/renderer/src/features/pipeline/subtitles')
+  let mod: typeof import('../../src/renderer/src/features/speech/subtitles')
   let pipelineBus: typeof import('../../src/renderer/src/features/pipeline/pipelineBus').pipelineBus
   let stop: () => void
 
@@ -59,7 +59,7 @@ describe('subtitle worker', () => {
       },
       localStorage: state.localStorage,
     })
-    mod = await import('../../src/renderer/src/features/pipeline/subtitles')
+    mod = await import('../../src/renderer/src/features/speech/subtitles')
     const bus = await import('../../src/renderer/src/features/pipeline/pipelineBus')
     pipelineBus = bus.pipelineBus
     stop = mod.startSubtitleWorker()
@@ -128,7 +128,7 @@ describe('subtitle worker', () => {
     await flush()
     expect(mod.displaySubtitle('role', '終了')).toBe('終了')
 
-    const tts = readFileSync(path.resolve('src/renderer/src/features/pipeline/ttsWorker.ts'), 'utf8')
+    const tts = readFileSync(path.resolve('src/renderer/src/features/speech/ttsWorker.ts'), 'utf8')
     expect(tts).not.toContain('msg.translate')
   })
 

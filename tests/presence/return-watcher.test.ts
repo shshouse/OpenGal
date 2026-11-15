@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectReturn } from '../../src/renderer/src/features/pipeline/initiativePerception'
+import { detectReturn } from '../../src/renderer/src/features/director/initiativePerception'
 import type { EnvSnapshot } from '../../src/shared/types'
 
 function env(justReturned: boolean): EnvSnapshot {

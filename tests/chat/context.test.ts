@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { packContext, type ContextItem } from '@/features/pipeline/contextAssembler'
+import { packContext, type ContextItem } from '@/features/dialogue/contextAssembler'
 import type { ChatMessage } from '@shared/types'
 
 const text = (content: string, contextTag?: ChatMessage['contextTag']): ChatMessage => ({

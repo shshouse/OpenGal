@@ -1,8 +1,8 @@
 import type { TTSOutputMessage } from '@shared/messages'
 import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useLogsStore } from '@/features/logs/logsStore'
-import type { MessageHandler } from './handlerChain'
-import { pipelineBus } from './pipelineBus'
+import type { MessageHandler } from '@/features/pipeline/handlerChain'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 
 let cancelPlayback: (() => void) | null = null
 let speakingCount = 0

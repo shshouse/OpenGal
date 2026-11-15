@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Info } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { getContextUsage, setGlobalContextWindow } from '@/features/pipeline/llmWorker'
+import { getContextUsage, setGlobalContextWindow } from '@/features/dialogue/llmWorker'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useRoleStore } from '@/features/role/roleStore'
 

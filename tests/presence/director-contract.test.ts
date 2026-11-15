@@ -6,7 +6,7 @@ import {
   parseDirectorDecision,
   sanitizeTrust,
   type PerceptionEvent,
-} from '@/features/pipeline/directorContract'
+} from '@/features/director/directorContract'
 
 const NOW = 1_700_000_000_000
 

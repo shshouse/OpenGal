@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseDirectorDecision } from '../../src/renderer/src/features/pipeline/directorContract'
+import { parseDirectorDecision } from '../../src/renderer/src/features/director/directorContract'
 
 describe('导演决策解析', () => {
   it('speak 可以携带台词', () => {

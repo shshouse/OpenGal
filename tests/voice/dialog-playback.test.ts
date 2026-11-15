@@ -42,9 +42,9 @@ vi.mock('@/features/live2d/live2dBus', () => ({
 
 describe('对话配音与动作的先后关系', () => {
   let pipelineBus: typeof import('../../src/renderer/src/features/pipeline/pipelineBus').pipelineBus
-  let startUIWorker: typeof import('../../src/renderer/src/features/pipeline/uiWorker').startUIWorker
-  let stopUIWorker: typeof import('../../src/renderer/src/features/pipeline/uiWorker').stopUIWorker
-  let isUIBusy: typeof import('../../src/renderer/src/features/pipeline/uiWorker').isUIBusy
+  let startUIWorker: typeof import('../../src/renderer/src/features/speech/uiWorker').startUIWorker
+  let stopUIWorker: typeof import('../../src/renderer/src/features/speech/uiWorker').stopUIWorker
+  let isUIBusy: typeof import('../../src/renderer/src/features/speech/uiWorker').isUIBusy
 
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
   const output = (motion?: string): import('@shared/messages').TTSOutputMessage => ({
@@ -77,7 +77,7 @@ describe('对话配音与动作的先后关系', () => {
     }
     const bus = await import('../../src/renderer/src/features/pipeline/pipelineBus')
     pipelineBus = bus.pipelineBus
-    const ui = await import('../../src/renderer/src/features/pipeline/uiWorker')
+    const ui = await import('../../src/renderer/src/features/speech/uiWorker')
     startUIWorker = ui.startUIWorker
     stopUIWorker = ui.stopUIWorker
     isUIBusy = ui.isUIBusy

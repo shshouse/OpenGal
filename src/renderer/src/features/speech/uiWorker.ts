@@ -1,6 +1,6 @@
 import type { TTSOutputMessage } from '@shared/messages'
-import { HandlerChain, type MessageHandler } from './handlerChain'
-import { pipelineBus } from './pipelineBus'
+import { HandlerChain, type MessageHandler } from '@/features/pipeline/handlerChain'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { DefaultDialogUiHandler, stopDialogPlayback } from './uiHandlers'
 
 let bound = false

@@ -1,6 +1,6 @@
 import type { LLMDialogMessage, TTSOutputMessage } from '@shared/messages'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { pipelineBus } from './pipelineBus'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
 
 let bound = false

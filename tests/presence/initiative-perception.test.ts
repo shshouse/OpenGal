@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildInitiativePerception } from '../../src/renderer/src/features/pipeline/initiativePerception'
+import { buildInitiativePerception } from '../../src/renderer/src/features/director/initiativePerception'
 import type { EnvSnapshot } from '../../src/shared/types'
 
 const env: EnvSnapshot = {

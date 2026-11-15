@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import type { AppConfig } from '@shared/types'
 import type { LLMDialogMessage } from '@shared/messages'
 import { languageCode, subtitleText, type SubtitleSegment } from '@shared/subtitles'
-import { pipelineBus } from './pipelineBus'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 

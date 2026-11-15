@@ -1,9 +1,9 @@
 import { pipelineBus } from './pipelineBus'
-import { isTTSBusy } from './ttsWorker'
-import { isUIBusy } from './uiWorker'
+import { isTTSBusy } from '@/features/speech/ttsWorker'
+import { isUIBusy } from '@/features/speech/uiWorker'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { cancelDirectorPending, noteSpeechActivity } from './directorWorker'
+import { cancelDirectorPending, noteSpeechActivity } from '@/features/director/directorWorker'
 
 let interruptedAt = 0
 

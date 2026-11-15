@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from './pipelineBus'
-import { getLastRawResponse } from './llmWorker'
+import { getLastRawResponse } from '@/features/dialogue/llmWorker'
 import { useToolCallsStore } from '@/features/tools/toolCallsStore'
 
 export function useChatPipeline() {

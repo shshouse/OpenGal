@@ -1,4 +1,4 @@
-import { pipelineBus } from './pipelineBus'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { evaluateInitiative, takeInitiativeBudget } from './directorWorker'
 import { describeAction } from './directorContract'
 import { useChatStore } from '@/features/chat/chatStore'

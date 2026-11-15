@@ -6,7 +6,7 @@ import { useRoleStore } from '@/features/role/roleStore'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { isRoleRunning } from '@shared/role/runtime'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { isSpeaking } from './uiHandlers'
+import { isSpeaking } from '@/features/speech/uiHandlers'
 import {
   createProactiveBudget,
   describeAction,
@@ -22,7 +22,7 @@ import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
 import { gateUtterance } from '@shared/presence/gate'
 import { nextSilenceDelay } from '@shared/presence/silence'
 import { buildInitiativePerception } from './initiativePerception'
-import { pipelineBus } from './pipelineBus'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { parsePerformance } from '@shared/dialogueProtocol'
 import { getErrorMessage } from '@shared/errors'
 

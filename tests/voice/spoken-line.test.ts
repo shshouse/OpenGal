@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { TTSOutputMessage } from '@shared/messages'
 import { pipelineBus } from '../../src/renderer/src/features/pipeline/pipelineBus'
-import { startSpokenLineBridge, useSpokenLineStore } from '../../src/renderer/src/features/pipeline/spokenLine'
-import { subtitleForSegment, useSubtitleStore } from '../../src/renderer/src/features/pipeline/subtitles'
+import { startSpokenLineBridge, useSpokenLineStore } from '../../src/renderer/src/features/speech/spokenLine'
+import { subtitleForSegment, useSubtitleStore } from '../../src/renderer/src/features/speech/subtitles'
 
 const bridges: Array<() => void> = []
 

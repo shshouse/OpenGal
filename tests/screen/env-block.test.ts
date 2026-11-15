@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildEnvBlock } from '../../src/renderer/src/features/pipeline/llmEnv'
+import { buildEnvBlock } from '../../src/renderer/src/features/dialogue/llmEnv'
 
 const base = {
   timeText: '2026年11月5日 星期四 22:30',

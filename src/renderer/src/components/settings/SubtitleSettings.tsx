@@ -1,7 +1,7 @@
 import * as React from 'react'
 import type { AppConfig } from '@shared/types'
 import { languageCode } from '@shared/subtitles'
-import { applySubtitleConfig, useSubtitleStore } from '@/features/pipeline/subtitles'
+import { applySubtitleConfig, useSubtitleStore } from '@/features/speech/subtitles'
 
 export function SubtitleSettings({ config, onSave }: {
   config: AppConfig | null
