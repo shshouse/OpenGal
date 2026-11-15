@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { startMicCapture, stopMicCapture } from './micCapture'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import type { ASRConfig } from '@shared/types'
-import { needsASRRestart } from '@shared/asrSettings'
+import { needsASRRestart } from '@shared/asr/settings'
 import { getErrorMessage } from '@shared/errors'
 
 interface ASRState {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveInitiativePolicy } from '../../src/shared/initiativePolicy'
+import { resolveInitiativePolicy } from '../../src/shared/presence/initiativePolicy'
 
 describe('主动开口策略', () => {
   it('导演关闭时一律不主动', () => {

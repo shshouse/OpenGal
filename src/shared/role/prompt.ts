@@ -1,5 +1,5 @@
 import { STANDARD_EMOTIONS, type RoleCard } from './index'
-import { speechLanguageLabel } from '../subtitles'
+import { speechLanguageLabel } from '../dialogue/subtitles'
 
 const MOTION_GROUP_LABELS: Record<string, string> = {
   Idle: '待机、平静（一般无需主动触发）',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { detectSherpaKind, normalizeAsrMode } from '../../src/shared/asrKinds'
-import { needsASRRestart } from '../../src/shared/asrSettings'
+import { detectSherpaKind, normalizeAsrMode } from '../../src/shared/asr/kinds'
+import { needsASRRestart } from '../../src/shared/asr/settings'
 import type { ASRConfig } from '../../src/shared/types'
 
 const base = {

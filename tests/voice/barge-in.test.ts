@@ -56,7 +56,7 @@ describe('voice barge-in and playback cancellation', () => {
   let stopBridge: () => void
 
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
-  const output = (url: string): import('@shared/messages').TTSOutputMessage => ({
+  const output = (url: string): import('@shared/dialogue/messages').TTSOutputMessage => ({
     segmentId: url,
     roleId: 'role',
     name: 'role',

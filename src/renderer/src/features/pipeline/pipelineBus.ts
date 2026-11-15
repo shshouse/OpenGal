@@ -4,7 +4,7 @@ import type {
   ReasoningMessage,
   TTSOutputMessage,
   UserInputMessage,
-} from '@shared/messages'
+} from '@shared/dialogue/messages'
 
 export interface PipelineEventMap {
   'user:speechStart': void

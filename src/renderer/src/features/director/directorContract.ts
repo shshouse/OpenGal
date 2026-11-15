@@ -1,6 +1,6 @@
 // 导演层契约：解析失败一律 silent；外部内容强制不可信；perHour<=0 表示不限。
 
-import { parseBeat, type Beat } from '@shared/beat'
+import { parseBeat, type Beat } from '@shared/dialogue/beat'
 
 // ---------------------------------------------------------------- 感知
 

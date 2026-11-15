@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { timeOfDayLabel } from '../../src/shared/timeOfDay'
+import { timeOfDayLabel } from '../../src/shared/presence/timeOfDay'
 
 const at = (hour: number): string => timeOfDayLabel(new Date(2026, 0, 1, hour, 30))
 

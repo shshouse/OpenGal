@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TTSOutputMessage } from '@shared/messages'
+import type { TTSOutputMessage } from '@shared/dialogue/messages'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 
 export type SpokenMode = 'pending' | 'speech' | 'text'

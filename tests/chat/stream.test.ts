@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DialogueStreamParser } from '@shared/dialogueProtocol'
+import { DialogueStreamParser } from '@shared/dialogue/protocol'
 import { splitChunk } from '../../src/main/services/llm/chunkSplit'
 
 describe('DialogueStreamParser', () => {

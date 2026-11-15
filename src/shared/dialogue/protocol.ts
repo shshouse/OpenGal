@@ -1,4 +1,4 @@
-import type { LLMDialogueItem } from './llm'
+import type { LLMDialogueItem } from '../llm'
 
 export class DialogueStreamParser {
   private buffer = ''

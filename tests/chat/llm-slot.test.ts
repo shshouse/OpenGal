@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSlotConfig } from '@shared/llmSlot'
+import { resolveSlotConfig } from '@shared/llm/slot'
 
 describe('resolveSlotConfig', () => {
   const main = { baseURL: 'https://main.example.com', apiKey: 'k1', modelName: 'main-model' }

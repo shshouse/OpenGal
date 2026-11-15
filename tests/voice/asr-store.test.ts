@@ -32,7 +32,7 @@ vi.mock('@/features/asr/micCapture', () => ({
 
 describe('asrStore live settings', () => {
   let store: typeof import('../../src/renderer/src/features/asr/asrStore')
-  let needsASRRestart: typeof import('../../src/shared/asrSettings').needsASRRestart
+  let needsASRRestart: typeof import('../../src/shared/asr/settings').needsASRRestart
   let pipelineBus: typeof import('../../src/renderer/src/features/pipeline/pipelineBus').pipelineBus
 
   beforeAll(async () => {
@@ -53,7 +53,7 @@ describe('asrStore live settings', () => {
       },
     })
     store = await import('../../src/renderer/src/features/asr/asrStore')
-    needsASRRestart = (await import('../../src/shared/asrSettings')).needsASRRestart
+    needsASRRestart = (await import('../../src/shared/asr/settings')).needsASRRestart
     pipelineBus = (await import('../../src/renderer/src/features/pipeline/pipelineBus')).pipelineBus
   })
 

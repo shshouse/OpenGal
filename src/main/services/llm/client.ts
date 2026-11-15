@@ -1,6 +1,6 @@
 import type { ChatMessage, LLMConfig, LLMRequest, LLMResponse, LlmStreamEvent } from '@shared/types'
 import { IpcChannels } from '@shared/ipc-channels'
-import { resolveSlotConfig } from '@shared/llmSlot'
+import { resolveSlotConfig } from '@shared/llm/slot'
 import type { BrowserWindow } from 'electron'
 import { readConfig } from '../configStore'
 import { chooseAdapter } from './factory'

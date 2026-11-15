@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { TTSOutputMessage } from '@shared/messages'
+import type { TTSOutputMessage } from '@shared/dialogue/messages'
 import { pipelineBus } from '../../src/renderer/src/features/pipeline/pipelineBus'
 import { startSpokenLineBridge, useSpokenLineStore } from '../../src/renderer/src/features/speech/spokenLine'
 import { subtitleForSegment, useSubtitleStore } from '../../src/renderer/src/features/speech/subtitles'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { languageCode, roleSpeechLanguage, subtitleText } from '@shared/subtitles'
+import { languageCode, roleSpeechLanguage, subtitleText } from '@shared/dialogue/subtitles'
 import { buildSystemPrompt } from '@shared/role/prompt'
 
 describe('subtitles', () => {

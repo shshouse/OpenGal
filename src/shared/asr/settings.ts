@@ -1,4 +1,4 @@
-import type { ASRConfig } from './types'
+import type { ASRConfig } from '../types'
 
 export function needsASRRestart(previous: ASRConfig | null, next: ASRConfig): boolean {
   if (!previous) return true

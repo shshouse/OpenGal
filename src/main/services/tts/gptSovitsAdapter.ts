@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { roleSpeechLanguage } from '@shared/subtitles'
+import { roleSpeechLanguage } from '@shared/dialogue/subtitles'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'

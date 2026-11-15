@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldShowMainStage } from '../../src/shared/stagePolicy'
+import { shouldShowMainStage } from '../../src/shared/presence/stagePolicy'
 
 describe('皮套互斥', () => {
   it('桌宠打开时主窗口不显示皮套', () => {

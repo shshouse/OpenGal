@@ -1,4 +1,4 @@
-import type { TTSOutputMessage } from '@shared/messages'
+import type { TTSOutputMessage } from '@shared/dialogue/messages'
 import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { MessageHandler } from '@/features/pipeline/handlerChain'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { scriptLanguage, speechLanguageLabel, speechLanguageSupported } from '../../src/shared/subtitles'
+import { scriptLanguage, speechLanguageLabel, speechLanguageSupported } from '../../src/shared/dialogue/subtitles'
 
 describe('台词书写系统判定', () => {
   it('识别中文、英文、日文、韩文', () => {

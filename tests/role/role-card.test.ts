@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSystemPrompt } from '@shared/role/prompt'
-import { extractAssistantDisplayText } from '@shared/dialogueProtocol'
+import { extractAssistantDisplayText } from '@shared/dialogue/protocol'
 import { STANDARD_EMOTIONS } from '@shared/role'
 import type { RoleCard } from '../../src/shared/types'
 

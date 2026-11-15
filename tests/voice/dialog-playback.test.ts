@@ -47,7 +47,7 @@ describe('对话配音与动作的先后关系', () => {
   let isUIBusy: typeof import('../../src/renderer/src/features/speech/uiWorker').isUIBusy
 
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
-  const output = (motion?: string): import('@shared/messages').TTSOutputMessage => ({
+  const output = (motion?: string): import('@shared/dialogue/messages').TTSOutputMessage => ({
     segmentId: motion ?? 'plain',
     roleId: 'sonetto',
     name: 'sonetto',

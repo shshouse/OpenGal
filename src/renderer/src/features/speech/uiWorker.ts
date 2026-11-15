@@ -1,4 +1,4 @@
-import type { TTSOutputMessage } from '@shared/messages'
+import type { TTSOutputMessage } from '@shared/dialogue/messages'
 import { HandlerChain, type MessageHandler } from '@/features/pipeline/handlerChain'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { DefaultDialogUiHandler, stopDialogPlayback } from './uiHandlers'

@@ -1,6 +1,6 @@
 import type { ChatMessage, MessageContentPart } from '@shared/types'
-import type { UserInputMessage } from '@shared/messages'
-import { resolveSlotConfig } from '@shared/llmSlot'
+import type { UserInputMessage } from '@shared/dialogue/messages'
+import { resolveSlotConfig } from '@shared/llm/slot'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
@@ -18,12 +18,12 @@ import {
   type DirectorInput,
   type PerceptionEvent,
 } from './directorContract'
-import { buildDirectorSystemPrompt } from '@shared/directorPrompt'
+import { buildDirectorSystemPrompt } from '@shared/presence/directorPrompt'
 import { gateUtterance } from '@shared/presence/gate'
 import { nextSilenceDelay } from '@shared/presence/silence'
 import { buildInitiativePerception } from './initiativePerception'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
-import { parsePerformance } from '@shared/dialogueProtocol'
+import { parsePerformance } from '@shared/dialogue/protocol'
 import { getErrorMessage } from '@shared/errors'
 
 const SILENCE_WINDOW_MS = 2500

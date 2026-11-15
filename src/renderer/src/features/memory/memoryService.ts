@@ -1,5 +1,5 @@
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
-import type { LLMDialogMessage, UserInputMessage } from '@shared/messages'
+import type { LLMDialogMessage, UserInputMessage } from '@shared/dialogue/messages'
 import type { MemoryApplyPayload } from '@shared/types'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useLogsStore } from '@/features/logs/logsStore'

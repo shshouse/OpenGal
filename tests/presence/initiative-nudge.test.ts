@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildInitiativeNudge } from '../../src/shared/initiativeNudge'
+import { buildInitiativeNudge } from '../../src/shared/presence/initiativeNudge'
 import type { EnvSnapshot } from '../../src/shared/types'
 
 function env(overrides: Partial<EnvSnapshot> = {}): EnvSnapshot {

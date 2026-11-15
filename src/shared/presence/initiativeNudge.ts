@@ -1,4 +1,4 @@
-import type { EnvSnapshot } from './types'
+import type { EnvSnapshot } from '../types'
 import { timeOfDayLabel } from './timeOfDay'
 
 /** 主动开口时塞给主管线的提示；写清理由来源，避免角色凭空找话 */

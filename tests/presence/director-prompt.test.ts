@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDirectorSystemPrompt } from '../../src/shared/directorPrompt'
+import { buildDirectorSystemPrompt } from '../../src/shared/presence/directorPrompt'
 
 describe('导演提示词', () => {
   it('agent 模式围绕角色立场，并保留默认安静', () => {

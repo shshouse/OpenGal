@@ -4,7 +4,7 @@ import type { AppConfig } from '@shared/types'
 import { toModUrl, getDataRoot, getPreferenceRoot } from './paths'
 import { resolveConfigDir } from './configMigration'
 import { logBus } from './logBus'
-import { normalizeAsrEngine, normalizeAsrMode } from '../../shared/asrKinds'
+import { normalizeAsrEngine, normalizeAsrMode } from '../../shared/asr/kinds'
 
 const defaultConfig: AppConfig = {
   uiLanguage: 'zh',

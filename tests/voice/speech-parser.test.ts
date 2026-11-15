@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SpeechStreamParser, extractAssistantDisplayText } from '@shared/dialogueProtocol'
+import { SpeechStreamParser, extractAssistantDisplayText } from '@shared/dialogue/protocol'
 
 interface CheckItem {
   text: string

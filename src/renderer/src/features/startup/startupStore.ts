@@ -1,14 +1,14 @@
 import { create } from 'zustand'
 import type { BootStep } from '@shared/types'
 import { isRoleRunning } from '@shared/role/runtime'
-import { speechLanguageLabel } from '@shared/subtitles'
+import { speechLanguageLabel } from '@shared/dialogue/subtitles'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
-import { timeOfDayLabel } from '@shared/timeOfDay'
+import { timeOfDayLabel } from '@shared/presence/timeOfDay'
 
 export type BootPhase = 'booting' | 'waking' | 'awake'
 

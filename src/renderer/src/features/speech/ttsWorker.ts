@@ -1,4 +1,4 @@
-import type { LLMDialogMessage, TTSOutputMessage } from '@shared/messages'
+import type { LLMDialogMessage, TTSOutputMessage } from '@shared/dialogue/messages'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getErrorMessage } from '@shared/errors'
