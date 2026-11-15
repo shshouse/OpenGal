@@ -25,7 +25,6 @@ export default defineConfig({
       reporter: ['text', 'html', 'json-summary'],
       // 全量统计：分母是全部源码行，不是「测试恰好加载过的文件」。
       // 白名单会让未测试的模块根本不出现在报告里，数字虚高。
-      all: true,
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/renderer/public/**',

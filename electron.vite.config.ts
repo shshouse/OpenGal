@@ -6,7 +6,7 @@ import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ include: ['get-windows'] })],
     build: {
       outDir: 'out/main'
     },
