@@ -8,7 +8,7 @@ import {
   searchMessages,
   visibleMessageText,
   type MessageRow,
-} from '../main/services/memory/db.ts'
+} from '../main/services/memory/db/index.ts'
 
 interface EvalQuestion {
   id: string

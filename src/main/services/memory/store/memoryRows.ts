@@ -1,6 +1,6 @@
-import { rows, run } from './core'
-import { recordMemoryChange, type MemoryChangeActor } from './changelog'
-import type { MemoryRow, FactRow, StoryRow } from './types'
+import { rows, run } from '../db/core'
+import { recordMemoryChange, type MemoryChangeActor } from '../db/changelog'
+import type { MemoryRow, FactRow, StoryRow } from '../model/types'
 
 export function insertMemoryRowRaw(
   roleId: string,

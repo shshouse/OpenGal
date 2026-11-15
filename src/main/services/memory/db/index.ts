@@ -13,13 +13,13 @@ export type {
   SummaryRow,
   MessageSearchOptions,
   MemoryDbLogger,
-} from './types'
+} from '../model/types'
 export { setMemoryDbLogger, memoryDbReady, closeMemoryDb, withTx, getMeta, setMeta } from './core'
 export { migrateMemoryV2 } from './schema'
-export { searchTokens, visibleMessageText, searchMessages } from './search'
-export * from './messages'
-export * from './memories'
-export * from './summaries'
+export { searchTokens, visibleMessageText, searchMessages } from '../store/search'
+export * from '../store/messages'
+export * from '../store/memories'
+export * from '../store/summaries'
 export * from './changelog'
 
 export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<void> {

@@ -1,5 +1,5 @@
-import type { MessageRow, MessageSearchOptions } from './types'
-import { rows, run } from './core'
+import type { MessageRow, MessageSearchOptions } from '../model/types'
+import { rows, run } from '../db/core'
 
 const CJK_RE = /[㐀-鿿豈-﫿]/
 

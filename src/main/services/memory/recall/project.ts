@@ -1,9 +1,9 @@
 import type { MemoryFact, MemoryStory } from '@shared/types'
-import { relevanceScore } from './lexical'
+import { relevanceScore } from '../model/lexical'
 import { assembleBlock } from './recall'
-import { computeEmbeddingAsync, searchSimilarAsync } from './vector'
-import { setMemoryEmbedding } from './store'
-import type { EpisodeKind, Memory, MemoryEntity, MemorySource, MemoryState } from './model'
+import { computeEmbeddingAsync, searchSimilarAsync } from '../model/vector'
+import { setMemoryEmbedding } from '../store/store'
+import type { EpisodeKind, Memory, MemoryEntity, MemorySource, MemoryState } from '../model/model'
 
 /**
  * 界面与旧接口只认 facts / stories 两种视图。视图是投影，不是存储模型：

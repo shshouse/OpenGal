@@ -1,6 +1,6 @@
-import { db, rows, run, withTx } from './core'
+import { db, rows, run, withTx } from '../db/core'
 import { indexMessage, MESSAGE_COLUMNS } from './search'
-import type { MemoryRow, MessageRow } from './types'
+import type { MemoryRow, MessageRow } from '../model/types'
 
 export function listUnarchivedMessages(roleId: string): MessageRow[] {
   return rows(

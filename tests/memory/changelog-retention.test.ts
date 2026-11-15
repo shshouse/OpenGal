@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import * as db from '../../src/main/services/memory/db'
-import { setReadyPromise } from '../../src/main/services/memory/core'
+import { setReadyPromise } from '../../src/main/services/memory/db/core'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-changelog-retention-'))
 

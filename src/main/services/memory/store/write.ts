@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } from '@shared/types'
-import { memoryDbReady } from './core'
+import { memoryDbReady } from '../db/core'
 import {
   isPositive,
   similarity,
@@ -9,7 +9,7 @@ import {
   type MemoryEntity,
   type MemoryEvidence,
   type MemorySource,
-} from './model'
+} from '../model/model'
 import { deleteMemory, insertMemory, listMemories, reinforceMemory, setMemoryFrozen, setMemoryState } from './store'
 import { listMessageIdsInRange } from './memories'
 import { pruneSummaries } from './summaries'

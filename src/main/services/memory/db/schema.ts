@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { backupRootDir, db, getMeta, logger, rows, setMeta, withTx } from './core'
 import { backupBeforeMigration, sqliteSnapshot } from './backup'
-import { indexMessage } from './search'
-import { factRowToMemory, insertMemoryRowRaw, storyRowToMemory } from './memoryRows'
-import type { FactRow, StoryRow } from './types'
+import { indexMessage } from '../store/search'
+import { factRowToMemory, insertMemoryRowRaw, storyRowToMemory } from '../store/memoryRows'
+import type { FactRow, StoryRow } from '../model/types'
 import { getErrorMessage } from '@shared/app/errors'
 
 export const SCHEMA = `

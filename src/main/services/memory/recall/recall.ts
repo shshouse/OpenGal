@@ -1,5 +1,5 @@
-import { isExpired, normalizeText, resolveCurrent, wantsHistory, type Memory } from './model'
-import { scoreMemory } from './score'
+import { isExpired, normalizeText, resolveCurrent, wantsHistory, type Memory } from '../model/model'
+import { scoreMemory } from '../model/score'
 
 export interface RecallOptions {
   charCap: number

@@ -1,5 +1,5 @@
 import type { MemoryConfig, MemoryFact, MemoryStory } from '@shared/types'
-import { getMeta, memoryDbReady } from './core'
+import { getMeta, memoryDbReady } from './db/core'
 import { initMemoryDb } from './db'
 import {
   isCursorInitialized,
@@ -8,16 +8,16 @@ import {
   bootstrapCursor,
   resetDerived,
   setMemoryCursor,
-} from './memories'
-import { memoryEvidence } from './messages'
-import { searchMessages, visibleMessageText } from './search'
-import { listMemories, clearMemories, markRecalled } from './store'
-import { relevanceScore } from './lexical'
-import { similarity, normalizeText, retentionOf, type Memory } from './model'
-import { assembleBlock } from './recall'
-import { searchSimilarAsync } from './vector'
-import { assembleWithVectors, buildMemoryBlock, buildMemoryBlockVector, toFactView, toStoryView } from './project'
-import { applyCandidates, deleteFact, freezeFact, manualAddFact, pruneOverflow, unfreezeFact } from './write'
+} from './store/memories'
+import { memoryEvidence } from './store/messages'
+import { searchMessages, visibleMessageText } from './store/search'
+import { listMemories, clearMemories, markRecalled } from './store/store'
+import { relevanceScore } from './model/lexical'
+import { similarity, normalizeText, retentionOf, type Memory } from './model/model'
+import { assembleBlock } from './recall/recall'
+import { searchSimilarAsync } from './model/vector'
+import { assembleWithVectors, buildMemoryBlock, buildMemoryBlockVector, toFactView, toStoryView } from './recall/project'
+import { applyCandidates, deleteFact, freezeFact, manualAddFact, pruneOverflow, unfreezeFact } from './store/write'
 
 export { applyCandidates, deleteFact, freezeFact, manualAddFact, pruneOverflow, unfreezeFact }
 export { buildMemoryBlock, buildMemoryBlockVector }

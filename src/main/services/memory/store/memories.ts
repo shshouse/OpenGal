@@ -1,12 +1,12 @@
-import { db, rows, run, withTx, getMeta, setMeta } from './core'
+import { db, rows, run, withTx, getMeta, setMeta } from '../db/core'
 import { factRowToMemory, insertMemoryRowRaw, isoToMs, memoryToFactRow, memoryToStoryRow, storyRowToMemory } from './memoryRows'
 import {
   recordBulkChange,
   recordMemoryChange,
   recordMemoryFieldChange,
   type MemoryChangeActor,
-} from './changelog'
-import type { MemoryRow, FactRow, StoryRow, MessageRow } from './types'
+} from '../db/changelog'
+import type { MemoryRow, FactRow, StoryRow, MessageRow } from '../model/types'
 
 function loadForChange(id: string): MemoryRow | null {
   const found = rows('SELECT * FROM memories WHERE id = ?', [id])

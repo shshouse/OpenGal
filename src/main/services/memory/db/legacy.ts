@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { getMeta, logger, setMeta, withTx } from './core'
-import { insertMemoryRowRaw, isoToMs } from './memoryRows'
-import { appendMissingMessages } from './messages'
-import { externalizeMessage } from '../infra/media'
+import { insertMemoryRowRaw, isoToMs } from '../store/memoryRows'
+import { appendMissingMessages } from '../store/messages'
+import { externalizeMessage } from '../../infra/media'
 import { getErrorMessage } from '@shared/app/errors'
 
 // ---- 旧 JSON 记忆一次性迁移（JSON 原地保留，只读） ----

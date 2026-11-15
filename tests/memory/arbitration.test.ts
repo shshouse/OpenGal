@@ -7,7 +7,7 @@ import {
   slotOf,
   wantsHistory,
   type SlotFact,
-} from '../../src/main/services/memory/model'
+} from '../../src/main/services/memory/model/model'
 
 function fact(over: Partial<SlotFact>): SlotFact {
   return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { scoreMemory, scoreParts } from '../../src/main/services/memory/score'
-import type { Memory } from '../../src/main/services/memory/model'
+import { scoreMemory, scoreParts } from '../../src/main/services/memory/model/score'
+import type { Memory } from '../../src/main/services/memory/model/model'
 
 const NOW = Date.UTC(2026, 10, 9, 12, 0)
 

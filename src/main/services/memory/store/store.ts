@@ -1,5 +1,5 @@
-import { db, run, withTx } from './core'
-import { toMemory, toRow, type Memory, type MemoryState } from './model'
+import { db, run, withTx } from '../db/core'
+import { toMemory, toRow, type Memory, type MemoryState } from '../model/model'
 import { insertMemoryRowRaw } from './memoryRows'
 import {
   clearRoleMemories,
@@ -10,7 +10,7 @@ import {
   setMemoryPinnedRow,
   setMemoryStateRow,
 } from './memories'
-import type { MemoryChangeActor } from './changelog'
+import type { MemoryChangeActor } from '../db/changelog'
 
 /**
  * 运行期只认 Memory 一种模型：读写、召回、写入都走这里。

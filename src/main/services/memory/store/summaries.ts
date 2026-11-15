@@ -1,5 +1,5 @@
-import { rows, run, withTx } from './core'
-import type { SummaryRow } from './types'
+import { rows, run, withTx } from '../db/core'
+import type { SummaryRow } from '../model/types'
 
 export function listSummaries(roleId: string): SummaryRow[] {
   return rows(
