@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import * as db from '../../src/main/services/memoryDb'
+import * as db from '../../src/main/services/memory/db'
 import * as store from '../../src/main/services/memory'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-e2e-'))

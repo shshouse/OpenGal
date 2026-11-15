@@ -3,7 +3,7 @@ import { roleSpeechLanguage } from '@shared/subtitles'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
-import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
+import { applyTtsPortShift, assertLocalBaseURL } from './port'
 import type {
   TTSAdapter,
   TTSGenerateRequest,

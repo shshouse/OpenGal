@@ -21,7 +21,7 @@ import {
   listUnarchivedMessages,
   memoryDbReady,
   memoryEvidence,
-} from '../../src/main/services/memoryDb'
+} from '../../src/main/services/memory/db'
 
 const root = path.join(os.tmpdir(), `og-memory-cursor-${Date.now()}`)
 initMemoryStore(root)

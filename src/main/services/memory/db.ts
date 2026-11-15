@@ -1,8 +1,8 @@
-import { checkpoint, db, dbFile, logger, openMemoryDb, prepareMemoryDb, readyPromise, setReadyPromise } from './memory/core'
-import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './memory/backup'
-import { SCHEMA, migrateFactsSchema, migrateMemoryV2, migrateMessagesSchema } from './memory/schema'
-import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './memory/legacy'
-import { pruneMemoryChangelog } from './memory/changelog'
+import { checkpoint, db, dbFile, logger, openMemoryDb, prepareMemoryDb, readyPromise, setReadyPromise } from './core'
+import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './backup'
+import { SCHEMA, migrateFactsSchema, migrateMemoryV2, migrateMessagesSchema } from './schema'
+import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './legacy'
+import { pruneMemoryChangelog } from './changelog'
 import { getErrorMessage } from '@shared/errors'
 
 export type {
@@ -13,14 +13,14 @@ export type {
   SummaryRow,
   MessageSearchOptions,
   MemoryDbLogger,
-} from './memory/types'
-export { setMemoryDbLogger, memoryDbReady, closeMemoryDb, withTx, getMeta, setMeta } from './memory/core'
-export { migrateMemoryV2 } from './memory/schema'
-export { searchTokens, visibleMessageText, searchMessages } from './memory/search'
-export * from './memory/messages'
-export * from './memory/memories'
-export * from './memory/summaries'
-export * from './memory/changelog'
+} from './types'
+export { setMemoryDbLogger, memoryDbReady, closeMemoryDb, withTx, getMeta, setMeta } from './core'
+export { migrateMemoryV2 } from './schema'
+export { searchTokens, visibleMessageText, searchMessages } from './search'
+export * from './messages'
+export * from './memories'
+export * from './summaries'
+export * from './changelog'
 
 export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<void> {
   if (readyPromise) return readyPromise

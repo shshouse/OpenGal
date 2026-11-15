@@ -28,7 +28,7 @@ import {
   commitCompression,
   memoryEvidence,
   listMemoryChanges,
-} from '../services/memoryDb'
+} from '../services/memory/db'
 import {
   roleIdSchema,
   chatMessageSchema,

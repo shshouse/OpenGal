@@ -2,9 +2,9 @@ import type { ChatMessage, LLMConfig, LLMRequest, LLMResponse, LlmStreamEvent } 
 import { IpcChannels } from '@shared/ipc-channels'
 import { resolveSlotConfig } from '@shared/llmSlot'
 import type { BrowserWindow } from 'electron'
-import { readConfig } from './configStore'
-import { chooseAdapter } from './llm/factory'
-import { logBus } from './logBus'
+import { readConfig } from '../configStore'
+import { chooseAdapter } from './factory'
+import { logBus } from '../logBus'
 import { getErrorMessage, getErrorStack, isAbortError } from '@shared/errors'
 
 // 只发送协议字段：dbId/ts/contextTag 是本地辅助信息，不能进入 API 请求体

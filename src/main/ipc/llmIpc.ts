@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
 import type { LLMRequest } from '@shared/types'
-import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llmClient'
+import { callLLM, callLLMStream, abortStream, listProviderModels } from '../services/llm/client'
 import { getToolDefinitions, executeTool } from '../services/tools'
 import { inlineAttachments } from '../services/media'
 import { scanPlugins, setPluginEnabled, rescanPlugins, getPluginManifest } from '../services/plugins/registry'

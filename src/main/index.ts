@@ -8,9 +8,9 @@ import {
   registerModProtocolHandler,
   registerModProtocolSchemes
 } from './services/modProtocol'
-import { registerTTSServerCleanup, stopTTSServer } from './services/ttsServer'
+import { registerTTSServerCleanup, stopTTSServer } from './services/tts/server'
 import { getDataRoot, getModRoot, isDevRuntime } from './services/paths'
-import { flushMemoryDb } from './services/memoryDb'
+import { flushMemoryDb } from './services/memory/db'
 import { shutdownPlugins } from './services/plugins/registry'
 import { logBus, initLogFile } from './services/logBus'
 import { initUpdater } from './services/updater'

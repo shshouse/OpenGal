@@ -10,7 +10,7 @@ import {
   loadFacts,
   manualAddFact,
 } from '../../src/main/services/memory'
-import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
+import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memory/db'
 
 let root = ''
 

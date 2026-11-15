@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyTtsPortShift, clearTtsPortShift, parseTtsPort, setTtsPortShift } from '../../src/main/services/ttsPort'
+import { applyTtsPortShift, clearTtsPortShift, parseTtsPort, setTtsPortShift } from '../../src/main/services/tts/port'
 
 describe('ttsPort', () => {
   it('解析端口并在缺失时使用默认值', () => {

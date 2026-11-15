@@ -8,7 +8,7 @@ import {
   initMemoryStore,
   loadFacts,
 } from '../../src/main/services/memory'
-import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
+import { closeMemoryDb, memoryDbReady } from '../../src/main/services/memory/db'
 
 const root = path.join(os.tmpdir(), `og-memory-history-${Date.now()}`)
 initMemoryStore(root)

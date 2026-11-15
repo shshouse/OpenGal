@@ -1,6 +1,6 @@
 import type { MemoryConfig, MemoryFact, MemoryStory } from '@shared/types'
 import { getMeta, memoryDbReady } from './core'
-import { initMemoryDb } from '../memoryDb'
+import { initMemoryDb } from './db'
 import {
   isCursorInitialized,
   listMessagesAfter,

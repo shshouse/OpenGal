@@ -35,6 +35,36 @@ export default tseslint.config(
     files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'src/shared/**/*.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
+  // 依赖方向：shared 是三层共用的底座，不能反向依赖任何一层的实现
+  {
+    files: ['src/shared/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['@main/*', '../main/*', '../../main/*'], message: 'shared 层不能依赖主进程实现' },
+            { group: ['@/*', '../renderer/*', '../../renderer/*'], message: 'shared 层不能依赖渲染进程实现' },
+          ],
+        },
+      ],
+    },
+  },
+  // 依赖方向：服务层在下，IPC 与窗口层在上
+  {
+    files: ['src/main/services/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['../ipc/*', '../../ipc/*'], message: '服务层不能依赖 IPC 层' },
+            { group: ['../windows/*', '../../windows/*'], message: '服务层不能依赖窗口层' },
+          ],
+        },
+      ],
+    },
+  },
   {
     files: ['src/shared/ports/**/*.ts'],
     rules: {

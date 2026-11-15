@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron'
 import { IpcChannels } from '@shared/ipc-channels'
-import { speak, cancelSpeech, pingTTS, resetTTSState, warmupTTS } from '../services/ttsClient'
-import type { TTSSpeakRequest, TTSSpeakResponse } from '../services/ttsClient'
-import { startTTSServer, stopTTSServer, getTTSServerStatus, getTTSServerLog } from '../services/ttsServer'
-import type { TTSServerStatus } from '../services/ttsServer'
+import { speak, cancelSpeech, pingTTS, resetTTSState, warmupTTS } from '../services/tts/client'
+import type { TTSSpeakRequest, TTSSpeakResponse } from '../services/tts/client'
+import { startTTSServer, stopTTSServer, getTTSServerStatus, getTTSServerLog } from '../services/tts/server'
+import type { TTSServerStatus } from '../services/tts/server'
 import { wrap } from './wrap'
 
 export function registerTtsIpc(): void {

@@ -3,7 +3,7 @@ import { roleSpeechLanguage, scriptLanguage, speechLanguageLabel, speechLanguage
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
 import { resolveVoicePath } from '../paths'
 import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
-import { applyTtsPortShift, assertLocalBaseURL } from '../ttsPort'
+import { applyTtsPortShift, assertLocalBaseURL } from './port'
 import { logBus } from '../logBus'
 import type { TTSAdapter, TTSGenerateRequest, TTSGenerateResponse } from './types'
 import { pickString } from './configValue'

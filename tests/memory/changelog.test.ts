@@ -15,7 +15,7 @@ import {
   saveFacts,
   setFactStatusRow,
   type FactRow,
-} from '../../src/main/services/memoryDb'
+} from '../../src/main/services/memory/db'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-changelog-'))
 

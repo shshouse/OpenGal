@@ -1,8 +1,8 @@
 import type { BootResult, BootStep } from '@shared/types'
 import { readConfig } from './configStore'
-import { memoryDbReady } from './memoryDb'
-import { startTTSServer } from './ttsServer'
-import { checkTTSCompat, warmupTTS } from './ttsClient'
+import { memoryDbReady } from './memory/db'
+import { startTTSServer } from './tts/server'
+import { checkTTSCompat, warmupTTS } from './tts/client'
 import { logBus } from './logBus'
 import { getErrorMessage } from '@shared/errors'
 

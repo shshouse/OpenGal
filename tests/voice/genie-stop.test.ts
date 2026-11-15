@@ -8,7 +8,7 @@ vi.mock('../../src/main/services/roleCardLoader', () => ({
   readRoleVoiceConfig: () => null,
   resolveRoleVoiceFile: (_card: unknown, value: string) => value,
 }))
-vi.mock('../../src/main/services/ttsPort', () => ({
+vi.mock('../../src/main/services/tts/port', () => ({
   applyTtsPortShift: (value: string) => value,
   assertLocalBaseURL: () => {},
 }))

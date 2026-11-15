@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { appendMessage, closeMemoryDb, flushMemoryDb, initMemoryDb, memoryDbReady } from '../../src/main/services/memoryDb'
+import { appendMessage, closeMemoryDb, flushMemoryDb, initMemoryDb, memoryDbReady } from '../../src/main/services/memory/db'
 import { pruneBackups, snapshotBackup } from '../../src/main/services/memory/backup'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-backup-'))

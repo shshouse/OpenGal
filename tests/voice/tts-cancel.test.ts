@@ -12,7 +12,7 @@ vi.mock('../../src/main/services/configStore', () => ({
   readConfig: () => ({ tts: { enabled: true, provider: 'genie' }, activeRoleId: null }),
 }))
 vi.mock('../../src/main/services/roleCardLoader', () => ({ getRoleCard: () => null }))
-vi.mock('../../src/main/services/ttsServer', () => ({ startGptSovitsServer: async () => {} }))
+vi.mock('../../src/main/services/tts/server', () => ({ startGptSovitsServer: async () => {} }))
 vi.mock('../../src/main/services/logBus', () => ({
   logBus: { info: () => {}, warn: () => {}, error: () => {} },
 }))
@@ -21,7 +21,7 @@ vi.mock('../../src/main/services/tts/factory', () => ({
   resetAllTTSAdapters: () => {},
 }))
 
-import { cancelSpeech, speak, warmupTTS } from '../../src/main/services/ttsClient'
+import { cancelSpeech, speak, warmupTTS } from '../../src/main/services/tts/client'
 
 describe('ttsClient cancellation', () => {
   it('取消会传到 adapter，且下一次合成仍可用', async () => {

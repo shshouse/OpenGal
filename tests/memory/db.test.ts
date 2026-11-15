@@ -35,7 +35,7 @@ import {
   setStoryStatusRow,
   type FactRow,
   type StoryRow,
-} from '../../src/main/services/memoryDb'
+} from '../../src/main/services/memory/db'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memorydb-'))
 

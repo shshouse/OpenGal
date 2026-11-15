@@ -33,7 +33,7 @@ import {
   listUnarchivedMessages,
   memoryDbReady,
   saveChatMessages,
-} from '../../src/main/services/memoryDb'
+} from '../../src/main/services/memory/db'
 
 describe('memory text and adjudication', () => {
   it('归一化与相似度', () => {
@@ -261,7 +261,7 @@ describe('memory persistence pipeline', () => {
       const factsC4 = await loadFacts(c4)
       const oldFact = factsC4.find((f) => f.text.includes('打篮球'))!
       oldFact.last_confirmed_at = new Date(Date.now() - 100 * 86400000).toISOString()
-      const { saveFacts } = await import('../../src/main/services/memoryDb')
+      const { saveFacts } = await import('../../src/main/services/memory/db')
       saveFacts(c4, factsC4.map((f) => ({
         id: f.id, role_id: c4, text: f.text, entity: f.entity, importance: f.importance,
         subject: f.subject ?? null, attribute: f.attribute ?? null,
