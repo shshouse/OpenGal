@@ -1,7 +1,7 @@
 import { protocol } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import { CUSTOM_SCHEME, modUrlToAbsPath } from './paths'
+import { CUSTOM_SCHEME, modUrlToAbsPath } from '../infra/paths'
 
 const MIME_MAP: Record<string, string> = {
   '.json': 'application/json',

@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getRolesRoot } from './roleStore'
+import { getRolesRoot } from '../role/store'
 
 // 测试与脚本环境没有 Electron app，取不到路径时按非打包形态降级
 function getExePath(): string | null {

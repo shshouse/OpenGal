@@ -1,9 +1,9 @@
 import type { TTSConfig } from '@shared/types'
-import { readConfig } from '../configStore'
-import { getRoleCard } from '../roleCardLoader'
+import { readConfig } from '../config/store'
+import { getRoleCard } from '../role/cardLoader'
 import { chooseTTSAdapter, resetAllTTSAdapters } from './factory'
 import { startGptSovitsServer } from './server'
-import { logBus } from '../logBus'
+import { logBus } from '../infra/logBus'
 import { getErrorMessage, getErrorStack } from '@shared/app/errors'
 
 export interface TTSSpeakRequest {

@@ -1,4 +1,4 @@
-import { logBus } from '../logBus'
+import { logBus } from '../infra/logBus'
 import { registerBuiltinTools } from './builtin'
 import { getToolDefinitions } from './registry'
 

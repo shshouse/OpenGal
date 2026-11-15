@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import type { UIStatePatch } from '@shared/ui/uiState'
-import { getUIState, setUIState } from '../services/uiStateStore'
+import { getUIState, setUIState } from '../services/config/uiState'
 import { wrap } from './wrap'
 
 export function registerUIStateIpc(): void {

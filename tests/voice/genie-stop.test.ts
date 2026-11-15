@@ -3,8 +3,8 @@ import path from 'node:path'
 
 const state = vi.hoisted(() => ({ warnings: [] as string[], stopCalls: 0 }))
 
-vi.mock('../../src/main/services/paths', () => ({ resolveVoicePath: (value: string) => value }))
-vi.mock('../../src/main/services/roleCardLoader', () => ({
+vi.mock('../../src/main/services/infra/paths', () => ({ resolveVoicePath: (value: string) => value }))
+vi.mock('../../src/main/services/role/cardLoader', () => ({
   readRoleVoiceConfig: () => null,
   resolveRoleVoiceFile: (_card: unknown, value: string) => value,
 }))
@@ -12,7 +12,7 @@ vi.mock('../../src/main/services/tts/port', () => ({
   applyTtsPortShift: (value: string) => value,
   assertLocalBaseURL: () => {},
 }))
-vi.mock('../../src/main/services/logBus', () => ({
+vi.mock('../../src/main/services/infra/logBus', () => ({
   logBus: {
     info: () => {},
     warn: (message: string) => state.warnings.push(message),

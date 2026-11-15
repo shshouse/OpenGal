@@ -1,10 +1,10 @@
 import Store from 'electron-store'
 import { app, safeStorage } from 'electron'
 import type { AppConfig } from '@shared/types'
-import { toModUrl, getDataRoot, getPreferenceRoot } from './paths'
-import { resolveConfigDir } from './configMigration'
-import { logBus } from './logBus'
-import { normalizeAsrEngine, normalizeAsrMode } from '../../shared/asr/kinds'
+import { toModUrl, getDataRoot, getPreferenceRoot } from '../infra/paths'
+import { resolveConfigDir } from './migration'
+import { logBus } from '../infra/logBus'
+import { normalizeAsrEngine, normalizeAsrMode } from '../../../shared/asr/kinds'
 
 const defaultConfig: AppConfig = {
   uiLanguage: 'zh',

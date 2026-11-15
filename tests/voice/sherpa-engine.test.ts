@@ -26,15 +26,15 @@ vi.mock('node:fs', () => ({
   default: { existsSync: () => true, mkdirSync: () => {}, writeFileSync: () => {}, readdirSync: () => [] },
 }))
 vi.mock('electron', () => ({ app: { getAppPath: () => 'app' } }))
-vi.mock('../../src/main/services/logBus', () => ({
+vi.mock('../../src/main/services/infra/logBus', () => ({
   logBus: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }))
-vi.mock('../../src/main/services/configStore', () => ({
+vi.mock('../../src/main/services/config/store', () => ({
   readConfig: () => ({
     asr: { engine: 'sherpa', mode: 'offline', modelPath: '/model', sampleRate: 16000, language: 'zh', vadSilenceMs: 600, hotwords: [] },
   }),
 }))
-vi.mock('../../src/main/services/paths', () => ({
+vi.mock('../../src/main/services/infra/paths', () => ({
   getModRoot: () => 'mods',
   getDataRoot: () => 'data',
   getResourceRoot: () => 'resources',

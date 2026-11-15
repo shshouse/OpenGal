@@ -6,8 +6,8 @@ const state = vi.hoisted(() => ({
   bodies: {} as Record<string, Record<string, unknown>>,
 }))
 
-vi.mock('../../src/main/services/paths', () => ({ resolveVoicePath: (value: string) => value }))
-vi.mock('../../src/main/services/roleCardLoader', () => ({
+vi.mock('../../src/main/services/infra/paths', () => ({ resolveVoicePath: (value: string) => value }))
+vi.mock('../../src/main/services/role/cardLoader', () => ({
   readRoleVoiceConfig: () => state.voice,
   resolveRoleVoiceFile: (_card: unknown, value: string) => value,
 }))
@@ -15,7 +15,7 @@ vi.mock('../../src/main/services/tts/port', () => ({
   applyTtsPortShift: (value: string) => value,
   assertLocalBaseURL: () => {},
 }))
-vi.mock('../../src/main/services/logBus', () => ({
+vi.mock('../../src/main/services/infra/logBus', () => ({
   logBus: { info: () => {}, warn: () => {}, error: () => {} },
 }))
 

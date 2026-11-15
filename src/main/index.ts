@@ -7,13 +7,13 @@ import { registerIpc } from './ipc/registerIpc'
 import {
   registerModProtocolHandler,
   registerModProtocolSchemes
-} from './services/modProtocol'
+} from './services/extension/protocol'
 import { registerTTSServerCleanup, stopTTSServer } from './services/tts/server'
-import { getDataRoot, getModRoot, isDevRuntime } from './services/paths'
+import { getDataRoot, getModRoot, isDevRuntime } from './services/infra/paths'
 import { flushMemoryDb } from './services/memory/db'
 import { shutdownPlugins } from './services/plugins/registry'
-import { logBus, initLogFile } from './services/logBus'
-import { initUpdater } from './services/updater'
+import { logBus, initLogFile } from './services/infra/logBus'
+import { initUpdater } from './services/system/updater'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()

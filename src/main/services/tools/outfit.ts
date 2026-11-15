@@ -2,8 +2,8 @@ import { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import type { RoleCardEntry, RoleOutfitChange } from '@shared/role'
-import { readConfig } from '../configStore'
-import { getRoleCard } from '../roleCardLoader'
+import { readConfig } from '../config/store'
+import { getRoleCard } from '../role/cardLoader'
 import { defineTool } from './defineTool'
 
 const changeOutfitSchema = z.object({

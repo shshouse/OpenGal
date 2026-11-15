@@ -4,7 +4,7 @@ import type { PluginInfo, PluginManifest, ToolDefinition } from '@shared/types'
 import { McpSession } from './mcpHost'
 import { validateManifest } from './manifest'
 import { registerTool, unregisterTool } from '../tools'
-import { logBus } from '../logBus'
+import { logBus } from '../infra/logBus'
 import { getErrorMessage } from '@shared/app/errors'
 
 let dataRoot = ''

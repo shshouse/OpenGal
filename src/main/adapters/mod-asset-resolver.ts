@@ -1,5 +1,5 @@
 import type { AssetResolver } from '@shared/ports'
-import { modUrlToAbsPath, toModUrl } from '../services/paths'
+import { modUrlToAbsPath, toModUrl } from '../services/infra/paths'
 
 export class ModAssetResolver implements AssetResolver {
   toUrl(absPath: string): string {

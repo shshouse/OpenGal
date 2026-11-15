@@ -1,6 +1,6 @@
 import { app, shell } from 'electron'
 import type { MarketListResult } from '@shared/types'
-import { logBus } from './logBus'
+import { logBus } from '../infra/logBus'
 
 const API_BASE = 'https://mikumod.com'
 const GAME_NUMBER = '8'

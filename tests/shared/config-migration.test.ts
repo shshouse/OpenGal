@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveConfigDir } from '../../src/main/services/configMigration'
+import { resolveConfigDir } from '../../src/main/services/config/migration'
 
 const roots: string[] = []
 

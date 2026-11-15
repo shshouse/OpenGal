@@ -1,6 +1,6 @@
 import offline from './sherpaEngine'
 import streaming from './streamingEngine'
-import { readConfig } from '../configStore'
+import { readConfig } from '../config/store'
 import type { ASREngine } from './types'
 
 let active: ASREngine = offline

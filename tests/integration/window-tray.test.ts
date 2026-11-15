@@ -126,7 +126,7 @@ vi.mock('electron', () => {
 
 vi.mock('@electron-toolkit/utils', () => ({ is: { dev: true } }))
 
-vi.mock('../../src/main/services/uiStateStore', () => ({
+vi.mock('../../src/main/services/config/uiState', () => ({
   getUIState: () => ({}),
   setUIState: () => ({}),
 }))

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import type { MateStatePayload } from '@shared/ui/mate'
 import type { MateState, SavedRect, WindowState } from '@shared/ui/uiState'
-import { getUIState, setUIState } from '../services/uiStateStore'
+import { getUIState, setUIState } from '../services/config/uiState'
 
 function intersectsDisplay(rect: SavedRect): boolean {
   if (rect.x === undefined || rect.y === undefined) return false

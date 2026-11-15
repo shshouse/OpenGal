@@ -8,12 +8,12 @@ const state = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../../src/main/services/configStore', () => ({
+vi.mock('../../src/main/services/config/store', () => ({
   readConfig: () => ({ tts: { enabled: true, provider: 'genie' }, activeRoleId: null }),
 }))
-vi.mock('../../src/main/services/roleCardLoader', () => ({ getRoleCard: () => null }))
+vi.mock('../../src/main/services/role/cardLoader', () => ({ getRoleCard: () => null }))
 vi.mock('../../src/main/services/tts/server', () => ({ startGptSovitsServer: async () => {} }))
-vi.mock('../../src/main/services/logBus', () => ({
+vi.mock('../../src/main/services/infra/logBus', () => ({
   logBus: { info: () => {}, warn: () => {}, error: () => {} },
 }))
 vi.mock('../../src/main/services/tts/factory', () => ({

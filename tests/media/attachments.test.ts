@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { ATTACHMENT_PREFIX, externalizeMessage, inlineAttachments } from '../../src/main/services/media'
+import { ATTACHMENT_PREFIX, externalizeMessage, inlineAttachments } from '../../src/main/services/infra/media'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-media-'))
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='

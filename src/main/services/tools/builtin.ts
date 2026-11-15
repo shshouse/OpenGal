@@ -12,10 +12,10 @@ import {
   webSearchSchema,
 } from './schemas'
 import { sanitizeWebText, wrapWebContent, MAX_SNIPPET_CHARS } from './webFirewall'
-import { readConfig } from '../configStore'
+import { readConfig } from '../config/store'
 import { getMemoryBlock, recallVerbatim } from '../memory'
-import { logBus } from '../logBus'
-import { isScreenWatchEnabled, lookAtScreen } from '../screenWatch'
+import { logBus } from '../infra/logBus'
+import { isScreenWatchEnabled, lookAtScreen } from '../perception/screenWatch'
 import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/presence/screen'
 import { changeOutfitTool } from './outfit'
 

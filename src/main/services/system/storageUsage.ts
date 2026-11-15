@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { shell } from 'electron'
 import type { StorageUsage } from '@shared/app/storage'
-import { getBackupRoot, getDataRoot, getPreferenceRoot } from './paths'
+import { getBackupRoot, getDataRoot, getPreferenceRoot } from '../infra/paths'
 
 export type { StorageUsage }
 

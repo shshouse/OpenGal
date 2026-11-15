@@ -1,5 +1,5 @@
 import type { LogFields, Logger } from '@shared/ports'
-import { logBus } from '../services/logBus'
+import { logBus } from '../services/infra/logBus'
 
 function detail(fields?: LogFields): string | undefined {
   if (!fields) return undefined

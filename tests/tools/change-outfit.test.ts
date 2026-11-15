@@ -13,11 +13,11 @@ const state = vi.hoisted(() => ({
   card: null as null | { id: string; name: string; outfitEntries: Array<{ id: string; name: string; mode: string }> },
 }))
 
-vi.mock('../../src/main/services/configStore', () => ({
+vi.mock('../../src/main/services/config/store', () => ({
   readConfig: () => ({ activeRoleId: state.activeRoleId }),
 }))
 
-vi.mock('../../src/main/services/roleCardLoader', () => ({
+vi.mock('../../src/main/services/role/cardLoader', () => ({
   getRoleCard: (id: string) => (state.card && state.card.id === id ? state.card : null),
 }))
 

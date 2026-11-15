@@ -1,5 +1,5 @@
 import type { LLMConfig, LLMResponse, LLMUsage, ToolCall } from '@shared/types'
-import { logBus } from '../logBus'
+import { logBus } from '../infra/logBus'
 import type { LLMAdapter, LLMChatRequest, LLMStreamCallbacks } from './types'
 import { splitChunk } from './chunkSplit'
 function isDeepSeek(config: LLMConfig): boolean {

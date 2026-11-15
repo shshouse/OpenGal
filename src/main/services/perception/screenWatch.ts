@@ -6,7 +6,7 @@
 import { BrowserWindow, desktopCapturer } from 'electron'
 import { join } from 'node:path'
 import type { SampledFrame, ScreenPulse } from '@shared/presence/screen'
-import { logBus } from './logBus'
+import { logBus } from '../infra/logBus'
 import { getErrorMessage } from '@shared/app/errors'
 
 const PULSE_MS = 3_000

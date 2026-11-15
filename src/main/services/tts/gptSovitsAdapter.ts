@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import { roleSpeechLanguage } from '@shared/dialogue/subtitles'
 import type { RoleCardEntry, TTSConfig } from '@shared/types'
-import { resolveVoicePath } from '../paths'
-import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../roleCardLoader'
+import { resolveVoicePath } from '../infra/paths'
+import { readRoleVoiceConfig, resolveRoleVoiceFile } from '../role/cardLoader'
 import { applyTtsPortShift, assertLocalBaseURL } from './port'
 import type {
   TTSAdapter,

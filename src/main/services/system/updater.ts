@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { autoUpdater } from 'electron-updater'
-import { logBus } from './logBus'
+import { logBus } from '../infra/logBus'
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 

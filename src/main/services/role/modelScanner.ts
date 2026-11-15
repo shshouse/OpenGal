@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Live2DModelConfig, RoleCardEntry } from '@shared/types'
-import { toModUrl } from './paths'
-import { listRoleCards } from './roleCardLoader'
+import { toModUrl } from '../infra/paths'
+import { listRoleCards } from './cardLoader'
 
 const DEFAULT_PARAM_MAPPING: Live2DModelConfig['paramMapping'] = {
   angleX: 'ParamAngleX',

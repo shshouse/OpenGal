@@ -1,5 +1,5 @@
 import type { AssetResolver, Clock, FileStore, Logger } from '@shared/ports'
-import { getDataRoot } from '../services/paths'
+import { getDataRoot } from '../services/infra/paths'
 import { LogBusLogger } from './log-bus-logger'
 import { ModAssetResolver } from './mod-asset-resolver'
 import { NodeFileStore } from './node-file-store'

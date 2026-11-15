@@ -1,9 +1,9 @@
 import type { BootResult, BootStep } from '@shared/types'
-import { readConfig } from './configStore'
-import { memoryDbReady } from './memory/db'
-import { startTTSServer } from './tts/server'
-import { checkTTSCompat, warmupTTS } from './tts/client'
-import { logBus } from './logBus'
+import { readConfig } from '../config/store'
+import { memoryDbReady } from '../memory/db'
+import { startTTSServer } from '../tts/server'
+import { checkTTSCompat, warmupTTS } from '../tts/client'
+import { logBus } from '../infra/logBus'
 import { getErrorMessage } from '@shared/app/errors'
 
 // 启动自检：记忆库就绪检查 + TTS 服务拉起与预热，逐步通过 IPC 推给渲染进程

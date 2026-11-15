@@ -30,12 +30,12 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../../src/main/services/screenWatch', () => ({
+vi.mock('../../src/main/services/perception/screenWatch', () => ({
   isScreenWatchEnabled: vi.fn(() => false),
   lookAtScreen: vi.fn(async () => null),
 }))
 
-vi.mock('../../src/main/services/configStore', () => ({
+vi.mock('../../src/main/services/config/store', () => ({
   readConfig: vi.fn(() => ({
     tools: { fileSearchDirs: [] },
     screen: { watch: false, excludeSelf: true },
@@ -47,7 +47,7 @@ vi.mock('../../src/main/services/memory', () => ({
   recallVerbatim: vi.fn(),
 }))
 
-vi.mock('../../src/main/services/logBus', () => ({
+vi.mock('../../src/main/services/infra/logBus', () => ({
   logBus: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { listRoleCardsDetailed } from '../../src/main/services/roleCardLoader'
+import { listRoleCardsDetailed } from '../../src/main/services/role/cardLoader'
 
 const root = path.resolve('tests/fixtures/role-card-root')
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'og-mod-loading-data-'))

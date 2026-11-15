@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IpcChannels } from '@shared/app/ipc-channels'
-import { getStorageUsage, revealDataRoot } from '../services/storageUsage'
+import { getStorageUsage, revealDataRoot } from '../services/system/storageUsage'
 import { wrap } from './wrap'
 
 export function registerStorageIpc(): void {

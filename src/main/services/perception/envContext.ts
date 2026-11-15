@@ -1,5 +1,5 @@
 import { powerMonitor, screen } from 'electron'
-import { readConfig } from './configStore'
+import { readConfig } from '../config/store'
 import { getScreenPulse } from './screenWatch'
 import type { EnvSnapshot } from '@shared/types'
 import { getErrorMessage } from '@shared/app/errors'

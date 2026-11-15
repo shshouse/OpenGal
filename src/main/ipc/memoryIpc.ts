@@ -36,7 +36,7 @@ import {
   memoryEntitySchema,
   summarySchema,
 } from '@shared/app/schemas'
-import { externalizeMessage } from '../services/media'
+import { externalizeMessage } from '../services/infra/media'
 import { handleValidated, handleValidatedWithEvent } from './validated'
 import { wrap } from './wrap'
 import { z } from 'zod'
