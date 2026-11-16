@@ -14,9 +14,10 @@ interface Props {
   role: RoleCardEntry
   running: boolean
   onToggleRunning: () => void
+  hideHeader?: boolean
 }
 
-export function RoleDashboard({ role, running, onToggleRunning }: Props): React.JSX.Element {
+export function RoleDashboard({ role, running, onToggleRunning, hideHeader = false }: Props): React.JSX.Element {
   const activities = useActivityStore((state) => selectActivities(state, role.id))
   const steps = useStartupStore((state) => state.steps)
   const today = new Date()
@@ -42,16 +43,18 @@ export function RoleDashboard({ role, running, onToggleRunning }: Props): React.
       }}
       className="flex h-full min-w-0 flex-col"
     >
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-medium">{label}</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">{running ? '正在运行' : '沉睡中'}</p>
-        </div>
-        <Button size="sm" variant={running ? 'secondary' : 'default'} onClick={onToggleRunning}>
-          {running ? <Moon className="size-3.5" /> : <Play className="size-3.5" />}
-          {running ? '休眠' : '唤醒'}
-        </Button>
-      </header>
+      {!hideHeader && (
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-sm font-medium">{label}</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">{running ? '正在运行' : '沉睡中'}</p>
+          </div>
+          <Button size="sm" variant={running ? 'secondary' : 'default'} onClick={onToggleRunning}>
+            {running ? <Moon className="size-3.5" /> : <Play className="size-3.5" />}
+            {running ? '休眠' : '唤醒'}
+          </Button>
+        </header>
+      )}
       <div className="shrink-0 border-b px-3 py-2">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">概览</TabsTrigger>

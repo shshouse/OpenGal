@@ -12,6 +12,7 @@ interface WindowDouble {
   visible: boolean
   focused: boolean
   minimized: boolean
+  contentProtected: boolean | null
   lastCloseEvent: CloseEventDouble | null
   close: () => void
 }
@@ -35,6 +36,7 @@ vi.mock('electron', () => {
     focused = false
     minimized = false
     maximized = false
+    contentProtected: boolean | null = null
     lastCloseEvent: CloseEventDouble | null = null
     private handlers = new Map<string, Array<(event: CloseEventDouble) => void>>()
     webContents = { setWindowOpenHandler: () => {}, send: () => {} }
@@ -83,6 +85,7 @@ vi.mock('electron', () => {
     getNormalBounds(): { x: number; y: number; width: number; height: number } { return this.bounds }
     loadFile(): void {}
     loadURL(): void {}
+    setContentProtection(enabled: boolean): void { this.contentProtected = enabled }
   }
 
   class Tray {
@@ -183,6 +186,15 @@ describe('main window tray lifecycle', () => {
 
     expect(window.minimized).toBe(false)
     expect(window.visible).toBe(true)
+  })
+
+  it('主窗口不启用内容保护，截图可见', () => {
+    const { manager, window } = setup()
+    manager.setSelfExclusion(true)
+    expect(window.contentProtected).toBeNull()
+
+    manager.setSelfExclusion(false)
+    expect(window.contentProtected).toBeNull()
   })
 
   it('托盘点击恢复窗口，退出菜单执行真实退出回调', () => {

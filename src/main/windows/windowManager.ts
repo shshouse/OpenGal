@@ -71,9 +71,9 @@ export class WindowManager {
   constructor(private readonly deps: WindowDeps) {}
 
   setSelfExclusion(enabled: boolean): void {
+    // 只排除相伴窗口；主窗口需要能被截图查看
     this.excludeSelf = enabled
     if (this.mate && !this.mate.isDestroyed()) this.mate.setContentProtection?.(enabled)
-    if (this.main && !this.main.isDestroyed()) this.main.setContentProtection?.(enabled)
   }
 
   private trackMainBounds(window: BrowserWindow): () => void {
@@ -125,7 +125,6 @@ export class WindowManager {
       if (getUIState().window?.maximized) this.main?.maximize()
       this.main?.show()
     })
-    this.main.setContentProtection?.(this.excludeSelf)
     const saveBounds = this.trackMainBounds(this.main)
     this.main.on('close', (event) => {
       saveBounds()

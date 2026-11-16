@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Send, Square, ImagePlus } from 'lucide-react'
+import { ImagePlus, Info, Moon, Play, Send, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -9,19 +9,24 @@ import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getLive2DModel } from '@/features/live2d/live2dBus'
 import { useASRStore, setASRFinalCallback } from '@/features/asr/asrStore'
 import { offerUtterance, setDirectorDispatch } from '@/features/director/directorWorker'
-import { extractAssistantDisplayText } from '@shared/dialogue/protocol'
 import { isRoleRunning } from '@shared/role/runtime'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useStartupStore } from '@/features/startup/startupStore'
-import { displaySubtitle, subtitleForSegment, useSubtitleStore } from '@/features/speech/subtitles'
-import { useSpokenLineStore } from '@/features/speech/spokenLine'
 import { consumeVoiceInterruption } from '@/features/pipeline/bargeIn'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
+import { ChatThread } from './ChatThread'
 
 const COMPOSITION_GUARD_MS = 500
+
+interface Props {
+  stage: React.ReactNode
+  avatarUrl?: string | null
+  onOpenDetails: () => void
+  onToggleRunning: () => void
+}
 
 function abortPipeline(): void {
   pipelineBus.emit('pipeline:abort', undefined)
@@ -31,56 +36,23 @@ function abortPipeline(): void {
   }
 }
 
-export function GalgameChatPanel() {
-  const messages = useChatStore((s) => s.messages)
+export function GalgameChatPanel({ stage, avatarUrl, onOpenDetails, onToggleRunning }: Props): React.JSX.Element {
   const isSending = useChatStore((s) => s.isSending)
   const error = useChatStore((s) => s.error)
   const persistError = useChatStore((s) => s.persistError)
-  const streamingSegments = useChatStore((s) => s.streamingSegments)
   const send = useChatPipeline()
   const [draft, setDraft] = React.useState('')
   const pendingImages = usePendingImages()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const composingRef = React.useRef(false)
   const compositionEndAtRef = React.useRef(0)
-  const role = useRoleStore((s) => s.list.find((c) => c.id === s.activeId))
+  const role = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
   const bootAwake = useStartupStore((s) => s.phase === 'awake')
   const runningById = useRoleRuntimeStore((s) => s.byId)
-  const sleeping = Boolean(role && !isRoleRunning(runningById, role.id))
+  const running = Boolean(role && isRoleRunning(runningById, role.id))
+  const sleeping = Boolean(role && !running)
   const canInteract = bootAwake && !sleeping
-  useSubtitleStore((s) => s.records)
-  useSubtitleStore((s) => s.preferences)
-  const subtitle = (text: string): string => displaySubtitle(role?.id ?? '', text)
-
-  const streamingDisplay = streamingSegments.map((s) => s.item.text).join('')
-  const spoken = useSpokenLineStore((s) => s)
-  const replyRef = React.useRef<HTMLDivElement>(null)
-
-  function latestReply(): string {
-    const last = [...messages].reverse().find((message) => message.role === 'assistant')
-    return last ? subtitle(extractAssistantDisplayText(last.content as string)) : ''
-  }
-
-  // 有语音时文字跟发声逐句推进；语音被跳过或没启用时整段显示。
-  // 第一句还在合成时只露出这一句，避免整段文字先冒出来、开口后又跳回第一句
-  function currentText(): string {
-    if (spoken.mode === 'speech') {
-      const line = spoken.roleId === role?.id && spoken.text
-        ? subtitleForSegment(spoken.roleId, spoken.segmentId, spoken.text)
-        : ''
-      return line || latestReply()
-    }
-    if (spoken.mode === 'text') return streamingDisplay ? subtitle(streamingDisplay) : latestReply()
-    const first = streamingSegments[0]?.item.text
-    return first ? subtitle(first) : latestReply()
-  }
-  const visible = currentText()
-
-  // 换句或流式增长时跟到末尾
-  React.useEffect(() => {
-    const el = replyRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [visible])
+  const label = role?.displayName ?? role?.name ?? '角色'
 
   React.useEffect(() => {
     setASRFinalCallback((text) => {
@@ -116,104 +88,140 @@ export function GalgameChatPanel() {
   }
 
   return (
-    <div className="pointer-events-none flex h-full flex-col justify-end">
-      <div className="pointer-events-auto mx-auto w-full max-w-3xl px-6 pb-6">
-        {visible ? (
-          <div className="mb-5">
-            <div ref={replyRef} className="max-h-[42vh] overflow-y-auto">
-              <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground [text-shadow:0_1px_3px_hsl(var(--background))]">
-                {visible}
-              </p>
+    <div className="relative flex h-full min-w-0 flex-col overflow-hidden bg-background">
+      <div className="absolute inset-0" aria-hidden>{stage}</div>
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background"
+        aria-hidden
+      />
+
+      <header className="relative z-20 flex h-12 shrink-0 items-center gap-2.5 border-b bg-card/85 px-4">
+        <span
+          className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background text-xs text-brand"
+          style={{ color: role?.color }}
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            label.slice(0, 1)
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-sm font-medium">{label}</h1>
+          <p className="text-xs text-muted-foreground">{running ? '运行中' : '沉睡中'}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onOpenDetails}
+          title="角色详情"
+          aria-label="角色详情"
+        >
+          <Info className="size-4" />
+        </Button>
+        <Button type="button" size="sm" variant={running ? 'secondary' : 'default'} onClick={onToggleRunning}>
+          {running ? <Moon className="size-3.5" /> : <Play className="size-3.5" />}
+          {running ? '休眠' : '唤醒'}
+        </Button>
+      </header>
+
+      <div className="relative z-10 mt-auto flex h-[62%] min-h-0 flex-col bg-background/55">
+        <ChatThread roleLabel={label} avatarUrl={avatarUrl} roleColor={role?.color} />
+
+        <div className="shrink-0 px-4 pb-4">
+          {(error || persistError) && (
+            <div className="mb-2 rounded-md bg-destructive/15 px-3 py-1.5 text-xs text-destructive">
+              {error || `聊天记录未保存：${persistError}`}
             </div>
-          </div>
-        ) : null}
+          )}
+          <PendingImagesBar pending={pendingImages} />
 
-        {(error || persistError) && (
-          <div className="mb-2 rounded-md bg-destructive/15 px-3 py-1.5 text-xs text-destructive">
-            {error || `聊天记录未保存：${persistError}`}
-          </div>
-        )}
-
-        <PendingImagesBar pending={pendingImages} />
-
-        <div className="rounded-xl border bg-card p-2 shadow-lg shadow-black/25">
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onCompositionStart={() => {
-              composingRef.current = true
-            }}
-            onCompositionEnd={() => {
-              composingRef.current = false
-              compositionEndAtRef.current = performance.now()
-            }}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter' || e.shiftKey) return
-              const native = e.nativeEvent
-              // 选字中的回车属于输入法，既不发送也不 preventDefault，否则会打断候选确认
-              if (composingRef.current || native.isComposing || native.keyCode === 229) return
-              // 选字结束 500ms 内的回车只可能是选词确认的伴生键，吞掉换行但不发送
-              if (performance.now() - compositionEndAtRef.current < COMPOSITION_GUARD_MS) {
-                e.preventDefault()
-                return
-              }
-              e.preventDefault()
-              handleSend()
-            }}
-            onPaste={pendingImages.handlePaste}
-            placeholder={sleeping ? '她正在沉睡，先在左侧唤醒她' : canInteract ? '输入消息，可粘贴图片…' : '正在唤醒…'}
-            disabled={!canInteract}
-            className="max-h-52 min-h-10 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-relaxed shadow-none focus-visible:ring-0 [field-sizing:content]"
-            rows={1}
-          />
-
-          <div className="mt-1 flex items-center gap-0.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                pendingImages.handleFiles(e.target.files)
-                e.target.value = ''
+          <div className="mx-auto w-full max-w-3xl rounded-lg border bg-card p-2 shadow-lg shadow-black/15">
+            <Textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onCompositionStart={() => { composingRef.current = true }}
+              onCompositionEnd={() => {
+                composingRef.current = false
+                compositionEndAtRef.current = performance.now()
               }}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0 text-muted-foreground"
-              title="添加图片"
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey) return
+                const native = event.nativeEvent
+                // 选字中的回车属于输入法，既不发送也不 preventDefault，否则会打断候选确认
+                if (composingRef.current || native.isComposing || native.keyCode === 229) return
+                // 选字结束 500ms 内的回车只可能是选词确认的伴生键，吞掉换行但不发送
+                if (performance.now() - compositionEndAtRef.current < COMPOSITION_GUARD_MS) {
+                  event.preventDefault()
+                  return
+                }
+                event.preventDefault()
+                handleSend()
+              }}
+              onPaste={pendingImages.handlePaste}
+              placeholder={sleeping ? '她正在沉睡，先在顶部唤醒她' : canInteract ? '输入消息，可粘贴图片…' : '正在唤醒…'}
               disabled={!canInteract}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImagePlus className="size-4" />
-            </Button>
-            <div className={cn(!canInteract && 'pointer-events-none opacity-40')}>
-              <MicButton />
-            </div>
+              className="max-h-52 min-h-10 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-relaxed shadow-none focus-visible:ring-0 [field-sizing:content]"
+              rows={1}
+            />
 
-            <div className="ml-auto flex items-center gap-1">
-              <ContextUsageIndicator />
-              {isSending ? (
-                <Button size="icon" className="size-8 shrink-0" onClick={abortPipeline} title="停止">
-                  <Square className="size-3.5" />
-                </Button>
-              ) : (
-                <Button
-                  size="icon"
-                  className="size-8 shrink-0"
-                  onClick={handleSend}
-                  disabled={(!draft.trim() && pendingImages.images.length === 0) || !canInteract}
-                  title="发送"
-                >
-                  <Send className="size-3.5" />
-                </Button>
-              )}
+            <div className="mt-1 flex items-center gap-0.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  pendingImages.handleFiles(event.target.files)
+                  event.target.value = ''
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 text-muted-foreground"
+                title="添加图片"
+                aria-label="添加图片"
+                disabled={!canInteract}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImagePlus className="size-4" />
+              </Button>
+              <div className={cn(!canInteract && 'pointer-events-none opacity-40')}>
+                <MicButton />
+              </div>
+
+              <div className="ml-auto flex items-center gap-1">
+                <ContextUsageIndicator />
+                {isSending ? (
+                  <Button size="icon" className="size-8 shrink-0" onClick={abortPipeline} title="停止" aria-label="停止">
+                    <Square className="size-3.5" fill="currentColor" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="icon"
+                    className="size-8 shrink-0"
+                    onClick={handleSend}
+                    disabled={(!draft.trim() && pendingImages.images.length === 0) || !canInteract}
+                    title="发送"
+                    aria-label="发送"
+                  >
+                    <Send className="size-3.5" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {!role && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 text-sm text-muted-foreground">
+          请选择一个角色
+        </div>
+      )}
     </div>
   )
 }

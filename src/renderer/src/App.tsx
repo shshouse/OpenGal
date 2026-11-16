@@ -1,14 +1,14 @@
 import * as React from 'react'
 import { X } from 'lucide-react'
-import { AppBar } from '@/components/nav/AppBar'
+import { WindowBar } from '@/components/shell/WindowBar'
+import { NavRail } from '@/components/shell/NavRail'
+import { RoleSessionList } from '@/components/chat/RoleSessionList'
 import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
-import { ChatWorkspace } from '@/components/chat/ChatWorkspace'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { SpineStage } from '@/components/spine/SpineStage'
 import { HomePage } from '@/components/home/HomePage'
 import { LogsPanel } from '@/components/logs/LogsPanel'
-import { RoleDashboard } from '@/components/dashboard/RoleDashboard'
 import type { AppConfig, Live2DModelConfig } from '@shared/types'
 import { startPipeline } from '@/features/pipeline'
 import { useRoleStore } from '@/features/role/roleStore'
@@ -41,6 +41,9 @@ export default function App() {
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const [view, setView] = React.useState<AppViewName>('home')
   const [actionError, setActionError] = React.useState('')
+  const [selectedId, setSelectedId] = React.useState<string | null>(
+    () => useUIStateStore.getState().state.homeSelectedId ?? null,
+  )
   const uiStateLoaded = useUIStateStore((s) => s.loaded)
   const uiRestored = React.useRef(false)
   const roles = useRoleStore((s) => s.list)
@@ -51,6 +54,8 @@ export default function App() {
   const outfits = useRoleStore((s) => s.outfits)
   const runningById = useRoleRuntimeStore((s) => s.byId)
   const activeRunning = isRoleRunning(runningById, activeId)
+  const selectedRole = roles.find((card) => card.id === (selectedId ?? activeId)) ?? activeCard ?? null
+  const selectedRunning = selectedRole ? isRoleRunning(runningById, selectedRole.id) : false
 
   React.useEffect(() => {
     void useUIStateStore.getState().load()
@@ -61,6 +66,7 @@ export default function App() {
     uiRestored.current = true
     const saved = useUIStateStore.getState().state
     if (saved.view) setView(saved.view)
+    if (saved.homeSelectedId !== undefined) setSelectedId(saved.homeSelectedId)
     if (saved.mate?.open) {
       void window.opengal.mate.open().then((res) => {
         if (res.success) setMateOpen(true)
@@ -179,7 +185,7 @@ export default function App() {
         setModel(mergeSavedTransform(fromCard.data, currentCfg?.model))
       } else {
         const cfg = await window.opengal.config.get()
-        if (cfg.success && cfg.data?.model?.modelUrl) {
+        if (cfg.data?.model?.modelUrl) {
           setModel(cfg.data.model)
         }
       }
@@ -223,8 +229,18 @@ export default function App() {
   }
 
   async function openRole(roleId: string): Promise<void> {
+    setSelectedId(roleId)
+    useUIStateStore.getState().patch({ homeSelectedId: roleId })
     if (roleId !== activeId) await useRoleStore.getState().setActive(roleId)
     setView('chat')
+  }
+
+  function handleSelectRole(roleId: string): void {
+    setSelectedId(roleId)
+    useUIStateStore.getState().patch({ homeSelectedId: roleId })
+    if (view !== 'home' && roleId !== activeId) {
+      void useRoleStore.getState().setActive(roleId)
+    }
   }
 
   async function toggleMate(): Promise<void> {
@@ -309,27 +325,37 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <AppBar
-        view={view}
-        onNavigate={setView}
-        avatarUrl={avatarUrl}
-        onSelectRole={(id) => void openRole(id)}
-        mateOpen={mateOpen}
-        onToggleMate={() => void toggleMate()}
-        showLive2D={config?.showLive2D ?? true}
-        onToggleLive2D={() => void toggleLive2D()}
-      />
-      {actionError && (
-        <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
-          {actionError}
-        </div>
-      )}
-      <main className="relative flex min-h-0 flex-1 overflow-hidden">
+      <WindowBar />
+      <div className="flex min-h-0 flex-1">
+        <NavRail
+          view={view}
+          onNavigate={setView}
+          mateOpen={mateOpen}
+          onToggleMate={() => void toggleMate()}
+          showLive2D={config?.showLive2D ?? true}
+          onToggleLive2D={() => void toggleLive2D()}
+        />
+        <RoleSessionList
+          roles={roles}
+          activeId={activeId}
+          selectedId={selectedId}
+          runningById={runningById}
+          avatarUrl={avatarUrl}
+          onSelectRole={handleSelectRole}
+          onAddRole={() => setView('market')}
+        />
+
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          {actionError && (
+            <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+              {actionError}
+            </div>
+          )}
+
           {view === 'home' && (
             <HomePage
-              roles={roles}
-              activeId={activeId}
-              runningById={runningById}
+              role={selectedRole}
+              running={selectedRunning}
               steps={bootSteps}
               onOpenRole={(id) => void openRole(id)}
               onToggleRunning={setRunningFor}
@@ -337,23 +363,17 @@ export default function App() {
           )}
 
           <div className={view === 'chat' ? 'h-full min-w-0 flex-1' : 'hidden'}>
-            <ChatWorkspace
-              chat={activeCard ? (
-                <RoleDashboard
-                  role={activeCard}
-                  running={activeRunning}
-                  onToggleRunning={() => void setRunningFor(activeCard.id)}
-                />
-              ) : <div className="p-6 text-sm text-muted-foreground">请选择一个角色</div>}
+            <GalgameChatPanel
               stage={(
                 <div className="relative h-full min-w-0 overflow-hidden">
                   <div className="absolute inset-0">{live2dLayer}</div>
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 top-1/4 z-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
-                  <div className="absolute inset-0 z-20">
-                    <GalgameChatPanel />
-                  </div>
                 </div>
               )}
+              avatarUrl={avatarUrl}
+              onOpenDetails={() => setView('home')}
+              onToggleRunning={() => {
+                if (activeId) void setRunningFor(activeId)
+              }}
             />
           </div>
 
@@ -370,6 +390,7 @@ export default function App() {
                 <button
                   type="button"
                   title="关闭"
+                  aria-label="关闭设置"
                   className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   onClick={() => setView('chat')}
                 >
@@ -387,7 +408,8 @@ export default function App() {
           )}
 
           {view === 'logs' && <LogsPanel onClose={() => setView('chat')} />}
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

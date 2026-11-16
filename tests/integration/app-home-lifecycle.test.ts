@@ -10,15 +10,16 @@ const state = vi.hoisted(() => {
   }
 })
 
+vi.mock('@/components/shell/WindowBar', () => ({ WindowBar: () => null }))
+vi.mock('@/components/shell/NavRail', () => ({ NavRail: () => null }))
+vi.mock('@/components/chat/RoleSessionList', () => ({
+  RoleSessionList: () => React.createElement('div', null, 'SESSION_LIST'),
+}))
 vi.mock('@/components/home/HomePage', () => ({
   HomePage: (props: { onToggleRunning: (id: string) => Promise<void> }) => {
     state.homeProps = props
     return React.createElement('div', null, 'HOME')
   },
-}))
-vi.mock('@/components/chat/ChatWorkspace', () => ({
-  ChatWorkspace: ({ chat, stage }: { chat: React.ReactNode; stage: React.ReactNode }) =>
-    React.createElement('div', null, 'WORKSPACE', chat, stage),
 }))
 vi.mock('@/components/chat/GalgameChatPanel', () => ({
   GalgameChatPanel: () => React.createElement('div', null, 'CHAT_PANEL'),
@@ -26,8 +27,6 @@ vi.mock('@/components/chat/GalgameChatPanel', () => ({
 vi.mock('@/components/dashboard/RoleDashboard', () => ({ RoleDashboard: () => null }))
 vi.mock('@/components/live2d/Live2DStage', () => ({ Live2DStage: () => null }))
 vi.mock('@/components/sprite/SpriteStage', () => ({ SpriteStage: () => null }))
-vi.mock('@/components/titlebar/TitleBar', () => ({ TitleBar: () => null }))
-vi.mock('@/components/nav/Sidebar', () => ({ Sidebar: () => null }))
 vi.mock('@/components/settings/SettingsCenter', () => ({ SettingsCenter: () => null }))
 vi.mock('@/components/market/MarketPage', () => ({ MarketPage: () => null }))
 vi.mock('@/components/logs/LogsPanel', () => ({ LogsPanel: () => null }))
@@ -56,10 +55,10 @@ describe('App home lifecycle', () => {
     })
   })
 
-  it('主页仍保留工作区与聊天面板挂载', () => {
+  it('主页仍保留会话列表与聊天面板挂载', () => {
     const html = renderToString(React.createElement(App))
     expect(html).toContain('HOME')
-    expect(html).toContain('WORKSPACE')
+    expect(html).toContain('SESSION_LIST')
     expect(html).toContain('CHAT_PANEL')
   })
 
