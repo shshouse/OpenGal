@@ -41,14 +41,36 @@ function allSettled(steps: BootStep[]): boolean {
 export async function maybeGreet(): Promise<void> {
   if (greeted || greetingPending) return
   const activeId = useRoleStore.getState().activeId
-  if (!isRoleRunning(useRoleRuntimeStore.getState().byId, activeId)) return
+  if (!activeId || !isRoleRunning(useRoleRuntimeStore.getState().byId, activeId)) return
   greetingPending = true
   try {
     const cfg = await window.opengal.config.get()
     if (!cfg.success || !cfg.data?.startup.greetingEnabled || !llmConfigured) return
     const currentId = useRoleStore.getState().activeId
     if (currentId !== activeId || !isRoleRunning(useRoleRuntimeStore.getState().byId, currentId)) return
+
+    // 启动问候只在没有历史时发一次；已有消息或摘要说明这段关系已经开始了
+    await useChatStore.getState().ensureHydrated(activeId)
+    const chat = useChatStore.getState()
+    if (chat.sessionId !== activeId || chat.isSending || chat.messages.length > 0) {
+      useLogsStore.getState().appendLocal('info', 'startup', '已有聊天记录，跳过启动问候')
+      return
+    }
+    const [latest, summaries] = await Promise.all([
+      window.opengal.chatHistory.latestMessageId(activeId),
+      window.opengal.chatHistory.summaries(activeId),
+    ])
+    if (latest.success && latest.data !== null) {
+      useLogsStore.getState().appendLocal('info', 'startup', '已有聊天记录，跳过启动问候')
+      return
+    }
+    if (summaries.success && (summaries.data?.length ?? 0) > 0) {
+      useLogsStore.getState().appendLocal('info', 'startup', '已有对话摘要，跳过启动问候')
+      return
+    }
+
     greeted = true
+    useLogsStore.getState().appendLocal('info', 'startup', '发送启动问候')
     // 问候语是中文指令，模型容易顺着说中文；角色语言必须在这里再钉一次，
     // 否则中文台词喂给非中文音色模型会被读成参考音频
     const card = useRoleStore.getState().list.find((c) => c.id === activeId)

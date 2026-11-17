@@ -1,6 +1,5 @@
 import * as React from 'react'
 import type { SpriteFrames } from '@shared/types'
-import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
 import { SpriteStage } from '@/components/sprite/SpriteStage'
 
@@ -41,29 +40,44 @@ export function SpineStage({ skelUrl, atlasUrl, scale = 1, sleeping, mate = fals
     }
     const fail = (message: string): void => {
       setFailure(message)
-      useLogsStore.getState().appendLocal('warn', 'spine', `立绘加载失败：${message}`)
+      window.opengal.logs.append('warn', 'spine', `立绘加载失败：${message}`, skelUrl)
       if (!mate) useStartupStore.getState().reportLive2d('failed', message)
     }
     let player: SpinePlayerInstance | null = null
-    try {
-      player = new runtime.SpinePlayer(host, {
-        skelUrl,
-        atlasUrl,
-        alpha: true,
-        showControls: false,
-        premultipliedAlpha: false,
-        backgroundColor: '#00000000',
-        success: () => {
-          if (!mate) useStartupStore.getState().reportLive2d('ok')
-        },
-        error: (error: unknown) => {
-          fail(error instanceof Error ? error.message : String(error))
-        },
-      })
-    } catch (error) {
-      fail(error instanceof Error ? error.message : '立绘加载失败')
+    let cancelled = false
+
+    // 首次渲染时容器可能还没完成布局，直接读取会得到 0x0，画面就什么都画不出来
+    const boot = (): void => {
+      if (cancelled || player) return
+      if (!host.offsetWidth || !host.offsetHeight) return
+      window.opengal.logs.append('info', 'spine', `挂载 ${skelUrl} 容器 ${host.offsetWidth}x${host.offsetHeight}`)
+      try {
+        player = new runtime.SpinePlayer(host, {
+          skelUrl,
+          atlasUrl,
+          alpha: true,
+          showControls: false,
+          premultipliedAlpha: false,
+          backgroundColor: '#00000000',
+          success: () => {
+            if (!mate) useStartupStore.getState().reportLive2d('ok')
+          },
+          error: (error: unknown) => {
+            fail(error instanceof Error ? error.message : String(error))
+          },
+        })
+      } catch (error) {
+        fail(error instanceof Error ? error.message : '立绘加载失败')
+      }
     }
+
+    boot()
+    const observer = new ResizeObserver(boot)
+    observer.observe(host)
+
     return () => {
+      cancelled = true
+      observer.disconnect()
       try {
         player?.stopRendering?.()
         player?.renderer?.dispose?.()

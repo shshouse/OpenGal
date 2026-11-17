@@ -18,6 +18,19 @@ export function messageText(message: ChatMessage): string {
   return message.role === 'assistant' ? extractAssistantDisplayText(raw) : raw.trim()
 }
 
+export function messageImages(message: ChatMessage): string[] {
+  const pending = (message as ChatMessage & { images?: unknown }).images
+  if (Array.isArray(pending)) {
+    return pending.filter((url): url is string => typeof url === 'string')
+  }
+  if (Array.isArray(message.content)) {
+    return message.content
+      .filter((part) => part.type === 'image_url')
+      .map((part) => part.image_url.url)
+  }
+  return []
+}
+
 export function previewFromMessages(messages: readonly ChatMessage[]): SessionPreview {
   const last = [...messages].reverse().find((message) => message.role === 'user' || message.role === 'assistant')
   if (!last) return { text: '', ts: null }

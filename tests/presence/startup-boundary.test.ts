@@ -15,7 +15,15 @@ vi.mock('../../src/renderer/src/features/pipeline/pipelineBus', () => ({
   } },
 }))
 vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
-  useChatStore: { getState: () => ({ setSending: () => {} }) },
+  useChatStore: {
+    getState: () => ({
+      sessionId: 'sonetto',
+      isSending: false,
+      messages: [],
+      setSending: () => {},
+      ensureHydrated: async () => {},
+    }),
+  },
 }))
 vi.mock('../../src/renderer/src/features/logs/logsStore', () => ({
   useLogsStore: { getState: () => ({ appendLocal: () => {} }) },
@@ -57,6 +65,10 @@ describe('startup boundary', () => {
         },
         config: {
           get: async () => ({ success: true, data: { startup: { greetingEnabled: true } } }),
+        },
+        chatHistory: {
+          latestMessageId: async () => ({ success: true, data: null }),
+          summaries: async () => ({ success: true, data: [] }),
         },
       },
       setTimeout,

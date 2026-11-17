@@ -17,7 +17,7 @@ import { consumeVoiceInterruption } from '@/features/pipeline/bargeIn'
 import { MicButton } from './MicButton'
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import { usePendingImages, PendingImagesBar } from './imageAttachments'
-import { ChatThread } from './ChatThread'
+import { ChatDock } from './ChatDock'
 
 const COMPOSITION_GUARD_MS = 500
 
@@ -103,14 +103,8 @@ export function GalgameChatPanel({
   }
 
   return (
-    <div className="relative flex h-full min-w-0 flex-col overflow-hidden bg-background">
-      <div className="absolute inset-0" aria-hidden>{stage}</div>
-      <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background"
-        aria-hidden
-      />
-
-      <header className="relative z-20 flex h-12 shrink-0 items-center gap-2.5 border-b bg-card/85 px-4">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-background">
+      <header className="flex h-12 shrink-0 items-center gap-2.5 border-b bg-card/85 px-4">
         <span
           className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background text-xs text-brand"
           style={{ color: role?.color }}
@@ -178,19 +172,27 @@ export function GalgameChatPanel({
         </div>
       </header>
 
-      <div className="relative z-10 mt-auto flex h-[62%] min-h-0 flex-col bg-background/55">
-        <ChatThread roleLabel={label} avatarUrl={avatarUrl} roleColor={role?.color} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {showLive2D ? (
+          <div className="relative min-h-[180px] flex-1 overflow-hidden bg-background" aria-hidden>
+            {stage}
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1" />
+        )}
 
-        <div className="shrink-0 px-4 pb-4">
+        <div className="shrink-0 border-t border-border/60 bg-background px-4 pb-4 pt-3">
           {(error || persistError) && (
             <div className="mb-2 rounded-md bg-destructive/15 px-3 py-1.5 text-xs text-destructive">
               {error || `聊天记录未保存：${persistError}`}
             </div>
           )}
-          <PendingImagesBar pending={pendingImages} />
+          <ChatDock roleLabel={label} />
 
-          <div className="mx-auto w-full max-w-3xl rounded-lg border bg-card p-2 shadow-lg shadow-black/15">
-            <Textarea
+          <div className="mx-auto mt-3 w-full max-w-3xl">
+            <PendingImagesBar pending={pendingImages} />
+            <div className="rounded-lg border bg-background p-2">
+              <Textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               onCompositionStart={() => { composingRef.current = true }}
@@ -267,6 +269,7 @@ export function GalgameChatPanel({
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {!role && (

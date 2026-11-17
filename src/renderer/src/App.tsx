@@ -332,6 +332,24 @@ export default function App() {
     return () => { cancelled = true }
   }, [spriteAvatarSource])
 
+  React.useEffect(() => {
+    window.opengal.logs.append(
+      'info',
+      'stage',
+      JSON.stringify({
+        card: activeCard?.id ?? null,
+        mode: activeCard?.performance.mode ?? null,
+        sprite: activeCard?.spriteFrames?.idle ?? null,
+        outfits: activeCard?.outfitEntries?.length ?? 0,
+        outfit: activeOutfit?.id ?? null,
+        outfitMode: activeOutfit?.mode ?? null,
+        spine: activeOutfit?.spineSkelUrl ?? null,
+        show: config?.showLive2D ?? null,
+        mateOpen,
+      }),
+    )
+  }, [activeCard, activeOutfit, config?.showLive2D, mateOpen])
+
   const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? (
     activeOutfit?.mode === 'spine' && activeOutfit.spineSkelUrl && activeOutfit.spineAtlasUrl ? (
       <SpineStage
@@ -358,7 +376,9 @@ export default function App() {
       />
     )
   ) : (
-    <div className="h-full w-full bg-background" />
+    <div className="flex h-full w-full items-end justify-center bg-background pb-24 text-xs text-muted-foreground">
+      {mateOpen ? '立绘显示在相伴窗口' : '立绘已隐藏'}
+    </div>
   )
 
   return (

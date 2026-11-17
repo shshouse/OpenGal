@@ -6,25 +6,13 @@ import { useChatStore } from '@/features/chat/chatStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { useSpokenLineStore } from '@/features/speech/spokenLine'
 import { displaySubtitle, subtitleForSegment, useSubtitleStore } from '@/features/speech/subtitles'
-import { formatPreviewTime, messageText } from '@/features/chat/sessionPreview'
+import { formatPreviewTime, messageImages, messageText } from '@/features/chat/sessionPreview'
 
 interface Props {
   roleLabel: string
   avatarUrl?: string | null
   roleColor?: string
-}
-
-function imagesOf(message: ChatMessage): string[] {
-  const pending = (message as ChatMessage & { images?: unknown }).images
-  if (Array.isArray(pending)) {
-    return pending.filter((url): url is string => typeof url === 'string')
-  }
-  if (Array.isArray(message.content)) {
-    return message.content
-      .filter((part) => part.type === 'image_url')
-      .map((part) => part.image_url.url)
-  }
-  return []
+  showAvatar?: boolean
 }
 
 function MessageRow({
@@ -36,6 +24,7 @@ function MessageRow({
   roleColor,
   isUser,
   pending,
+  showAvatar,
 }: {
   text: string
   images: string[]
@@ -45,28 +34,31 @@ function MessageRow({
   roleColor?: string
   isUser: boolean
   pending?: boolean
+  showAvatar: boolean
 }): React.JSX.Element {
   return (
     <div className={cn('flex items-start gap-2.5', isUser && 'flex-row-reverse')}>
-      <span
-        className={cn(
-          'mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background text-xs',
-          isUser ? 'text-muted-foreground' : 'text-brand',
-        )}
-        style={isUser ? undefined : { color: roleColor }}
-        title={isUser ? undefined : roleLabel}
-      >
-        {!isUser && avatarUrl ? (
-          <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          (isUser ? '我' : roleLabel.slice(0, 1))
-        )}
-      </span>
-      <div className={cn('min-w-0 max-w-[min(85%,44rem)]', isUser && 'text-right')}>
+      {showAvatar ? (
+        <span
+          className={cn(
+            'mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background text-xs',
+            isUser ? 'text-muted-foreground' : 'text-brand',
+          )}
+          style={isUser ? undefined : { color: roleColor }}
+          title={isUser ? undefined : roleLabel}
+        >
+          {!isUser && avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            (isUser ? '我' : roleLabel.slice(0, 1))
+          )}
+        </span>
+      ) : null}
+      <div className={cn('min-w-0 max-w-[min(85%,44rem)]', isUser && 'text-right', !showAvatar && 'max-w-[min(100%,44rem)]')}>
         <div
           className={cn(
             'inline-block max-w-full rounded-lg border px-3 py-2 text-left text-sm leading-relaxed',
-            isUser ? 'border-brand/20 bg-brand/10' : 'border-border/60 bg-card/90',
+            isUser ? 'border-brand/20 bg-brand/10' : 'border-border/60 bg-background',
             pending && 'border-brand/30',
           )}
         >
@@ -92,7 +84,7 @@ function MessageRow({
   )
 }
 
-export function ChatThread({ roleLabel, avatarUrl, roleColor }: Props): React.JSX.Element {
+export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true }: Props): React.JSX.Element {
   const messages = useChatStore((s) => s.messages)
   const streamingSegments = useChatStore((s) => s.streamingSegments)
   const roleId = useRoleStore((s) => s.activeId)
@@ -139,6 +131,17 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor }: Props): React.JS
     if (el && atBottomRef.current) el.scrollTop = el.scrollHeight
   }, [messages.length, visible, roleId])
 
+  // 聊天页从隐藏切回来时容器才拿到真实高度，需要补一次贴底
+  React.useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      if (atBottomRef.current) el.scrollTop = el.scrollHeight
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   function handleScroll(): void {
     const el = scrollRef.current
     if (!el) return
@@ -172,7 +175,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor }: Props): React.JS
             renderedMessages.map((message, index) => {
               const raw = messageText(message as ChatMessage)
               const text = message.role === 'assistant' ? subtitle(raw) : raw
-              const images = imagesOf(message as ChatMessage)
+              const images = messageImages(message as ChatMessage)
               if (!text && images.length === 0) return null
               return (
                 <MessageRow
@@ -184,6 +187,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor }: Props): React.JS
                   avatarUrl={avatarUrl}
                   roleColor={roleColor}
                   isUser={message.role === 'user'}
+                  showAvatar={showAvatar}
                 />
               )
             })
@@ -199,6 +203,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor }: Props): React.JS
                 roleColor={roleColor}
                 isUser={false}
                 pending
+                showAvatar={showAvatar}
               />
             </div>
           ) : null}

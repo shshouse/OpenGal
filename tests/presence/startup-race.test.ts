@@ -4,6 +4,7 @@ const state = vi.hoisted(() => ({
   activeId: 'a',
   byId: { a: true, b: true } as Record<string, boolean>,
   inputs: [] as Array<{ text: string }>,
+  messages: [] as Array<{ role: string; content: string }>,
   resolveConfig: null as null | ((value: unknown) => void),
   configPromise: null as null | Promise<unknown>,
 }))
@@ -15,7 +16,15 @@ vi.mock('../../src/renderer/src/features/pipeline/pipelineBus', () => ({
   } },
 }))
 vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
-  useChatStore: { getState: () => ({ setSending: () => {} }) },
+  useChatStore: {
+    getState: () => ({
+      sessionId: state.activeId,
+      isSending: false,
+      messages: state.messages,
+      setSending: () => {},
+      ensureHydrated: async () => {},
+    }),
+  },
 }))
 vi.mock('../../src/renderer/src/features/logs/logsStore', () => ({
   useLogsStore: { getState: () => ({ appendLocal: () => {} }) },
@@ -42,6 +51,7 @@ describe('startup races', () => {
     state.activeId = 'a'
     state.byId = { a: true, b: true }
     state.inputs = []
+    state.messages = []
     state.resolveConfig = null
     state.configPromise = null
     vi.stubGlobal('window', {
@@ -68,6 +78,10 @@ describe('startup races', () => {
             return state.configPromise
           },
         },
+        chatHistory: {
+          latestMessageId: async () => ({ success: true, data: null }),
+          summaries: async () => ({ success: true, data: [] }),
+        },
       },
       setTimeout,
     })
@@ -87,6 +101,16 @@ describe('startup races', () => {
     await Promise.all([first, second])
 
     expect(state.inputs).toHaveLength(1)
+  })
+
+  it('已有聊天记录时不再重复问候', async () => {
+    state.messages = [{ role: 'assistant', content: '下午好，博士。' }]
+    const mod = await loadStore()
+    const pending = mod.maybeGreet()
+    state.resolveConfig!({ success: true, data: { startup: { greetingEnabled: true } } })
+    await pending
+
+    expect(state.inputs).toEqual([])
   })
 
   it('等待配置期间切角色或休眠会丢弃过期问候', async () => {
