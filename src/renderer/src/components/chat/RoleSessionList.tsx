@@ -183,10 +183,6 @@ export function RoleSessionList({
           </div>
         )}
       </div>
-
-      <div className="shrink-0 border-t px-4 py-2 text-xs text-muted-foreground tabular-nums">
-        {roles.length} 个角色
-      </div>
     </aside>
   )
 }

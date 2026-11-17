@@ -47,8 +47,9 @@ function changeLabel(change: MemoryChange): string {
   return '更新'
 }
 
-export function MemorySettings() {
+export function MemorySettings({ roleId }: { roleId?: string } = {}) {
   const activeId = useRoleStore((s) => s.activeId)
+  const targetId = roleId ?? activeId
   const roles = useRoleStore((s) => s.list)
   const [facts, setFacts] = React.useState<MemoryFact[]>([])
   const [stories, setStories] = React.useState<MemoryStory[]>([])
@@ -65,7 +66,7 @@ export function MemorySettings() {
   const [sources, setSources] = React.useState<Record<string, Array<{ id: number; role: string; content: string; ts: number }>>>({})
   const [changes, setChanges] = React.useState<Record<string, MemoryChange[]>>({})
 
-  const activeChar = roles.find((c) => c.id === activeId)
+  const activeChar = roles.find((c) => c.id === targetId)
   const charName = activeChar?.displayName ?? activeChar?.name ?? '未选择角色'
 
   React.useEffect(() => {
@@ -83,11 +84,11 @@ export function MemorySettings() {
   }, [search])
 
   const load = React.useCallback(async () => {
-    if (!activeId) return
+    if (!targetId) return
     setLoading(true)
     setError(null)
     try {
-      const res = await window.opengal.memory.get(activeId)
+      const res = await window.opengal.memory.get(targetId)
       if (res.success && res.data) {
         setFacts(res.data.facts)
         setStories(res.data.stories)
@@ -99,17 +100,17 @@ export function MemorySettings() {
     } finally {
       setLoading(false)
     }
-  }, [activeId])
+  }, [targetId])
 
   React.useEffect(() => {
     void load()
   }, [load])
 
   const loadChanges = React.useCallback(async (memoryId: string): Promise<void> => {
-    if (!activeId) return
-    const res = await window.opengal.memory.changes(activeId, memoryId, 20)
+    if (!targetId) return
+    const res = await window.opengal.memory.changes(targetId, memoryId, 20)
     if (res.success && res.data) setChanges((prev) => ({ ...prev, [memoryId]: res.data ?? [] }))
-  }, [activeId])
+  }, [targetId])
 
   const filteredFacts = React.useMemo(() => {
     if (!search.trim()) return facts
@@ -124,10 +125,10 @@ export function MemorySettings() {
   }, [stories, search])
 
   async function handleFreeze(factId: string, freeze: boolean): Promise<void> {
-    if (!activeId) return
+    if (!targetId) return
     const res = freeze
-      ? await window.opengal.memory.freezeFact(activeId, factId)
-      : await window.opengal.memory.unfreezeFact(activeId, factId)
+      ? await window.opengal.memory.freezeFact(targetId, factId)
+      : await window.opengal.memory.unfreezeFact(targetId, factId)
     if (res.success) {
       await load()
       if (openSource === factId) await loadChanges(factId)
@@ -135,30 +136,30 @@ export function MemorySettings() {
   }
 
   async function handleDelete(factId: string): Promise<void> {
-    if (!activeId) return
-    const res = await window.opengal.memory.deleteFact(activeId, factId)
+    if (!targetId) return
+    const res = await window.opengal.memory.deleteFact(targetId, factId)
     if (res.success) await load()
   }
 
   async function toggleSource(id: string): Promise<void> {
-    if (!activeId) return
+    if (!targetId) return
     if (openSource === id) {
       setOpenSource(null)
       return
     }
     setOpenSource(id)
     if (!sources[id]) {
-      const res = await window.opengal.memory.evidence(activeId, id)
+      const res = await window.opengal.memory.evidence(targetId, id)
       if (res.success && res.data) setSources((prev) => ({ ...prev, [id]: res.data ?? [] }))
     }
     if (!changes[id]) await loadChanges(id)
   }
 
   async function handleAdd(): Promise<void> {
-    if (!activeId || !newFactText.trim()) return
+    if (!targetId || !newFactText.trim()) return
     setAdding(true)
     try {
-      const res = await window.opengal.memory.manualAdd(activeId, newFactText.trim(), 'user')
+      const res = await window.opengal.memory.manualAdd(targetId, newFactText.trim(), 'user')
       if (res.success) {
         setNewFactText('')
         await load()
@@ -169,10 +170,10 @@ export function MemorySettings() {
   }
 
   async function handleRebuild(): Promise<void> {
-    if (!activeId) return
+    if (!targetId) return
     setRebuilding(true)
     try {
-      await rebuildMemoryIndex(activeId)
+      await rebuildMemoryIndex(targetId)
       await load()
     } finally {
       setRebuilding(false)

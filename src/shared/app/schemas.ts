@@ -7,6 +7,29 @@ import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } fr
 
 export const roleIdSchema = z.string().min(1, 'roleId 不能为空')
 
+const roleColorSchema = z.union([
+  z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, '颜色应为 #RGB 或 #RRGGBB'),
+  z.literal(''),
+])
+
+export const roleCardEditableSchema = z
+  .object({
+    displayName: z.string().max(64).optional(),
+    color: roleColorSchema.optional(),
+    language: z.string().max(64).optional(),
+    persona: z
+      .object({
+        description: z.string().min(1).max(20_000),
+        personality: z.string().min(1).max(20_000),
+        scenario: z.string().max(20_000).optional(),
+        rules: z.string().max(20_000).optional(),
+        userIdentity: z.string().max(2_000).optional(),
+        userTerm: z.string().max(200).optional(),
+      })
+      .strict(),
+  })
+  .strict()
+
 export const chatRoleSchema = z.enum(['system', 'user', 'assistant', 'tool'])
 
 const contentPartSchema = z

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ImagePlus, Info, Moon, Play, Send, Square } from 'lucide-react'
+import { Cat, Eye, EyeOff, ImagePlus, Info, Moon, Pencil, Play, Send, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -25,7 +25,12 @@ interface Props {
   stage: React.ReactNode
   avatarUrl?: string | null
   onOpenDetails: () => void
+  onOpenRoleSettings: () => void
   onToggleRunning: () => void
+  mateOpen: boolean
+  onToggleMate: () => void
+  showLive2D: boolean
+  onToggleLive2D: () => void
 }
 
 function abortPipeline(): void {
@@ -36,7 +41,17 @@ function abortPipeline(): void {
   }
 }
 
-export function GalgameChatPanel({ stage, avatarUrl, onOpenDetails, onToggleRunning }: Props): React.JSX.Element {
+export function GalgameChatPanel({
+  stage,
+  avatarUrl,
+  onOpenDetails,
+  onOpenRoleSettings,
+  onToggleRunning,
+  mateOpen,
+  onToggleMate,
+  showLive2D,
+  onToggleLive2D,
+}: Props): React.JSX.Element {
   const isSending = useChatStore((s) => s.isSending)
   const error = useChatStore((s) => s.error)
   const persistError = useChatStore((s) => s.persistError)
@@ -110,20 +125,57 @@ export function GalgameChatPanel({ stage, avatarUrl, onOpenDetails, onToggleRunn
           <h1 className="truncate text-sm font-medium">{label}</h1>
           <p className="text-xs text-muted-foreground">{running ? '运行中' : '沉睡中'}</p>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onOpenDetails}
-          title="角色详情"
-          aria-label="角色详情"
-        >
-          <Info className="size-4" />
-        </Button>
-        <Button type="button" size="sm" variant={running ? 'secondary' : 'default'} onClick={onToggleRunning}>
-          {running ? <Moon className="size-3.5" /> : <Play className="size-3.5" />}
-          {running ? '休眠' : '唤醒'}
-        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onToggleMate}
+            title="相伴窗口"
+            aria-label="相伴窗口"
+            aria-pressed={mateOpen}
+            className={cn('size-8', mateOpen && 'bg-accent text-foreground')}
+          >
+            <Cat className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onToggleLive2D}
+            title="人物舞台"
+            aria-label="人物舞台"
+            aria-pressed={showLive2D}
+            className={cn('size-8', showLive2D && 'bg-accent text-foreground')}
+          >
+            {showLive2D ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onOpenRoleSettings}
+            title="角色设定"
+            aria-label="角色设定"
+          >
+            <Pencil className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onOpenDetails}
+            title="角色详情"
+            aria-label="角色详情"
+          >
+            <Info className="size-4" />
+          </Button>
+          <Button type="button" size="sm" variant={running ? 'secondary' : 'default'} onClick={onToggleRunning}>
+            {running ? <Moon className="size-3.5" /> : <Play className="size-3.5" />}
+            {running ? '休眠' : '唤醒'}
+          </Button>
+        </div>
       </header>
 
       <div className="relative z-10 mt-auto flex h-[62%] min-h-0 flex-col bg-background/55">

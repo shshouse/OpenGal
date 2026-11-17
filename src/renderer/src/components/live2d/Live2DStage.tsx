@@ -375,7 +375,15 @@ export function Live2DStage({
           const image = new Image()
           image.src = dataUrl
           await image.decode()
-          const crop = getHeadCrop(image.width, image.height)
+          const bounds = modelRef.current?.getBounds()
+          const ratio = app.screen.width > 0 ? image.width / app.screen.width : 1
+          const modelBounds = bounds ? {
+            x: bounds.x * ratio,
+            y: bounds.y * ratio,
+            width: bounds.width * ratio,
+            height: bounds.height * ratio,
+          } : undefined
+          const crop = getHeadCrop(image.width, image.height, modelBounds)
           if (crop.size === 0) return
           const target = document.createElement('canvas')
           target.width = crop.size

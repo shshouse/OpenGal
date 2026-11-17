@@ -4,12 +4,14 @@ import type { AppConfig } from '@shared/types'
 import { readConfig, writeConfig } from '../services/config/store'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/role/modelScanner'
 import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/role/cardLoader'
+import { saveRoleCard } from '../services/role/cardWriter'
+import { createRoleCopy } from '../services/role/roleCopy'
 import { warmupTTS } from '../services/tts/client'
 import { setScreenWatchEnabled } from '../services/perception/screenWatch'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
 import { handleValidated } from './validated'
-import { configPatchSchema } from '@shared/app/schemas'
+import { configPatchSchema, roleCardEditableSchema, roleIdSchema } from '@shared/app/schemas'
 import { z } from 'zod'
 
 export function registerConfigIpc(windows: WindowManager): void {
@@ -46,4 +48,10 @@ export function registerConfigIpc(windows: WindowManager): void {
     const card = getRoleCard(id)
     return card ? readRoleVoiceConfig(card) : null
   })
+  handleValidated(IpcChannels.role.saveCard, [roleIdSchema, roleCardEditableSchema], (id, fields) =>
+    saveRoleCard(id, fields),
+  )
+  handleValidated(IpcChannels.role.createCopy, [roleIdSchema, z.string().max(64).optional()], (id, name) =>
+    createRoleCopy(id, name),
+  )
 }

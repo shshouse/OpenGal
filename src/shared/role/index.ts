@@ -124,3 +124,16 @@ export interface RoleCardEntry extends RoleCard {
   spriteFrames?: SpriteFrames
   outfitEntries?: RoleOutfitEntry[]
 }
+
+/** 玩家可改的角色卡字段；id、name、资源路径不开放编辑。 */
+export interface RoleCardEditableFields {
+  displayName?: string
+  color?: string
+  language?: string
+  persona: RolePersona
+}
+
+export interface RoleCardSaveResult {
+  card: RoleCard
+  warnings: string[]
+}

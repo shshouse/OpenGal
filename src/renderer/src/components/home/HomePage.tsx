@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowRight, Moon, Play } from 'lucide-react'
+import { ArrowRight, Moon, Pencil, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RoleDashboard } from '@/components/dashboard/RoleDashboard'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ interface Props {
   running: boolean
   steps: BootStep[]
   onOpenRole: (roleId: string) => void
+  onOpenSettings: (roleId: string) => void
   onToggleRunning: (roleId: string) => void
 }
 
@@ -37,6 +38,7 @@ export function HomePage({
   running,
   steps,
   onOpenRole,
+  onOpenSettings,
   onToggleRunning,
 }: Props): React.JSX.Element {
   const [memoryCount, setMemoryCount] = React.useState<number | null>(null)
@@ -121,6 +123,10 @@ export function HomePage({
             <Button variant={running ? 'default' : 'outline'} onClick={() => onOpenRole(role.id)}>
               <ArrowRight className="size-3.5" />
               进入角色
+            </Button>
+            <Button variant="outline" onClick={() => onOpenSettings(role.id)}>
+              <Pencil className="size-3.5" />
+              编辑设定
             </Button>
           </div>
 

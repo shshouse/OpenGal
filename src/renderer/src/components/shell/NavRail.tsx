@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Cat, Eye, EyeOff, MessageCircle, Settings, Sparkles, Store, Terminal } from 'lucide-react'
+import { MessageCircle, Settings, Sparkles, Store, Terminal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { AppViewName } from '@shared/ui/uiState'
@@ -7,10 +7,6 @@ import type { AppViewName } from '@shared/ui/uiState'
 interface Props {
   view: AppViewName
   onNavigate: (view: AppViewName) => void
-  mateOpen: boolean
-  onToggleMate: () => void
-  showLive2D: boolean
-  onToggleLive2D: () => void
 }
 
 const NAV = [
@@ -57,14 +53,7 @@ function RailButton({
   )
 }
 
-export function NavRail({
-  view,
-  onNavigate,
-  mateOpen,
-  onToggleMate,
-  showLive2D,
-  onToggleLive2D,
-}: Props): React.JSX.Element {
+export function NavRail({ view, onNavigate }: Props): React.JSX.Element {
   const errorCount = useLogsStore((state) =>
     state.entries.reduce(
       (count, entry) => (entry.level === 'error' || entry.level === 'warn' ? count + 1 : count),
@@ -87,20 +76,6 @@ export function NavRail({
           onClick={() => onNavigate(item.view)}
         />
       ))}
-      <div className="mt-auto flex flex-col items-center gap-1 border-t pt-2">
-        <RailButton
-          icon={Cat}
-          label="相伴窗口"
-          active={mateOpen}
-          onClick={onToggleMate}
-        />
-        <RailButton
-          icon={showLive2D ? Eye : EyeOff}
-          label="人物舞台"
-          active={showLive2D}
-          onClick={onToggleLive2D}
-        />
-      </div>
     </nav>
   )
 }

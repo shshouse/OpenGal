@@ -14,6 +14,7 @@ import { startPipeline } from '@/features/pipeline'
 import { useRoleStore } from '@/features/role/roleStore'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
+import { cropImageHead } from '@/lib/avatar'
 import { useStartupStore, maybeGreet } from '@/features/startup/startupStore'
 import { useASRStore } from '@/features/asr/asrStore'
 import { shouldShowMainStage } from '@shared/presence/stagePolicy'
@@ -31,8 +32,11 @@ const MarketPage = React.lazy(() =>
 const SettingsCenter = React.lazy(() =>
   import('@/components/settings/SettingsCenter').then((m) => ({ default: m.SettingsCenter })),
 )
+const RoleStudio = React.lazy(() =>
+  import('@/components/role/RoleStudio').then((m) => ({ default: m.RoleStudio })),
+)
 
-const VIEW_ORDER: AppViewName[] = ['home', 'chat', 'market', 'settings', 'logs']
+const VIEW_ORDER: AppViewName[] = ['home', 'chat', 'role', 'market', 'settings', 'logs']
 
 export default function App() {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
@@ -40,6 +44,7 @@ export default function App() {
   const [mateOpen, setMateOpen] = React.useState(false)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
   const [view, setView] = React.useState<AppViewName>('home')
+  const [roleReturnView, setRoleReturnView] = React.useState<AppViewName>('chat')
   const [actionError, setActionError] = React.useState('')
   const [selectedId, setSelectedId] = React.useState<string | null>(
     () => useUIStateStore.getState().state.homeSelectedId ?? null,
@@ -52,6 +57,13 @@ export default function App() {
   const activeId = useRoleStore((s) => s.activeId)
   const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
   const outfits = useRoleStore((s) => s.outfits)
+  React.useEffect(
+    () =>
+      window.opengal.role.onOutfitChanged((change) => {
+        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
+      }),
+    [],
+  )
   const runningById = useRoleRuntimeStore((s) => s.byId)
   const activeRunning = isRoleRunning(runningById, activeId)
   const selectedRole = roles.find((card) => card.id === (selectedId ?? activeId)) ?? activeCard ?? null
@@ -78,10 +90,6 @@ export default function App() {
     if (!uiRestored.current) return
     useUIStateStore.getState().patch({ view })
   }, [view])
-
-  React.useEffect(() => {
-    if (activeCard?.performance.mode === 'sprite') setAvatarUrl(activeCard.spriteFrames?.idle ?? null)
-  }, [activeCard])
 
   React.useEffect(() => {
     const onMouseUp = (e: MouseEvent) => {
@@ -243,6 +251,18 @@ export default function App() {
     }
   }
 
+  function openRoleStudio(roleId: string): void {
+    setSelectedId(roleId)
+    useUIStateStore.getState().patch({ homeSelectedId: roleId })
+    if (view !== 'role') setRoleReturnView(view)
+    setView('role')
+  }
+
+  function openSettingsTab(tab: string): void {
+    useUIStateStore.getState().patch({ settingsTab: tab })
+    setView('settings')
+  }
+
   async function toggleMate(): Promise<void> {
     if (mateOpen) {
       await window.opengal.mate.close()
@@ -299,6 +319,19 @@ export default function App() {
     return entries.find((outfit) => outfit.id === wanted) ?? entries[0] ?? null
   }, [activeCard, outfits])
 
+  const spriteAvatarSource = activeOutfit?.spriteFrames?.idle
+    ?? (activeCard?.performance.mode === 'sprite' ? activeCard.spriteFrames?.idle : null)
+    ?? null
+
+  React.useEffect(() => {
+    if (!spriteAvatarSource) return
+    let cancelled = false
+    void cropImageHead(spriteAvatarSource).then((url) => {
+      if (!cancelled) setAvatarUrl(url ?? spriteAvatarSource)
+    })
+    return () => { cancelled = true }
+  }, [spriteAvatarSource])
+
   const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? (
     activeOutfit?.mode === 'spine' && activeOutfit.spineSkelUrl && activeOutfit.spineAtlasUrl ? (
       <SpineStage
@@ -306,6 +339,11 @@ export default function App() {
         atlasUrl={activeOutfit.spineAtlasUrl}
         scale={activeOutfit.spine?.scale}
         sleeping={!activeRunning}
+        roleId={activeCard?.id ?? ''}
+        fallbackFrames={
+          activeCard?.outfitEntries?.find((outfit) => outfit.id === activeCard.performance.defaultOutfit)
+            ?.spriteFrames ?? activeCard?.spriteFrames
+        }
       />
     ) : activeOutfit?.spriteFrames ? (
       <SpriteStage frames={activeOutfit.spriteFrames} roleId={activeCard?.id ?? ''} sleeping={!activeRunning} />
@@ -327,14 +365,7 @@ export default function App() {
     <div className="flex h-full flex-col overflow-hidden">
       <WindowBar />
       <div className="flex min-h-0 flex-1">
-        <NavRail
-          view={view}
-          onNavigate={setView}
-          mateOpen={mateOpen}
-          onToggleMate={() => void toggleMate()}
-          showLive2D={config?.showLive2D ?? true}
-          onToggleLive2D={() => void toggleLive2D()}
-        />
+        <NavRail view={view === 'role' ? 'home' : view} onNavigate={setView} />
         <RoleSessionList
           roles={roles}
           activeId={activeId}
@@ -358,8 +389,21 @@ export default function App() {
               running={selectedRunning}
               steps={bootSteps}
               onOpenRole={(id) => void openRole(id)}
+              onOpenSettings={openRoleStudio}
               onToggleRunning={setRunningFor}
             />
+          )}
+
+          {view === 'role' && (
+            <React.Suspense fallback={null}>
+              <RoleStudio
+                role={selectedRole}
+                onClose={() => setView(roleReturnView)}
+                onOpenDisplaySettings={() => openSettingsTab('display')}
+                onOpenTtsSettings={() => openSettingsTab('tts')}
+                onOpenModelSettings={() => openSettingsTab('llm')}
+              />
+            </React.Suspense>
           )}
 
           <div className={view === 'chat' ? 'h-full min-w-0 flex-1' : 'hidden'}>
@@ -371,9 +415,16 @@ export default function App() {
               )}
               avatarUrl={avatarUrl}
               onOpenDetails={() => setView('home')}
+              onOpenRoleSettings={() => {
+                if (activeId) openRoleStudio(activeId)
+              }}
               onToggleRunning={() => {
                 if (activeId) void setRunningFor(activeId)
               }}
+              mateOpen={mateOpen}
+              onToggleMate={() => void toggleMate()}
+              showLive2D={config?.showLive2D ?? true}
+              onToggleLive2D={() => void toggleLive2D()}
             />
           </div>
 

@@ -1,8 +1,13 @@
 import * as React from 'react'
+import type { SpriteFrames } from '@shared/types'
+import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
+import { SpriteStage } from '@/components/sprite/SpriteStage'
 
 interface SpinePlayerInstance {
-  dispose: () => void
+  canvas?: HTMLCanvasElement
+  renderer?: { dispose?: () => void }
+  stopRendering?: () => void
 }
 
 declare global {
@@ -13,24 +18,31 @@ declare global {
   }
 }
 
-export function SpineStage({ skelUrl, atlasUrl, scale = 1, sleeping, mate = false }: {
+export function SpineStage({ skelUrl, atlasUrl, scale = 1, sleeping, mate = false, roleId = '', fallbackFrames }: {
   skelUrl: string
   atlasUrl: string
   scale?: number
   sleeping: boolean
   mate?: boolean
+  roleId?: string
+  fallbackFrames?: SpriteFrames
 }) {
   const hostRef = React.useRef<HTMLDivElement>(null)
-  const [failed, setFailed] = React.useState(false)
+  const [failure, setFailure] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    if (failure) return
     const host = hostRef.current
     const runtime = window.spine
     if (!host) return
     if (!runtime) {
-      setFailed(true)
-      if (!mate) useStartupStore.getState().reportLive2d('failed', '立绘组件未加载')
+      setFailure('立绘组件未加载')
       return
+    }
+    const fail = (message: string): void => {
+      setFailure(message)
+      useLogsStore.getState().appendLocal('warn', 'spine', `立绘加载失败：${message}`)
+      if (!mate) useStartupStore.getState().reportLive2d('failed', message)
     }
     let player: SpinePlayerInstance | null = null
     try {
@@ -41,19 +53,30 @@ export function SpineStage({ skelUrl, atlasUrl, scale = 1, sleeping, mate = fals
         showControls: false,
         premultipliedAlpha: false,
         backgroundColor: '#00000000',
+        success: () => {
+          if (!mate) useStartupStore.getState().reportLive2d('ok')
+        },
+        error: (error: unknown) => {
+          fail(error instanceof Error ? error.message : String(error))
+        },
       })
-      setFailed(false)
-      if (!mate) useStartupStore.getState().reportLive2d('ok')
     } catch (error) {
-      setFailed(true)
-      if (!mate) {
-        useStartupStore.getState().reportLive2d('failed', error instanceof Error ? error.message : '立绘加载失败')
-      }
+      fail(error instanceof Error ? error.message : '立绘加载失败')
     }
     return () => {
-      player?.dispose()
+      try {
+        player?.stopRendering?.()
+        player?.renderer?.dispose?.()
+        player?.canvas?.remove()
+      } catch {
+        // 卸载阶段的清理失败不影响后续界面
+      }
     }
-  }, [skelUrl, atlasUrl, mate])
+  }, [skelUrl, atlasUrl, mate, failure])
+
+  if (failure && fallbackFrames) {
+    return <SpriteStage frames={fallbackFrames} roleId={roleId} sleeping={sleeping} mate={mate} />
+  }
 
   const transform = scale === 1 ? undefined : `scale(${scale})`
   const filter = sleeping ? 'saturate(0.55) brightness(0.7)' : undefined
@@ -61,7 +84,7 @@ export function SpineStage({ skelUrl, atlasUrl, scale = 1, sleeping, mate = fals
   return (
     <div className="relative h-full w-full overflow-hidden" style={{ background: mate ? 'transparent' : undefined }}>
       <div ref={hostRef} className="h-full w-full" style={{ transform, filter, transformOrigin: 'bottom center' }} />
-      {failed ? (
+      {failure ? (
         <div className="absolute inset-0 flex items-end justify-center pb-6 text-xs text-muted-foreground">
           立绘加载失败
         </div>

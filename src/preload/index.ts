@@ -13,7 +13,9 @@ import type {
   MemoryFact,
   MemoryStory,
   PluginInfo,
+  RoleCardEditableFields,
   RoleCardEntry,
+  RoleCardSaveResult,
   ToolDefinition
 } from '@shared/types'
 import type { LogEntry } from '@shared/app/log'
@@ -138,6 +140,10 @@ const api = {
     get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.role.get, id),
     voiceConfig: (id: string) =>
       invoke<Record<string, unknown> | null>(IpcChannels.role.voiceConfig, id),
+    saveCard: (id: string, fields: RoleCardEditableFields) =>
+      invoke<RoleCardSaveResult>(IpcChannels.role.saveCard, id, fields),
+    createCopy: (id: string, name?: string) =>
+      invoke<RoleCardEntry>(IpcChannels.role.createCopy, id, name),
     onOutfitChanged: (listener: (change: RoleOutfitChange) => void) => {
       const handler = (_: unknown, change: RoleOutfitChange) => listener(change)
       ipcRenderer.on(IpcChannels.role.outfitChanged, handler)

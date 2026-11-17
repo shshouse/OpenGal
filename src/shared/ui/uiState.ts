@@ -1,4 +1,4 @@
-export type AppViewName = 'home' | 'chat' | 'market' | 'settings' | 'logs'
+export type AppViewName = 'home' | 'chat' | 'role' | 'market' | 'settings' | 'logs'
 
 export interface SavedRect {
   x?: number

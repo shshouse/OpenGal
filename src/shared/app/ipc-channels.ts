@@ -57,6 +57,8 @@ export const IpcChannels = {
     list: 'role:list',
     get: 'role:get',
     voiceConfig: 'role:voiceConfig',
+    saveCard: 'role:saveCard',
+    createCopy: 'role:createCopy',
     outfitChanged: 'role:outfitChanged'
   },
   chatHistory: {
