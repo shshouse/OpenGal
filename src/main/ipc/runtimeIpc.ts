@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import { createBlankRoleSchema, roleExampleTurnSchema, roleIdSchema, roleModeSchema } from '@shared/app/schemas'
 import { getBackupRoot, getDataRoot } from '../services/infra/paths'
-import { getRoleState, listLifeLogs, patchRoleState } from '../services/memory/db'
+import { clearLifeLogs, getRoleState, listLifeLogs, patchRoleState } from '../services/memory/db'
 import { scanMods } from '../services/mods/scanner'
 import { getOwnedRoleCard, listRoleTemplates } from '../services/role/cardLoader'
 import { deleteOwnedRole, exportOwnedRoleFolder } from '../services/role/lifecycle'
@@ -117,6 +117,11 @@ export function registerRuntimeAndWorkshopIpc(): void {
     IpcChannels.role.lifeLogs,
     [roleIdSchema, z.number().int().min(1).max(200).optional()],
     (roleId, limit) => listLifeLogs(roleId, { limit: limit ?? 50 }),
+  )
+  handleValidated(
+    IpcChannels.role.clearLifeLogs,
+    [roleIdSchema, z.enum(['all', 'traces', 'diary']).optional()],
+    (roleId, scope) => clearLifeLogs(roleId, scope ?? 'traces'),
   )
   handleValidated(
     IpcChannels.role.roleLogs,

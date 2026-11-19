@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog } from 'electron'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import type { ChatMessage } from '@shared/types'
 import {
@@ -21,6 +21,7 @@ import {
   listUnarchivedMessages,
   saveChatMessages,
   replaceUnarchivedMessages,
+  updateMessageTranslation,
   archiveMessagesRange,
   latestMessageId,
   listSummaries,
@@ -38,31 +39,57 @@ import {
 } from '@shared/app/schemas'
 import { externalizeRoleMessage, hydrateRoleMessageUrls } from '../services/infra/media'
 import { handleValidated, handleValidatedWithEvent } from './validated'
-import { wrap } from './wrap'
 import { z } from 'zod'
+
+const translationTargetSchema = z.object({
+  dbId: z.number().int().positive().optional(),
+  clientId: z.string().min(1).max(128).optional(),
+})
 
 export function registerMemoryIpc(): void {
   const rowToChatMessage = (
     roleId: string,
-    row: { id?: number; role: string; content: string; ts?: number },
+    row: {
+      id?: number
+      role: string
+      content: string
+      ts?: number
+      client_id?: string | null
+      translation?: string | null
+      translation_lang?: string | null
+    },
   ): ChatMessage => {
     try {
       const parsed = JSON.parse(row.content) as unknown
-      const base = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'role' in (parsed as Record<string, unknown>))
-        ? (parsed as ChatMessage)
-        : { role: row.role as ChatMessage['role'], content: parsed as ChatMessage['content'] }
-      return hydrateRoleMessageUrls(roleId, { ...base, dbId: row.id, ts: row.ts } as ChatMessage)
+      const base =
+        parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'role' in (parsed as Record<string, unknown>)
+          ? (parsed as ChatMessage)
+          : { role: row.role as ChatMessage['role'], content: parsed as ChatMessage['content'] }
+      return hydrateRoleMessageUrls(roleId, {
+        ...base,
+        dbId: row.id,
+        ts: row.ts,
+        ...(row.client_id ? { clientId: row.client_id } : {}),
+        ...(row.translation ? { translation: row.translation } : {}),
+        ...(row.translation_lang ? { translationLang: row.translation_lang } : {}),
+      } as ChatMessage)
     } catch {
-      return { role: row.role as ChatMessage['role'], content: row.content, dbId: row.id, ts: row.ts } as ChatMessage
+      return {
+        role: row.role as ChatMessage['role'],
+        content: row.content,
+        dbId: row.id,
+        ts: row.ts,
+        ...(row.client_id ? { clientId: row.client_id } : {}),
+        ...(row.translation ? { translation: row.translation } : {}),
+        ...(row.translation_lang ? { translationLang: row.translation_lang } : {}),
+      } as ChatMessage
     }
   }
 
-  ipcMain.handle(IpcChannels.chatHistory.load, (_, roleId: string) =>
-    wrap<ChatMessage[]>(async () => {
-      await memoryDbReady()
-      return listUnarchivedMessages(roleId).map((row) => rowToChatMessage(roleId, row))
-    })
-  )
+  handleValidated(IpcChannels.chatHistory.load, [roleIdSchema], async (roleId) => {
+    await memoryDbReady()
+    return listUnarchivedMessages(roleId).map((row) => rowToChatMessage(roleId, row))
+  })
   handleValidated(
     IpcChannels.chatHistory.append,
     [roleIdSchema, z.array(chatMessageSchema)],
@@ -84,9 +111,20 @@ export function registerMemoryIpc(): void {
           content: JSON.stringify(externalizeRoleMessage(roleId, m)),
           ts: m.ts ?? Date.now(),
           archived: 0,
+          client_id: m.clientId ?? null,
+          translation: m.translation ?? null,
+          translation_lang: m.translationLang ?? null,
         })),
       )
       return true
+    },
+  )
+  handleValidated(
+    IpcChannels.chatHistory.setTranslation,
+    [roleIdSchema, translationTargetSchema, z.string().min(1).max(20_000), z.string().max(32)],
+    async (roleId, target, translation, translationLang) => {
+      await memoryDbReady()
+      return updateMessageTranslation(roleId, target, translation, translationLang)
     },
   )
   handleValidated(
@@ -94,11 +132,11 @@ export function registerMemoryIpc(): void {
     [roleIdSchema, z.number().int(), z.number().int()],
     (roleId, fromId, toId) => archiveMessagesRange(roleId, fromId, toId),
   )
-  ipcMain.handle(IpcChannels.chatHistory.latestMessageId, (_, roleId: string) =>
-    wrap<number | null>(() => latestMessageId(roleId))
+  handleValidated(IpcChannels.chatHistory.latestMessageId, [roleIdSchema], (roleId) =>
+    latestMessageId(roleId),
   )
-  ipcMain.handle(IpcChannels.chatHistory.summaries, (_, roleId: string) =>
-    wrap(() => listSummaries(roleId))
+  handleValidated(IpcChannels.chatHistory.summaries, [roleIdSchema], (roleId) =>
+    listSummaries(roleId),
   )
   handleValidated(
     IpcChannels.chatHistory.summaryAdd,
@@ -108,20 +146,17 @@ export function registerMemoryIpc(): void {
       return true
     },
   )
-
   handleValidated(
     IpcChannels.chatHistory.commitCompression,
     [roleIdSchema, z.number().int(), z.number().int(), summarySchema],
     (roleId, fromId, toId, s) => commitCompression(roleId, fromId, toId, s),
   )
 
-  ipcMain.handle(IpcChannels.memory.get, (_, roleId: string) =>
-    wrap(async () => ({
-      facts: await loadFacts(roleId),
-      stories: await loadStories(roleId),
-      block: await getMemoryBlock(roleId)
-    }))
-  )
+  handleValidated(IpcChannels.memory.get, [roleIdSchema], async (roleId) => ({
+    facts: await loadFacts(roleId),
+    stories: await loadStories(roleId),
+    block: await getMemoryBlock(roleId),
+  }))
   handleValidated(
     IpcChannels.memory.apply,
     [roleIdSchema, memoryApplyPayloadSchema],
@@ -135,20 +170,28 @@ export function registerMemoryIpc(): void {
   handleValidated(IpcChannels.memory.clear, [roleIdSchema], (roleId) =>
     clearMemory(roleId),
   )
-  ipcMain.handle(IpcChannels.memory.prune, (_, roleId: string) =>
-    wrap(() => pruneOverflow(roleId))
+  handleValidated(IpcChannels.memory.prune, [roleIdSchema], (roleId) =>
+    pruneOverflow(roleId),
   )
-  ipcMain.handle(IpcChannels.memory.evidence, (_, roleId: string, memoryId: string) =>
-    wrap(() => memoryEvidence(roleId, memoryId))
+  handleValidated(
+    IpcChannels.memory.evidence,
+    [roleIdSchema, z.string().min(1)],
+    (roleId, memoryId) => memoryEvidence(roleId, memoryId),
   )
-  ipcMain.handle(IpcChannels.memory.changes, (_, roleId: string, memoryId: string, limit?: number) =>
-    wrap(() => listMemoryChanges(roleId, memoryId, limit))
+  handleValidated(
+    IpcChannels.memory.changes,
+    [roleIdSchema, z.string().min(1), z.number().int().min(1).max(500).optional()],
+    (roleId, memoryId, limit) => listMemoryChanges(roleId, memoryId, limit),
   )
-  ipcMain.handle(IpcChannels.memory.pending, (_, roleId: string, limit?: number) =>
-    wrap(() => pendingFromArchive(roleId, limit))
+  handleValidated(
+    IpcChannels.memory.pending,
+    [roleIdSchema, z.number().int().min(1).max(200).optional()],
+    (roleId, limit) => pendingFromArchive(roleId, limit),
   )
-  ipcMain.handle(IpcChannels.memory.advanceCursor, (_, roleId: string, ts: number) =>
-    wrap(() => advanceCursor(roleId, ts))
+  handleValidated(
+    IpcChannels.memory.advanceCursor,
+    [roleIdSchema, z.number().finite()],
+    (roleId, ts) => advanceCursor(roleId, ts),
   )
   handleValidatedWithEvent(
     IpcChannels.memory.rebuild,
@@ -177,10 +220,11 @@ export function registerMemoryIpc(): void {
   handleValidated(IpcChannels.memory.deleteFact, [roleIdSchema, z.string().min(1)], (roleId, factId) =>
     deleteFact(roleId, factId),
   )
-  // 只回记忆块：每轮都调用，不该把整张记忆表序列化过去
-  ipcMain.handle(IpcChannels.memory.getRelevant, (_, roleId: string, context: string) =>
-    wrap(async () => ({
-      block: await getMemoryBlock(roleId, context, true)
-    }))
+  handleValidated(
+    IpcChannels.memory.getRelevant,
+    [roleIdSchema, z.string()],
+    async (roleId, context) => ({
+      block: await getMemoryBlock(roleId, context, true),
+    }),
   )
 }

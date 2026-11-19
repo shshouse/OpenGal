@@ -40,9 +40,12 @@ export interface ChatMessage {
   tool_calls?: ToolCall[]
   tool_call_id?: string
   name?: string
-  // 持久化辅助字段：由主进程读取时附带，渲染层原样带回用于保序/保时间戳
+  // 持久化辅助字段：由主进程读取时附带，渲染层原样带回用于保序/保时间戳/幂等去重
   dbId?: number
   ts?: number
+  clientId?: string
+  translation?: string
+  translationLang?: string
   // 上下文装配标记：摘要/环境/意图段有不同的保留优先级
   contextTag?: 'summary' | 'env' | 'intent'
 }

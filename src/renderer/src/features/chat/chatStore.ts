@@ -39,6 +39,20 @@ interface ChatState {
   switchSession: (roleId: string | null) => void
   ensureHydrated: (roleId: string) => Promise<void>
   reloadSession: (roleId: string) => Promise<void>
+  setMessageTranslation: (
+    roleId: string,
+    originalText: string,
+    translation: string,
+    translationLang: string,
+  ) => void
+}
+
+function makeClientId(prefix: string): string {
+  const rand =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  return `${prefix}:${rand}`
 }
 
 function buildUserContent(text: string, images?: string[]): ChatMessage['content'] {
@@ -75,7 +89,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const userMsg: PersistedUserMessage = {
       role: 'user' as const,
       content: buildUserContent(message, images),
-      userText: message
+      userText: message,
+      clientId: makeClientId('u'),
+      ts: Date.now(),
     }
     if (images && images.length > 0) userMsg.images = images
     set((state) => ({ messages: [...state.messages, userMsg] }))
@@ -93,6 +109,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const persisted: PersistedAssistantMessage = {
         role: 'assistant' as const,
         content: persistContent,
+        clientId: makeClientId('a'),
+        ts: Date.now(),
       }
       if (toolCalls && toolCalls.length > 0) {
         persisted.toolCalls = toolCalls
@@ -200,6 +218,52 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return { sessions, hydratedIds }
     })
+  },
+  setMessageTranslation: (roleId, originalText, translation, translationLang) => {
+    const targetText = originalText.trim()
+    const cleanTrans = translation.trim()
+    if (!targetText || !cleanTrans) return
+
+    const cur = get()
+    const list = cur.sessionId === roleId ? cur.messages : (cur.sessions[roleId]?.messages ?? [])
+    let idx = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i]
+      if (!m || m.role !== 'assistant') continue
+      const txt = typeof m.content === 'string' ? m.content.trim() : ''
+      if (txt === targetText || txt.replace(/<\s*[ea]\s*:\s*[^<>]*?\s*>/gi, '').trim() === targetText) {
+        idx = i
+        break
+      }
+    }
+    if (idx === -1) return
+    const targetMsg = list[idx]
+    if (!targetMsg) return
+
+    const updatedMsg: PersistedAssistantMessage | PersistedUserMessage = {
+      ...targetMsg,
+      translation: cleanTrans,
+      translationLang,
+    }
+    const nextList = list.map((item, i) => (i === idx ? updatedMsg : item))
+    set((state) => {
+      const sessions = { ...state.sessions, [roleId]: { messages: nextList } }
+      if (state.sessionId === roleId) {
+        suppressPersist++
+        return { sessions, messages: nextList }
+      }
+      return { sessions }
+    })
+    if (targetMsg.dbId || targetMsg.clientId) {
+      void window.opengal.chatHistory
+        ?.setTranslation?.(
+          roleId,
+          { dbId: targetMsg.dbId, clientId: targetMsg.clientId },
+          cleanTrans,
+          translationLang,
+        )
+        ?.catch(() => {})
+    }
   }
 }))
 

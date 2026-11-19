@@ -12,6 +12,9 @@ export interface MessageRow {
   ts: number
   archived: number
   kind?: string
+  client_id?: string | null
+  translation?: string | null
+  translation_lang?: string | null
 }
 
 export interface MemoryRow {

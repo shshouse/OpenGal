@@ -111,9 +111,37 @@ export function startSubtitleWorker(): () => void {
           ? current.systemLocale
           : current.preferences.targetLanguage
         if (currentTarget !== target) return
-        useSubtitleStore.setState((current) => ({ records: current.records.map((r) => r.id === id ? {
-          ...r, segments: r.segments.map((s) => s.id === segmentId ? { ...s, translation: translated.trim() } : s),
-        } : r) }))
+        let completedTranslation: { original: string; translated: string } | null = null
+        useSubtitleStore.setState((current) => {
+          const nextRecords = current.records.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  segments: r.segments.map((s) =>
+                    s.id === segmentId ? { ...s, translation: translated.trim() } : s,
+                  ),
+                }
+              : r,
+          )
+          const updatedRecord = nextRecords.find((r) => r.id === id)
+          if (updatedRecord && updatedRecord.segments.every((s) => Boolean(s.translation))) {
+            const fullOriginal = updatedRecord.segments.map((s) => s.text).join('').trim()
+            const fullTranslated = updatedRecord.segments
+              .map((s) => s.translation ?? s.text)
+              .join('')
+              .trim()
+            if (fullOriginal && fullTranslated) {
+              completedTranslation = { original: fullOriginal, translated: fullTranslated }
+            }
+          }
+          return { records: nextRecords }
+        })
+        if (completedTranslation) {
+          const done = completedTranslation as { original: string; translated: string }
+          useChatStore
+            .getState()
+            .setMessageTranslation?.(roleId, done.original, done.translated, target)
+        }
       } catch {
         if (!stopped && epoch === generation) useLogsStore.getState().appendLocal('warn', 'subtitles', '字幕翻译失败，保留角色原文；语音继续播放')
       }

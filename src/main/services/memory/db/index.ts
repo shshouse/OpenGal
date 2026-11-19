@@ -6,6 +6,7 @@ import {
   dataRootDir,
   getMeta,
   getRoleMeta,
+  invalidateRoleDirCache,
   listOpenRoleHandles,
   logger,
   memoryDbReady,
@@ -21,6 +22,7 @@ import {
 } from './core'
 import { exportRoleDbSnapshot, pruneBackups, snapshotBackup, snapshotRoleBackup } from './backup'
 import { pruneMemoryChangelog } from './changelog'
+import { importLegacyGlobalMemoryDb } from './legacyImport'
 import { ROLE_DB_SCHEMA_VERSION, RoleDbVersionError } from './schema'
 import { getErrorMessage } from '@shared/app/errors'
 
@@ -40,6 +42,8 @@ export {
   openRoleDb,
   sleepRoleDb,
   resolveRoleDbDir,
+  invalidateRoleDirCache,
+  importLegacyGlobalMemoryDb,
   getMeta,
   setMeta,
   getRoleMeta,
@@ -89,6 +93,7 @@ export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<voi
   if (readyPromise) return readyPromise
   const promise = (async () => {
     prepareMemoryDb(dataRoot, backupRoot)
+    importLegacyGlobalMemoryDb(dataRoot)
     maintainExistingRoleDbs()
     logger.info('memory', `单角色独立记忆库池已就绪 (schema v${ROLE_DB_SCHEMA_VERSION}): ${dataRoot}/roles`)
   })().catch((err) => {

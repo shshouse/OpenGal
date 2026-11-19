@@ -88,6 +88,9 @@ export const chatMessageSchema = z.object({
   name: z.string().optional(),
   dbId: z.number().optional(),
   ts: z.number().optional(),
+  clientId: z.string().max(128).optional(),
+  translation: z.string().max(20_000).optional(),
+  translationLang: z.string().max(32).optional(),
   contextTag: z.enum(['summary', 'env', 'intent']).optional(),
 })
 

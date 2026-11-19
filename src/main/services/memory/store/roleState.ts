@@ -119,6 +119,31 @@ export function patchRoleState(
   return next
 }
 
+const MAX_LIFE_TRACE_LOGS = 200
+const MAX_LIFE_DIARY_LOGS = 1000
+
+export function pruneLifeLogs(roleId: string): number {
+  const handle = openRoleDb(roleId)
+  let removed = 0
+  handle.port.transaction(() => {
+    removed += handle.port.run(
+      `DELETE FROM life_log
+       WHERE kind != 'diary' AND id NOT IN (
+         SELECT id FROM life_log WHERE kind != 'diary' ORDER BY ts DESC, id DESC LIMIT ?
+       )`,
+      [MAX_LIFE_TRACE_LOGS],
+    ).changes
+    removed += handle.port.run(
+      `DELETE FROM life_log
+       WHERE kind = 'diary' AND id NOT IN (
+         SELECT id FROM life_log WHERE kind = 'diary' ORDER BY ts DESC, id DESC LIMIT ?
+       )`,
+      [MAX_LIFE_DIARY_LOGS],
+    ).changes
+  })
+  return removed
+}
+
 export function appendLifeLog(
   roleId: string,
   entry: {
@@ -138,6 +163,7 @@ export function appendLifeLog(
     'INSERT INTO life_log(kind, title, content, mood, ts) VALUES(?, ?, ?, ?, ?)',
     [entry.kind, title, content, mood, ts],
   )
+  pruneLifeLogs(roleId)
   return {
     id: info.lastInsertRowid,
     kind: entry.kind,
@@ -166,6 +192,13 @@ export function listLifeLogs(
   return rows.reverse()
 }
 
-export function clearLifeLogs(roleId: string): number {
-  return openRoleDb(roleId).port.run('DELETE FROM life_log').changes
+export function clearLifeLogs(roleId: string, scope: 'all' | 'traces' | 'diary' = 'all'): number {
+  const handle = openRoleDb(roleId)
+  if (scope === 'traces') {
+    return handle.port.run("DELETE FROM life_log WHERE kind != 'diary'").changes
+  }
+  if (scope === 'diary') {
+    return handle.port.run("DELETE FROM life_log WHERE kind = 'diary'").changes
+  }
+  return handle.port.run('DELETE FROM life_log').changes
 }

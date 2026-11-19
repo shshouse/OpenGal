@@ -32,6 +32,7 @@ export interface RuntimeRoleItemView {
   displayName: string
   mode: RoleMode
   running: boolean
+  lifePaused: boolean
   thinking: boolean
   state: RoleStateSnapshot
 }
@@ -163,6 +164,8 @@ const api = {
       invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.setRunning, roleId, running),
     setMode: (roleId: string, mode: RoleMode) =>
       invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.setMode, roleId, mode),
+    setLifePaused: (roleId: string, paused: boolean) =>
+      invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.setLifePaused, roleId, paused),
     focus: (roleId: string | null) =>
       invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.focus, roleId),
     notifyUserActivity: (roleId: string) =>
@@ -265,6 +268,8 @@ const api = {
       invoke<RoleStateSnapshot>(IpcChannels.role.patchState, id, patch),
     lifeLogs: (id: string, limit?: number) =>
       invoke<LifeLogEntry[]>(IpcChannels.role.lifeLogs, id, limit),
+    clearLifeLogs: (id: string, scope?: 'all' | 'traces' | 'diary') =>
+      invoke<number>(IpcChannels.role.clearLifeLogs, id, scope),
     roleLogs: (id: string, limit?: number) =>
       invoke<Array<{ ts: number; level: string; scope: string; message: string; detail?: string }>>(
         IpcChannels.role.roleLogs,
@@ -285,6 +290,19 @@ const api = {
       invoke<number[]>(IpcChannels.chatHistory.append, roleId, messages),
     replaceAll: (roleId: string, messages: ChatMessage[]) =>
       invoke<boolean>(IpcChannels.chatHistory.replaceAll, roleId, messages),
+    setTranslation: (
+      roleId: string,
+      target: { dbId?: number; clientId?: string },
+      translation: string,
+      translationLang: string
+    ) =>
+      invoke<boolean>(
+        IpcChannels.chatHistory.setTranslation,
+        roleId,
+        target,
+        translation,
+        translationLang
+      ),
     archiveRange: (roleId: string, fromId: number, toId: number) =>
       invoke<number>(IpcChannels.chatHistory.archiveRange, roleId, fromId, toId),
     latestMessageId: (roleId: string) =>

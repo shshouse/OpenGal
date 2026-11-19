@@ -5,7 +5,7 @@ import { validateRoleCard, type RoleCardIssue } from '@shared/role/cardSchema'
 import { getDataRoot, getModRoot, toRoleUrl, toModUrl } from '../infra/paths'
 import { readRoleSummaryCache } from '../memory/store/roleState'
 import { listModsByCapability } from '../mods/scanner'
-import { getRolesRoot, readRoleMeta } from './store'
+import { getRolesRoot, readRoleMeta, reconcileDuplicateRoleIds } from './store'
 
 const CARD_FILE = 'role.json'
 const MANIFEST_FILE = 'opengal.json'
@@ -152,6 +152,8 @@ function loadCardFromFolder(folderName: string, folderPath: string, owned: boole
 export function listOwnedRoleCardsDetailed(dataRoot = getDataRoot()): LoadedRoleCard[] {
   const ownedRoot = getRolesRoot(dataRoot)
   if (!fs.existsSync(ownedRoot)) return []
+
+  reconcileDuplicateRoleIds(dataRoot)
 
   const loaded: LoadedRoleCard[] = []
   const seen = new Set<string>()

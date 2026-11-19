@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { exportRoleDbSnapshot, sleepRoleDb } from '../memory/db'
+import { exportRoleDbSnapshot, invalidateRoleDirCache, sleepRoleDb } from '../memory/db'
 import { findRoleFolderById, sanitizeFolderName } from './store'
 
 export function deleteOwnedRole(
@@ -22,6 +22,7 @@ export function deleteOwnedRole(
   }
   sleepRoleDb(roleId)
   fs.rmSync(found.rootPath, { recursive: true, force: true })
+  invalidateRoleDirCache()
   return true
 }
 

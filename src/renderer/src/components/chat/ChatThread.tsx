@@ -90,7 +90,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true 
   const roleId = useRoleStore((s) => s.activeId)
   const spoken = useSpokenLineStore((s) => s)
   useSubtitleStore((s) => s.records)
-  useSubtitleStore((s) => s.preferences)
+  const subtitleMode = useSubtitleStore((s) => s.preferences.mode)
 
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const atBottomRef = React.useRef(true)
@@ -174,7 +174,18 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true 
           ) : (
             renderedMessages.map((message, index) => {
               const raw = messageText(message as ChatMessage)
-              const text = message.role === 'assistant' ? subtitle(raw) : raw
+              const persistedTranslation =
+                message.role === 'assistant' && message.translation
+                  ? message.translation.trim()
+                  : ''
+              const text =
+                message.role === 'assistant'
+                  ? persistedTranslation && subtitleMode === 'translated'
+                    ? persistedTranslation
+                    : persistedTranslation && subtitleMode === 'bilingual'
+                      ? `${raw}\n${persistedTranslation}`
+                      : subtitle(raw)
+                  : raw
               const images = messageImages(message as ChatMessage)
               if (!text && images.length === 0) return null
               return (

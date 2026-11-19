@@ -276,19 +276,94 @@ export function createBlankRoleDir(
   return { roleId, folderName, rootPath }
 }
 
+function readDeclaredRoleId(rootPath: string): string | null {
+  for (const fileName of ['opengal.json', 'role.json', META_FILE]) {
+    const full = path.join(rootPath, fileName)
+    if (!fs.existsSync(full)) continue
+    try {
+      const raw = JSON.parse(fs.readFileSync(full, 'utf-8')) as { id?: unknown; roleId?: unknown }
+      if (typeof raw.id === 'string' && raw.id.trim()) return raw.id.trim()
+      if (typeof raw.roleId === 'string' && raw.roleId.trim()) return raw.roleId.trim()
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+/**
+ * 同机手动复制 data/roles/<目录> 会导致两个文件夹携带相同 id。
+ * 扫描时自动保留原始目录的 id，并为复制出来的副本分配独立 id（库内无 role_id 绑定，记忆与历史零损耗独立运行）。
+ */
+export function reconcileDuplicateRoleIds(
+  dataRoot: string,
+): Array<{ folderName: string; previousId: string; assignedId: string }> {
+  const folders = listRoleFolders(dataRoot)
+  const groups = new Map<string, Array<{ folder: RoleFolder; meta: RoleMeta | null; birthMs: number }>>()
+
+  for (const folder of folders) {
+    const id = readDeclaredRoleId(folder.rootPath)
+    if (!id) continue
+    const meta = readRoleMeta(folder.rootPath)
+    let birthMs = Number.MAX_SAFE_INTEGER
+    try {
+      const parsedCreated = meta?.createdAt ? Date.parse(meta.createdAt) : Number.NaN
+      const stat = fs.statSync(folder.rootPath)
+      birthMs = Number.isFinite(parsedCreated) ? parsedCreated : stat.birthtimeMs || stat.mtimeMs
+    } catch {
+      /* keep fallback */
+    }
+    const list = groups.get(id) ?? []
+    list.push({ folder, meta, birthMs })
+    groups.set(id, list)
+  }
+
+  const reassigned: Array<{ folderName: string; previousId: string; assignedId: string }> = []
+  for (const [id, entries] of groups.entries()) {
+    if (entries.length <= 1) continue
+    entries.sort((a, b) => {
+      const aMatchesDisplay = a.meta?.displayName === a.folder.name ? 0 : 1
+      const bMatchesDisplay = b.meta?.displayName === b.folder.name ? 0 : 1
+      if (aMatchesDisplay !== bMatchesDisplay) return aMatchesDisplay - bMatchesDisplay
+      const aMatchesId = a.folder.name === id ? 0 : 1
+      const bMatchesId = b.folder.name === id ? 0 : 1
+      if (aMatchesId !== bMatchesId) return aMatchesId - bMatchesId
+      if (a.birthMs !== b.birthMs) return a.birthMs - b.birthMs
+      return a.folder.name.localeCompare(b.folder.name)
+    })
+
+    for (const duplicate of entries.slice(1)) {
+      const newId = allocateUniqueRoleId(dataRoot, id)
+      const displayName = duplicate.folder.name
+      patchMaterializedCardFile(duplicate.folder.rootPath, { id: newId, displayName })
+      const nextMeta: RoleMeta = {
+        roleId: newId,
+        templateId: duplicate.meta?.templateId ?? id,
+        templateFolder: duplicate.meta?.templateFolder ?? duplicate.folder.name,
+        templateVersion: duplicate.meta?.templateVersion ?? null,
+        displayName,
+        ...(duplicate.meta?.mode ? { mode: duplicate.meta.mode } : {}),
+        createdAt: new Date().toISOString(),
+      }
+      fs.writeFileSync(
+        path.join(duplicate.folder.rootPath, META_FILE),
+        JSON.stringify(nextMeta, null, 2),
+        'utf-8',
+      )
+      reassigned.push({ folderName: duplicate.folder.name, previousId: id, assignedId: newId })
+    }
+  }
+  return reassigned
+}
+
 export function findRoleFolderById(dataRoot: string, roleId: string): RoleFolder | null {
+  reconcileDuplicateRoleIds(dataRoot)
+  for (const folder of listRoleFolders(dataRoot)) {
+    const declared = readDeclaredRoleId(folder.rootPath)
+    if (declared === roleId) return folder
+  }
   for (const folder of listRoleFolders(dataRoot)) {
     if (folder.name === roleId) return folder
-    for (const fileName of ['opengal.json', 'role.json', META_FILE]) {
-      const full = path.join(folder.rootPath, fileName)
-      if (!fs.existsSync(full)) continue
-      try {
-        const raw = JSON.parse(fs.readFileSync(full, 'utf-8')) as { id?: unknown; roleId?: unknown }
-        if (raw.id === roleId || raw.roleId === roleId) return folder
-      } catch {
-        continue
-      }
-    }
   }
   return null
 }

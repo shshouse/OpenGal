@@ -50,7 +50,7 @@ export function indexMessage(handle: RoleDbHandle, id: number, content: string):
   ])
 }
 
-export const MESSAGE_COLUMNS = 'id, role, content, ts, archived, kind'
+export const MESSAGE_COLUMNS = 'id, role, content, ts, archived, kind, client_id, translation, translation_lang'
 
 interface RawMessageRow {
   id: number
@@ -59,6 +59,9 @@ interface RawMessageRow {
   ts: number
   archived: number
   kind?: string
+  client_id?: string | null
+  translation?: string | null
+  translation_lang?: string | null
 }
 
 export function toMessageRow(roleId: string, row: RawMessageRow): MessageRow {
@@ -70,6 +73,9 @@ export function toMessageRow(roleId: string, row: RawMessageRow): MessageRow {
     ts: row.ts,
     archived: row.archived,
     ...(row.kind !== undefined ? { kind: row.kind } : {}),
+    ...(row.client_id !== undefined ? { client_id: row.client_id } : {}),
+    ...(row.translation !== undefined ? { translation: row.translation } : {}),
+    ...(row.translation_lang !== undefined ? { translation_lang: row.translation_lang } : {}),
   }
 }
 
@@ -101,13 +107,13 @@ function expandNeighbors(
     if (radius <= 0) continue
     const before = handle.port
       .query<RawMessageRow>(
-        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE archived < 2 AND id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
         [id, ...rangeParams, radius],
       )
       .map((r) => toMessageRow(roleId, r))
     const after = handle.port
       .query<RawMessageRow>(
-        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE archived < 2 AND id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
         [id, ...rangeParams, radius],
       )
       .map((r) => toMessageRow(roleId, r))
@@ -134,9 +140,9 @@ export function searchMessages(
   if (tokens.length > 0) {
     const match = tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ')
     const found = handle.port.query<RawMessageRow>(
-      `SELECT m.id, m.role, m.content, m.ts, m.archived, m.kind
+      `SELECT m.id, m.role, m.content, m.ts, m.archived, m.kind, m.client_id, m.translation, m.translation_lang
        FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid
-       WHERE messages_fts MATCH ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
+       WHERE m.archived < 2 AND messages_fts MATCH ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
        ORDER BY bm25(messages_fts) LIMIT ?`,
       [match, ...rangeParams, limit],
     )
@@ -148,10 +154,12 @@ export function searchMessages(
   }
 
   if (hits.length === 0) {
-    const where = terms.map(() => "content LIKE ? ESCAPE '!'").join(' AND ')
+    const whereTerms = terms.map(() => "content LIKE ? ESCAPE '!'").join(' AND ')
     const fallback = handle.port
       .query<RawMessageRow>(
-        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE ${where}${range ? ' AND ts >= ? AND ts <= ?' : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
+        `SELECT ${MESSAGE_COLUMNS} FROM messages
+         WHERE archived < 2 AND ${whereTerms}${range ? ' AND ts >= ? AND ts <= ?' : ''}
+         ORDER BY ts DESC LIMIT ?`,
         [...terms.map(escapeLike), ...rangeParams, limit],
       )
       .map((r) => toMessageRow(roleId, r))

@@ -1,4 +1,4 @@
-export const ROLE_DB_SCHEMA_VERSION = 1
+export const ROLE_DB_SCHEMA_VERSION = 2
 
 export class RoleDbVersionError extends Error {
   readonly dbVersion: number
@@ -48,9 +48,13 @@ CREATE TABLE IF NOT EXISTS messages (
   content TEXT NOT NULL,
   ts INTEGER NOT NULL,
   archived INTEGER NOT NULL DEFAULT 0,
-  kind TEXT NOT NULL DEFAULT 'chat'
+  kind TEXT NOT NULL DEFAULT 'chat',
+  client_id TEXT,
+  translation TEXT,
+  translation_lang TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_msg_archived_ts ON messages(archived, ts);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_id ON messages(client_id) WHERE client_id IS NOT NULL;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
   message_id UNINDEXED,

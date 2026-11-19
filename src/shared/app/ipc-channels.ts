@@ -58,6 +58,7 @@ export const IpcChannels = {
     snapshot: 'runtime:snapshot',
     setRunning: 'runtime:setRunning',
     setMode: 'runtime:setMode',
+    setLifePaused: 'runtime:setLifePaused',
     focus: 'runtime:focus',
     userActivity: 'runtime:userActivity',
     triggerLifeTick: 'runtime:triggerLifeTick',
@@ -95,6 +96,7 @@ export const IpcChannels = {
     getState: 'role:getState',
     patchState: 'role:patchState',
     lifeLogs: 'role:lifeLogs',
+    clearLifeLogs: 'role:clearLifeLogs',
     roleLogs: 'role:roleLogs',
     outfitChanged: 'role:outfitChanged'
   },
@@ -102,6 +104,7 @@ export const IpcChannels = {
     load: 'chatHistory:load',
     append: 'chatHistory:append',
     replaceAll: 'chatHistory:replaceAll',
+    setTranslation: 'chatHistory:setTranslation',
     archiveRange: 'chatHistory:archiveRange',
     latestMessageId: 'chatHistory:latestMessageId',
     summaries: 'chatHistory:summaries',
