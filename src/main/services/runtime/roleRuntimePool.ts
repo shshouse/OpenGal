@@ -5,6 +5,7 @@ import {
   parseLifeDecision,
   type LifeAction,
 } from '@core/harness/lifeLoop'
+import { formatStyleAnchorBlock } from '@core/role/styleAnchor'
 import type { RoleMode, RoleStateSnapshot } from '@core/role/types'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import { getErrorMessage } from '@shared/app/errors'
@@ -13,6 +14,7 @@ import type { ChatMessage, RoleCardEntry } from '@shared/types'
 import { readConfig, writeConfig } from '../config/store'
 import { logBus } from '../infra/logBus'
 import { callLLM } from '../llm/client'
+import { getMemoryBlock } from '../memory'
 import {
   appendLifeLog,
   getRoleState,
@@ -24,6 +26,7 @@ import {
   sleepRoleDb,
 } from '../memory/db'
 import { getEnvSnapshot } from '../perception/envContext'
+import { isScreenWatchEnabled, lookAtScreen } from '../perception/screenWatch'
 import { getOwnedRoleCard, listOwnedRoleCards } from '../role/cardLoader'
 import { saveRoleCard } from '../role/cardWriter'
 import { appendRoleLog } from '../role/roleLogs'
@@ -34,6 +37,7 @@ export interface RuntimeRoleItem {
   displayName: string
   mode: RoleMode
   running: boolean
+  lifePaused: boolean
   thinking: boolean
   state: RoleStateSnapshot
 }
@@ -56,6 +60,7 @@ interface ActiveRoleSlot {
   roleId: string
   timer: ReturnType<typeof setTimeout> | null
   thinking: boolean
+  lifePaused: boolean
   busyUntil: number
   disposed: boolean
 }
@@ -123,6 +128,7 @@ export function getRuntimePoolSnapshot(): RuntimePoolSnapshot {
       displayName: card.displayName ?? card.name,
       mode: card.mode ?? 'agent',
       running,
+      lifePaused: slot ? slot.lifePaused : card.mode === 'life',
       thinking: slot?.thinking ?? false,
       state,
     }
@@ -143,11 +149,11 @@ function emitPoolChanged(): RuntimePoolSnapshot {
 
 function scheduleNextLifeTick(slot: ActiveRoleSlot, delayMs: number): void {
   clearSlotTimer(slot)
-  if (slot.disposed) return
-  const clamped = Math.max(15_000, Math.min(30 * 60_000, delayMs))
+  if (slot.disposed || slot.lifePaused) return
+  const clamped = Math.max(20_000, Math.min(30 * 60_000, delayMs))
   slot.timer = setTimeout(() => {
     slot.timer = null
-    void executeLifeTick(slot.roleId)
+    void executeLifeTick(slot.roleId, false)
   }, clamped)
 }
 
@@ -168,6 +174,68 @@ function formatRecentDialogSnippet(roleId: string): string[] {
     }
   }
   return lines
+}
+
+async function performScreenObservation(
+  card: RoleCardEntry,
+  thought: string,
+  mood: string,
+): Promise<void> {
+  const roleId = card.id
+  if (isScreenWatchEnabled()) {
+    try {
+      const shot = await lookAtScreen(1200)
+      if (shot?.png) {
+        const res = await callLLM({
+          slot: 'sub',
+          overrides: { temperature: 0.6, maxTokens: 160 },
+          messages: [
+            {
+              role: 'system',
+              content: `你是「${card.displayName ?? card.name}」，请用一两句简洁的简体中文内心观察，描述你刚在用户屏幕上看到的内容与感想（不要输出表情标签）。`,
+            },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: `你刚才在想：${thought}。这是你瞥见的用户桌面画面：` },
+                { type: 'image_url', image_url: { url: shot.png } },
+              ],
+            },
+          ],
+        })
+        const obs = res.content.replace(/<\s*[ea]\s*:\s*[^<>]*?\s*>/gi, '').trim().slice(0, 260)
+        if (obs) {
+          appendLifeLog(roleId, {
+            kind: 'observation',
+            title: '观察屏幕画面',
+            content: obs,
+            mood,
+          })
+          return
+        }
+      }
+    } catch (err) {
+      logBus.warn('life', `角色 ${roleId} 观察屏幕失败: ${getErrorMessage(err)}`)
+    }
+  }
+
+  let fallback = thought
+  try {
+    const env = getEnvSnapshot()
+    if (env.game) {
+      fallback = `${thought}（注意到对方正在玩 ${env.game.name}）`
+    } else if (env.foreground?.title) {
+      fallback = `${thought}（当前前台窗口：${env.foreground.app} - ${env.foreground.title.slice(0, 80)}）`
+    }
+  } catch {
+    /* ignore */
+  }
+  appendLifeLog(roleId, {
+    kind: 'observation',
+    title: '观察桌面窗口',
+    content: fallback,
+    mood,
+  })
 }
 
 async function performLifeAction(
@@ -194,6 +262,11 @@ async function performLifeAction(
     return
   }
 
+  if (action.type === 'observe_screen') {
+    await performScreenObservation(card, thought, mood)
+    return
+  }
+
   if (action.type === 'search_interest') {
     appendRoleLog(roleId, {
       level: 'info',
@@ -202,11 +275,11 @@ async function performLifeAction(
     })
     try {
       const searchRes = await handleWebSearch(action.query)
-      const digest = summarizeToolResult('web_search', searchRes)
+      const digest = summarizeToolResult('web_search', searchRes).slice(0, 240)
       appendLifeLog(roleId, {
         kind: 'observation',
         title: `检索：${action.query}`,
-        content: `${thought} | ${digest}`,
+        content: digest ? `${thought}；${digest}` : thought,
         mood,
       })
     } catch (err) {
@@ -247,8 +320,9 @@ async function performLifeAction(
 
   if (action.type === 'speak') {
     const ts = Date.now()
-    const chatMsg: ChatMessage = { role: 'assistant', content: action.line, ts }
-    saveChatMessages(roleId, [chatMsg as unknown as { role: string }])
+    const clientId = `life:${roleId}:${ts}`
+    const chatMsg: ChatMessage = { role: 'assistant', content: action.line, ts, clientId }
+    saveChatMessages(roleId, [chatMsg as unknown as { role: string; ts: number; clientId: string }])
     appendLifeLog(roleId, {
       kind: 'action',
       title: '主动搭话',
@@ -279,7 +353,7 @@ async function performLifeAction(
   })
 }
 
-export async function executeLifeTick(roleId: string): Promise<boolean> {
+export async function executeLifeTick(roleId: string, force = false): Promise<boolean> {
   const slot = slots.get(roleId)
   if (!slot || slot.disposed) return false
 
@@ -289,14 +363,19 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
     return false
   }
 
-  if (slot.thinking || Date.now() < slot.busyUntil) {
-    scheduleNextLifeTick(slot, 30_000)
+  if (!force && slot.lifePaused) {
+    clearSlotTimer(slot)
+    return false
+  }
+
+  if (slot.thinking || (!force && Date.now() < slot.busyUntil)) {
+    if (!slot.lifePaused) scheduleNextLifeTick(slot, 30_000)
     return false
   }
 
   const llmCfg = readConfig().llm
   if (!llmCfg.apiKey || !llmCfg.baseURL || !llmCfg.modelName) {
-    scheduleNextLifeTick(slot, 120_000)
+    if (!slot.lifePaused) scheduleNextLifeTick(slot, 120_000)
     return false
   }
 
@@ -309,6 +388,12 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
     const recentLogs = listLifeLogs(roleId, { limit: 6 })
     const recentMessages = formatRecentDialogSnippet(roleId)
     const outfits = (card.performance.outfits ?? []).map((o) => `${o.id}(${o.name})`)
+    const memoryBlock =
+      (await getMemoryBlock(roleId, currentState.currentActivity || card.name, false).catch(() => null)) ??
+      undefined
+    const styleAnchors =
+      formatStyleAnchorBlock(card.examples, card.greeting, currentState.currentActivity) || undefined
+
     let activeWindowTitle: string | undefined
     let userIdleSec: number | undefined
     try {
@@ -328,6 +413,8 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
       roleName: card.displayName ?? card.name,
       language: card.language,
       personaSummary: `${card.persona.description}；性格：${card.persona.personality}`,
+      memoryBlock,
+      styleAnchors,
       state: currentState,
       recentLifeLogs: recentLogs,
       recentChatLines: recentMessages,
@@ -340,15 +427,15 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
     const res = await callLLM({
       slot: 'sub',
       messages: promptMsgs.map((m) => ({ role: m.role, content: m.content })),
-      overrides: { temperature: 0.75, maxTokens: 450 },
+      overrides: { temperature: 0.78, maxTokens: 520 },
     })
 
-    if (slot.disposed || Date.now() < slot.busyUntil) {
+    if (slot.disposed || (!force && Date.now() < slot.busyUntil)) {
       return false
     }
 
     const decision = parseLifeDecision(res.content)
-    const nextTickAt = Date.now() + decision.nextTickSec * 1000
+    const nextTickAt = slot.lifePaused ? null : Date.now() + decision.nextTickSec * 1000
     patchRoleState(roleId, {
       mood: decision.mood,
       energy: clampEnergy(currentState.energy, decision.energyDelta),
@@ -358,7 +445,9 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
     })
 
     await performLifeAction(card, decision.action, decision.thought, decision.mood, decision.activity)
-    scheduleNextLifeTick(slot, decision.nextTickSec * 1000)
+    if (!slot.lifePaused) {
+      scheduleNextLifeTick(slot, decision.nextTickSec * 1000)
+    }
     return true
   } catch (err) {
     logBus.warn('life', `角色 ${roleId} Life 心跳执行异常: ${getErrorMessage(err)}`)
@@ -368,7 +457,7 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
       message: 'Life 心跳异常，稍后重试',
       detail: getErrorMessage(err),
     })
-    scheduleNextLifeTick(slot, 120_000)
+    if (!slot.lifePaused) scheduleNextLifeTick(slot, 120_000)
     return false
   } finally {
     slot.thinking = false
@@ -379,6 +468,7 @@ export async function executeLifeTick(roleId: string): Promise<boolean> {
 export async function setRoleRunningInPool(
   roleId: string,
   running: boolean,
+  opts: { startLifePaused?: boolean } = {},
 ): Promise<RuntimePoolSnapshot> {
   await memoryDbReady()
   const card = getOwnedRoleCard(roleId)
@@ -405,35 +495,69 @@ export async function setRoleRunningInPool(
       appendLifeLog(roleId, {
         kind: 'observation',
         title: '重新唤醒',
-        content: `距离上次苏醒过去了约 ${Math.round(offlineMinutes / 60 * 10) / 10} 小时。`,
+        content: `距离上次苏醒过去了约 ${Math.round((offlineMinutes / 60) * 10) / 10} 小时。`,
         mood: prevState.mood,
       })
     }
+    const startPaused = Boolean(opts.startLifePaused && card.mode === 'life')
     patchRoleState(roleId, {
-      currentActivity: card.mode === 'life' ? '观察桌面环境中' : '在旁待命',
+      currentActivity:
+        card.mode === 'life' ? (startPaused ? '自主生活已暂停' : '观察桌面环境中') : '在旁待命',
       energy: offlineMinutes >= 60 ? clampEnergy(prevState.energy, 20) : prevState.energy,
+      ...(startPaused ? { nextTickAt: null } : {}),
     })
     appendRoleLog(roleId, {
       level: 'info',
       scope: 'runtime',
-      message: `角色已唤醒（模式：${card.mode ?? 'agent'}）`,
+      message: `角色已唤醒（模式：${card.mode ?? 'agent'}${startPaused ? '，自主循环待手动开始' : ''}）`,
     })
 
     const slot: ActiveRoleSlot = {
       roleId,
       timer: null,
       thinking: false,
+      lifePaused: startPaused,
       busyUntil: 0,
       disposed: false,
     }
     slots.set(roleId, slot)
-    if (card.mode === 'life') {
+    if (card.mode === 'life' && !startPaused) {
       scheduleNextLifeTick(slot, 25_000)
     }
   }
 
   if (!focusedRoleId) focusedRoleId = roleId
   persistRuntimeFlags()
+  return emitPoolChanged()
+}
+
+export async function setRoleLifePausedInPool(
+  roleId: string,
+  paused: boolean,
+): Promise<RuntimePoolSnapshot> {
+  await memoryDbReady()
+  const card = getOwnedRoleCard(roleId)
+  if (!card) throw new Error(`未找到角色实例：${roleId}`)
+
+  let slot = slots.get(roleId)
+  if (!slot && !paused) {
+    await setRoleRunningInPool(roleId, true, { startLifePaused: false })
+    slot = slots.get(roleId)
+  }
+  if (!slot) return emitPoolChanged()
+
+  slot.lifePaused = paused
+  if (paused) {
+    clearSlotTimer(slot)
+    patchRoleState(roleId, { currentActivity: '自主生活已暂停', nextTickAt: null })
+    appendRoleLog(roleId, { level: 'info', scope: 'life', message: '已暂停自主生活循环' })
+  } else {
+    patchRoleState(roleId, { currentActivity: '开始自主生活' })
+    appendRoleLog(roleId, { level: 'info', scope: 'life', message: '已开始自主生活循环' })
+    if (card.mode === 'life') {
+      scheduleNextLifeTick(slot, 15_000)
+    }
+  }
   return emitPoolChanged()
 }
 
@@ -459,8 +583,10 @@ export async function setRoleModeInPool(
   const slot = slots.get(roleId)
   if (slot) {
     clearSlotTimer(slot)
+    slot.lifePaused = false
     patchRoleState(roleId, {
       currentActivity: mode === 'life' ? '开始自主生活' : '在旁待命',
+      ...(mode !== 'life' ? { nextTickAt: null } : {}),
     })
     if (mode === 'life') {
       scheduleNextLifeTick(slot, 20_000)
@@ -481,11 +607,12 @@ export function notifyUserActivityOnRole(roleId: string, holdMs = 45_000): void 
   if (!slot) return
   slot.busyUntil = Date.now() + holdMs
   const card = getOwnedRoleCard(roleId)
-  if (card?.mode === 'life') {
+  if (card?.mode === 'life' && !slot.lifePaused) {
     scheduleNextLifeTick(slot, Math.max(holdMs + 15_000, 60_000))
   }
 }
 
+/** 启动时仅恢复上次显式处于运行中的角色，绝不自动唤醒休眠角色；且已运行的 Life 角色默认先暂停自主循环以免静默消耗费用 */
 export async function initRoleRuntimePool(): Promise<RuntimePoolSnapshot> {
   if (initialized) return getRuntimePoolSnapshot()
   initialized = true
@@ -499,15 +626,10 @@ export async function initRoleRuntimePool(): Promise<RuntimePoolSnapshot> {
     null
 
   const savedRunning = cfg.runningRoles ?? {}
-  let wokeAny = false
   for (const card of owned) {
     if (savedRunning[card.id]) {
-      await setRoleRunningInPool(card.id, true)
-      wokeAny = true
+      await setRoleRunningInPool(card.id, true, { startLifePaused: true })
     }
-  }
-  if (!wokeAny && focusedRoleId) {
-    await setRoleRunningInPool(focusedRoleId, true)
   }
   return getRuntimePoolSnapshot()
 }

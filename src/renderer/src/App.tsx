@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { MonitorUp, Moon, Play, Plus, Trash2, X } from 'lucide-react'
+import { MonitorUp, Moon, Pause, Play, Plus, Trash2, X } from 'lucide-react'
 import { getErrorMessage } from '@shared/app/errors'
 import { isRoleRunning } from '@shared/role/runtime'
 import type { AppConfig, Live2DModelConfig, RoleMode } from '@shared/types'
@@ -18,7 +18,7 @@ import { cropImageHead } from '@/lib/avatar'
 import { cn } from '@/lib/utils'
 import { useASRStore } from '@/features/asr/asrStore'
 import { useChatStore } from '@/features/chat/chatStore'
-import { setEyesClosed } from '@/features/live2d/live2dBus'
+import { applyEmotion, setEyesClosed } from '@/features/live2d/live2dBus'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { startPipeline } from '@/features/pipeline'
@@ -45,6 +45,9 @@ export default function App(): React.JSX.Element {
   const [workshopPreviewUrl, setWorkshopPreviewUrl] = React.useState<string | null>(null)
   const [view, setView] = React.useState<AppViewName>('chat')
   const [actionError, setActionError] = React.useState('')
+  const [liveActivity, setLiveActivity] = React.useState('')
+  const [lifePaused, setLifePaused] = React.useState(true)
+  const lastMoodRef = React.useRef('')
 
   const uiStateLoaded = useUIStateStore((s) => s.loaded)
   const uiRestored = React.useRef(false)
@@ -133,6 +136,28 @@ export default function App(): React.JSX.Element {
       if (resolved.success && resolved.data) setModel(resolved.data)
     })()
   }, [loadRoles])
+
+  React.useEffect(() => {
+    if (!activeId) return
+    const syncItem = (item?: { lifePaused: boolean; state: { mood: string; currentActivity: string } }): void => {
+      if (!item) return
+      setLifePaused(item.lifePaused)
+      setLiveActivity(item.state.currentActivity || '')
+      if (item.state.mood && item.state.mood !== lastMoodRef.current) {
+        lastMoodRef.current = item.state.mood
+        applyEmotion(item.state.mood)
+      }
+    }
+    void window.opengal.runtime?.snapshot?.().then((res) => {
+      if (res.success && res.data) syncItem(res.data.roles[activeId])
+    })
+    const off = window.opengal.runtime?.onChanged?.((snap) => {
+      syncItem(snap.roles[activeId])
+    })
+    return () => {
+      off?.()
+    }
+  }, [activeId])
 
   React.useEffect(() => {
     setEyesClosed(!activeRunning)
@@ -366,7 +391,9 @@ export default function App(): React.JSX.Element {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{activeLabel}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {activeRunning ? (activeMode === 'life' ? 'Life 自主生活中' : 'Agent 在旁待命') : '休息中'}
+                    {!activeRunning
+                      ? '休息中'
+                      : liveActivity || (activeMode === 'life' ? (lifePaused ? 'Life 已暂停' : 'Life 自主生活中') : 'Agent 在旁待命')}
                   </p>
                 </div>
 
@@ -410,6 +437,22 @@ export default function App(): React.JSX.Element {
                   </Button>
                 </div>
               </div>
+
+              {activeRunning && activeMode === 'life' ? (
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                  <span className="truncate text-muted-foreground">
+                    {lifePaused ? '自主循环已暂停' : '自主循环运行中'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void window.opengal.runtime?.setLifePaused?.(activeCard.id, !lifePaused)}
+                    className="flex shrink-0 items-center gap-1 font-medium text-brand hover:underline"
+                  >
+                    {lifePaused ? <Play className="size-3" /> : <Pause className="size-3" />}
+                    {lifePaused ? '开始生活' : '暂停循环'}
+                  </button>
+                </div>
+              ) : null}
 
               {activeCard.outfitEntries && activeCard.outfitEntries.length > 1 ? (
                 <div className="flex items-center gap-2">

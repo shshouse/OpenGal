@@ -51,6 +51,8 @@ describe('Life 自主认知循环决策解析与文风锚定', () => {
       now: 10_000,
       roleName: '初音未来',
       personaSummary: '住在电脑里的歌姬朋友，好奇开朗',
+      memoryBlock: '已知记忆：用户喜欢熬夜写代码。',
+      styleAnchors: '角色原声语感锚点：今天也要元气满满哦。',
       state,
       recentLifeLogs: [],
       recentChatLines: ['对方: 我先写会儿论文'],
@@ -60,6 +62,8 @@ describe('Life 自主认知循环决策解析与文风锚定', () => {
     })
     expect(msgs).toHaveLength(2)
     expect(msgs[0]?.content).toContain('Life 模式持续自主循环')
+    expect(msgs[0]?.content).toContain('用户喜欢熬夜写代码')
+    expect(msgs[0]?.content).toContain('角色原声语感锚点')
 
     const diaryDecision = parseLifeDecision(
       [

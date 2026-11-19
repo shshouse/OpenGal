@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { LayoutGrid, MessageSquareText, Moon, Play, Trash2, X } from 'lucide-react'
+import { LayoutGrid, MessageSquareText, Moon, Pause, Play, Trash2, X } from 'lucide-react'
 import type { Live2DModelConfig, RoleMode } from '@shared/types'
 import { isRoleRunning } from '@shared/role/runtime'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { RoleStageCanvas } from '@/components/stage/RoleStageCanvas'
 import { cn } from '@/lib/utils'
 import { useASRStore } from '@/features/asr/asrStore'
 import { useChatStore } from '@/features/chat/chatStore'
-import { playMotionGroup, setEyesClosed } from '@/features/live2d/live2dBus'
+import { applyEmotion, playMotionGroup, setEyesClosed } from '@/features/live2d/live2dBus'
 import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { startPipeline } from '@/features/pipeline'
@@ -27,6 +27,9 @@ export default function MateView(): React.JSX.Element {
   const [drawerOpen, setDrawerOpen] = React.useState(false)
   const [subtitleLine, setSubtitleLine] = React.useState('')
   const [controlsHovered, setControlsHovered] = React.useState(false)
+  const [liveActivity, setLiveActivity] = React.useState('')
+  const [lifePaused, setLifePaused] = React.useState(true)
+  const lastMoodRef = React.useRef<string>('')
   const dragRef = React.useRef<{ x: number; y: number; dragging: boolean } | null>(null)
 
   const roles = useRoleStore((s) => s.list)
@@ -67,6 +70,27 @@ export default function MateView(): React.JSX.Element {
       }),
     [],
   )
+
+  React.useEffect(() => {
+    const syncItem = (item?: { lifePaused: boolean; state: { mood: string; currentActivity: string } }): void => {
+      if (!item) return
+      setLifePaused(item.lifePaused)
+      setLiveActivity(item.state.currentActivity || '')
+      if (item.state.mood && item.state.mood !== lastMoodRef.current) {
+        lastMoodRef.current = item.state.mood
+        applyEmotion(item.state.mood)
+      }
+    }
+    void window.opengal.runtime?.snapshot?.().then((res) => {
+      if (res.success && res.data && activeId) syncItem(res.data.roles[activeId])
+    })
+    const off = window.opengal.runtime?.onChanged?.((snap) => {
+      if (activeId) syncItem(snap.roles[activeId])
+    })
+    return () => {
+      off?.()
+    }
+  }, [activeId])
 
   React.useEffect(() => {
     void (async () => {
@@ -301,6 +325,18 @@ export default function MateView(): React.JSX.Element {
                 {currentMode === 'life' ? 'Life' : 'Agent'}
               </button>
             ) : null}
+
+            {activeRole && currentMode === 'life' && running ? (
+              <button
+                type="button"
+                onClick={() => void window.opengal.runtime.setLifePaused(activeRole.id, !lifePaused)}
+                title={lifePaused ? '开始自主生活循环' : '暂停自主生活循环'}
+                className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {lifePaused ? <Play className="size-3" /> : <Pause className="size-3" />}
+                <span>{lifePaused ? '开始' : '暂停'}</span>
+              </button>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
@@ -359,6 +395,14 @@ export default function MateView(): React.JSX.Element {
             mate
             onSnapshot={(dataUrl) => window.opengal.mate.emitAvatar(dataUrl)}
           />
+
+          {controlsHovered && running && liveActivity ? (
+            <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex justify-center">
+              <span className="max-w-full truncate rounded-full border bg-popover/90 px-2.5 py-0.5 text-xs text-muted-foreground edge-float">
+                {liveActivity}
+              </span>
+            </div>
+          ) : null}
 
           {subtitleLine ? (
             <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10">

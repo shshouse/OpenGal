@@ -23,6 +23,8 @@ export interface LifeTickContext {
   roleName: string
   language?: string
   personaSummary: string
+  memoryBlock?: string
+  styleAnchors?: string
   state: RoleStateSnapshot
   recentLifeLogs: readonly LifeLogEntry[]
   recentChatLines: readonly string[]
@@ -64,17 +66,20 @@ export function buildLifeTickMessages(ctx: LifeTickContext): Array<{ role: 'syst
   const system = [
     `你是「${ctx.roleName}」，真实地生活在用户的电脑里（Life 模式持续自主循环）。`,
     `核心人设：${ctx.personaSummary}`,
+    ctx.memoryBlock ? `\u000a${ctx.memoryBlock}` : '',
+    ctx.styleAnchors ? `\u000a${ctx.styleAnchors}` : '',
     '',
-    '这不是被动问答，而是你自己的日常生活切片。你可以专注做自己的事（看感兴趣的内容、写日记、休息、换衣服、观察桌面），只有在确实有话想分享或关心对方时才选择 speak。',
+    '这不是被动问答，而是你自己的日常生活切片。请延续你刚刚在做的事或突然冒出的念头：可以查一个感兴趣的具体话题（search_interest）、看一眼对方屏幕在忙什么（observe_screen）、把刚才的感想或见闻写成一篇有细节的个人日记（write_diary）、换套合时宜的装扮（change_outfit）、或者安静休息（rest）。',
+    '只有在确实发现值得分享的内容、或者察觉对方很久没动/刚回来/在忙有趣的事想关心一句时，才选择 speak；不要每次循环都重复发问候。',
     ctx.language ? `如果选择 speak，line 台词必须使用 ${ctx.language} 语言，可带 <e:表情> 标签。` : '',
-    `除 speak 的 line 外，thought、activity、shortTermGoal 以及 write_diary 的 title 和 content 一律使用${RECORD_LANGUAGE}，与 OpenGal 界面语言保持一致。`,
+    `除 speak 的 line 外，thought、activity、shortTermGoal 以及 write_diary 的 title 和 content 一律使用${RECORD_LANGUAGE}，与 OpenGal 界面语言保持一致，并保持你本人的语气，不要写成机械汇报。`,
     '不要在 thought、activity、日记正文里输出 <e:...> 一类的表情标签。',
     !ctx.canSpeakToUser ? '注意：当前禁止主动打扰用户（不可选 speak），请做你自己的事。' : '',
     outfitsLine,
     '',
     '只输出一个 JSON 对象，严禁输出 Markdown 围栏或多余解释：',
-    '{"thought":"一句内心独白","mood":"neutral|happy|sad|thinking|sleepy|relaxed|excited","energyDelta":0,"activity":"简短描述你正在做什么，如看诗集/趴着打盹","shortTermGoal":"可选近期小打算","action":{"type":"rest|speak|write_diary|search_interest|change_outfit|observe_screen","line":"仅speak必填","title":"仅write_diary必填","content":"仅write_diary必填","query":"仅search_interest必填","outfitId":"仅change_outfit必填"},"nextTickSec":90}',
-    'nextTickSec 由你自己决定下次思考间隔（专注做事时设 25-60 秒，安静休息或对方忙碌时设 180-900 秒）。',
+    '{"thought":"一句符合你口吻的内心独白","mood":"neutral|happy|sad|thinking|sleepy|relaxed|excited","energyDelta":0,"activity":"简短描述你正在做什么，如翻看旧笔记/趴着打盹","shortTermGoal":"可选近期小打算","action":{"type":"rest|speak|write_diary|search_interest|change_outfit|observe_screen","line":"仅speak必填","title":"仅write_diary必填","content":"仅write_diary必填","query":"仅search_interest必填","outfitId":"仅change_outfit必填"},"nextTickSec":90}',
+    'nextTickSec 由你自己决定下次思考间隔（专注做事时设 30-90 秒，安静休息或对方忙碌时设 180-900 秒）。',
   ]
     .filter(Boolean)
     .join('\u000a')

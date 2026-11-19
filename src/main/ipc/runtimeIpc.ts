@@ -14,6 +14,7 @@ import {
   focusRoleInPool,
   getRuntimePoolSnapshot,
   notifyUserActivityOnRole,
+  setRoleLifePausedInPool,
   setRoleModeInPool,
   setRoleRunningInPool,
 } from '../services/runtime/roleRuntimePool'
@@ -141,6 +142,11 @@ export function registerRuntimeAndWorkshopIpc(): void {
     (roleId, mode) => setRoleModeInPool(roleId, mode),
   )
   handleValidated(
+    IpcChannels.runtime.setLifePaused,
+    [roleIdSchema, z.boolean()],
+    (roleId, paused) => setRoleLifePausedInPool(roleId, paused),
+  )
+  handleValidated(
     IpcChannels.runtime.focus,
     [z.string().min(1).nullable()],
     (roleId) => focusRoleInPool(roleId),
@@ -156,7 +162,7 @@ export function registerRuntimeAndWorkshopIpc(): void {
   handleValidated(
     IpcChannels.runtime.triggerLifeTick,
     [roleIdSchema],
-    (roleId) => executeLifeTick(roleId),
+    (roleId) => executeLifeTick(roleId, true),
   )
 
   ipcMain.handle(IpcChannels.workshop.list, () => wrap(() => listWorkshopDrafts()))
