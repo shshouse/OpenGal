@@ -3,29 +3,45 @@ import type { RoleCardEntry } from '@shared/types'
 
 const state = vi.hoisted(() => ({
   dataRoot: 'C:/fake-data',
-  first: null as RoleCardEntry | null,
-  second: null as RoleCardEntry | null,
+  source: null as RoleCardEntry | null,
+  created: null as RoleCardEntry | null,
   taken: [] as string[],
-  calls: [] as Array<{ displayName: string; templateId: string; templateFolder: string }>,
+  nextId: 'kaltsit',
+  calls: [] as Array<{
+    displayName: string
+    templateId: string
+    templateFolder: string
+    roleId?: string
+  }>,
 }))
 
 vi.mock('../../src/main/services/infra/paths', () => ({
   getDataRoot: () => state.dataRoot,
 }))
 vi.mock('../../src/main/services/role/cardLoader', () => ({
-  getRoleCard: vi.fn(() => {
-    const value = state.first
-    state.first = state.second
-    state.second = null
-    return value
-  }),
+  getRoleCard: vi.fn(() => state.source),
+  getOwnedRoleCard: vi.fn(() => state.created),
 }))
 vi.mock('../../src/main/services/role/store', () => ({
+  allocateUniqueRoleId: vi.fn(() => state.nextId),
   isFolderNameTaken: vi.fn((_root: string, name: string) => state.taken.includes(name)),
-  materializeRole: vi.fn((_root: string, _template: string, displayName: string, template: { id: string; folder: string }) => {
-    state.calls.push({ displayName, templateId: template.id, templateFolder: template.folder })
-    return ''
-  }),
+  materializeRole: vi.fn(
+    (
+      _root: string,
+      _template: string,
+      displayName: string,
+      template: { id: string; folder: string },
+      opts?: { roleId?: string },
+    ) => {
+      state.calls.push({
+        displayName,
+        templateId: template.id,
+        templateFolder: template.folder,
+        roleId: opts?.roleId,
+      })
+      return ''
+    },
+  ),
 }))
 
 import { createRoleCopy } from '../../src/main/services/role/roleCopy'
@@ -45,35 +61,42 @@ function builtinCard(): RoleCardEntry {
 }
 
 beforeEach(() => {
-  state.first = null
-  state.second = null
+  state.source = null
+  state.created = null
   state.taken = []
+  state.nextId = 'kaltsit'
   state.calls = []
 })
 
-describe('创建可编辑角色副本', () => {
-  it('把市场模板复制为玩家角色，并返回可编辑角色', () => {
+describe('从模组模板创建独立角色实例', () => {
+  it('把模组模板复制为玩家独立角色，并分配唯一实例 ID', () => {
     const source = builtinCard()
-    state.first = source
-    state.second = { ...source, builtin: false, rootPath: 'C:/fake-data/roles/凯尔希（我的）' }
+    state.source = source
+    state.created = { ...source, id: 'kaltsit', builtin: false, rootPath: 'C:/fake-data/roles/凯尔希' }
 
     const copied = createRoleCopy('kaltsit')
 
     expect(copied.builtin).toBe(false)
-    expect(state.calls).toEqual([{
-      displayName: '凯尔希（我的）',
-      templateId: 'kaltsit',
-      templateFolder: '凯尔希',
-    }])
+    expect(state.calls).toEqual([
+      {
+        displayName: '凯尔希',
+        templateId: 'kaltsit',
+        templateFolder: '凯尔希',
+        roleId: 'kaltsit',
+      },
+    ])
   })
 
-  it('目录重名时自动加序号', () => {
-    state.taken = ['凯尔希（我的）']
-    state.first = builtinCard()
-    state.second = { ...builtinCard(), builtin: false }
+  it('目录与角色 ID 重名时自动递增序号生成独立实例', () => {
+    state.taken = ['凯尔希']
+    state.nextId = 'kaltsit-2'
+    state.source = builtinCard()
+    state.created = { ...builtinCard(), id: 'kaltsit-2', builtin: false }
 
-    createRoleCopy('kaltsit')
+    const copied = createRoleCopy('kaltsit')
 
-    expect(state.calls[0]?.displayName).toBe('凯尔希（我的） 2')
+    expect(copied.id).toBe('kaltsit-2')
+    expect(state.calls[0]?.displayName).toBe('凯尔希 2')
+    expect(state.calls[0]?.roleId).toBe('kaltsit-2')
   })
 })

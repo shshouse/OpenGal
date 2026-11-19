@@ -3,42 +3,28 @@ import path from 'node:path'
 import type { RoleCardEntry, RoleOutfitEntry, RoleSpriteConfig, SpriteFrames } from '@shared/types'
 import { validateRoleCard, type RoleCardIssue } from '@shared/role/cardSchema'
 import { getDataRoot, getModRoot, toRoleUrl, toModUrl } from '../infra/paths'
-import { getRolesRoot } from './store'
+import { readRoleSummaryCache } from '../memory/store/roleState'
+import { listModsByCapability } from '../mods/scanner'
+import { getRolesRoot, readRoleMeta } from './store'
 
-const ROLE_CARD_DIR_REL = 'Role'
 const CARD_FILE = 'role.json'
 const MANIFEST_FILE = 'opengal.json'
-
-interface CardRoot {
-  root: string
-  owned: boolean
-}
-
-// 已创建的角色优先，模组目录退化为创建时的模板来源
-function getRoleCardRoots(): CardRoot[] {
-  const roots: CardRoot[] = []
-  const owned = getRolesRoot(getDataRoot())
-  if (fs.existsSync(owned)) roots.push({ root: owned, owned: true })
-  const templates = path.join(getModRoot(), ROLE_CARD_DIR_REL)
-  if (fs.existsSync(templates)) roots.push({ root: templates, owned: false })
-  return roots
-}
 
 export interface LoadedRoleCard {
   entry: RoleCardEntry
   issues: RoleCardIssue[]
 }
 
-// opengal.json 是模组的唯一清单；resources/describe 等分发字段不参与角色卡校验
+// 仅剥离纯分发声明字段，保留 greeting / examples / describe / mode 供角色扮演锚定使用
 function manifestToCard(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
   const manifest = raw as Record<string, unknown>
   const card: Record<string, unknown> = { ...manifest }
-  for (const key of ['resources', 'describe', 'examples', 'greeting', 'license', 'credits', 'provenance']) {
+  for (const key of ['resources', 'license', 'credits', 'provenance']) {
     delete card[key]
   }
   const voice = card.voice as Record<string, unknown> | undefined
-  if (voice && typeof voice.config === 'string') {
+  if (voice && typeof voice.config === 'string' && voice.configRef === undefined) {
     card.voice = { ...voice, configRef: voice.config }
   }
   return card
@@ -59,11 +45,15 @@ function normalizeEntry(
     console.warn(`[roleCardLoader] 角色卡校验失败 (${folderName}): ${detail || '未知原因'}`)
     return null
   }
+  const meta = owned ? readRoleMeta(rootPath) : null
+  const summary = owned ? readRoleSummaryCache(rootPath) : undefined
   const entry: RoleCardEntry = {
     ...result.card,
     rootPath,
     folderName,
     builtin: !owned,
+    ...(meta?.templateId ? { templateId: meta.templateId } : {}),
+    ...(summary ? { summary } : {}),
   }
   const sprite = entry.performance.sprite
   if (sprite && entry.performance.mode === 'sprite') {
@@ -107,45 +97,82 @@ function spriteFramesOf(rootPath: string, sprite: RoleSpriteConfig, owned: boole
   if (!idle) return undefined
   return {
     idle,
-    blink: frame('blink.png'),
-    talk: frame('talk.png'),
+    blink: frame('blink.png') ?? frame('blink.svg'),
+    talk: frame('talk.png') ?? frame('talk.svg'),
     blinkTalk: frame('blink-talk.png'),
     happy: frame('happy.png'),
     sad: frame('sad.png'),
   }
 }
 
+function loadCardFromFolder(folderName: string, folderPath: string, owned: boolean): LoadedRoleCard | null {
+  const manifestPath = path.join(folderPath, MANIFEST_FILE)
+  const useManifest = fs.existsSync(manifestPath)
+  const cardPath = useManifest ? manifestPath : path.join(folderPath, CARD_FILE)
+  if (!fs.existsSync(cardPath)) return null
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(cardPath, 'utf-8')) as unknown
+    const source = useManifest ? manifestToCard(raw) : raw
+    const result = normalizeEntry(folderName, folderPath, source, owned)
+    if (!result) return null
+    for (const issue of result.issues) {
+      if (issue.severity === 'warning') {
+        console.warn(`[roleCardLoader] ${folderName} ${issue.path}: ${issue.message}`)
+      }
+    }
+    return result
+  } catch (err) {
+    console.error(`[roleCardLoader] failed to load ${cardPath}:`, err)
+    return null
+  }
+}
+
+/** 仅加载玩家已在 data/roles 下创建的角色实例 */
+export function listOwnedRoleCardsDetailed(dataRoot = getDataRoot()): LoadedRoleCard[] {
+  const ownedRoot = getRolesRoot(dataRoot)
+  if (!fs.existsSync(ownedRoot)) return []
+
+  const loaded: LoadedRoleCard[] = []
+  const seen = new Set<string>()
+  for (const folder of fs.readdirSync(ownedRoot, { withFileTypes: true })) {
+    if (!folder.isDirectory() || folder.name === '_system') continue
+    const result = loadCardFromFolder(folder.name, path.join(ownedRoot, folder.name), true)
+    if (!result || seen.has(result.entry.id)) continue
+    seen.add(result.entry.id)
+    loaded.push(result)
+  }
+  return loaded
+}
+
+export function listOwnedRoleCards(dataRoot = getDataRoot()): RoleCardEntry[] {
+  return listOwnedRoleCardsDetailed(dataRoot).map((item) => item.entry)
+}
+
+/** 扫描 mods 下的角色模板（扁平 mods/<目录> 与存量 mods/Role/<目录> 均识别） */
+export function listRoleTemplatesDetailed(modRoot = getModRoot()): LoadedRoleCard[] {
+  const loaded: LoadedRoleCard[] = []
+  const seen = new Set<string>()
+  for (const mod of listModsByCapability('role-template', modRoot)) {
+    const result = loadCardFromFolder(mod.folderName, mod.rootPath, false)
+    if (!result || seen.has(result.entry.id)) continue
+    seen.add(result.entry.id)
+    loaded.push(result)
+  }
+  return loaded
+}
+
+export function listRoleTemplates(modRoot = getModRoot()): RoleCardEntry[] {
+  return listRoleTemplatesDetailed(modRoot).map((item) => item.entry)
+}
+
 export function listRoleCardsDetailed(): LoadedRoleCard[] {
   const loaded: LoadedRoleCard[] = []
   const seen = new Set<string>()
-
-  for (const { root, owned } of getRoleCardRoots()) {
-    for (const folder of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!folder.isDirectory()) continue
-      const folderPath = path.join(root, folder.name)
-      const manifestPath = path.join(folderPath, MANIFEST_FILE)
-      const useManifest = fs.existsSync(manifestPath)
-      const cardPath = useManifest ? manifestPath : path.join(folderPath, CARD_FILE)
-      if (!fs.existsSync(cardPath)) continue
-
-      try {
-        const raw = JSON.parse(fs.readFileSync(cardPath, 'utf-8')) as unknown
-        const source = useManifest ? manifestToCard(raw) : raw
-        const result = normalizeEntry(folder.name, folderPath, source, owned)
-        if (!result) continue
-        // 已实体化的角色与来源模组同 id 时保留实体角色，模组只作为模板
-        if (seen.has(result.entry.id)) continue
-        seen.add(result.entry.id)
-        for (const issue of result.issues) {
-          if (issue.severity === 'warning') {
-            console.warn(`[roleCardLoader] ${folder.name} ${issue.path}: ${issue.message}`)
-          }
-        }
-        loaded.push(result)
-      } catch (err) {
-        console.error(`[roleCardLoader] failed to load ${cardPath}:`, err)
-      }
-    }
+  for (const item of [...listOwnedRoleCardsDetailed(), ...listRoleTemplatesDetailed()]) {
+    if (seen.has(item.entry.id)) continue
+    seen.add(item.entry.id)
+    loaded.push(item)
   }
   return loaded
 }
@@ -154,9 +181,14 @@ export function listRoleCards(): RoleCardEntry[] {
   return listRoleCardsDetailed().map((item) => item.entry)
 }
 
+export function getOwnedRoleCard(id: string, dataRoot = getDataRoot()): RoleCardEntry | null {
+  return listOwnedRoleCards(dataRoot).find((c) => c.id === id) ?? null
+}
+
 export function getRoleCard(id: string): RoleCardEntry | null {
   return listRoleCards().find((c) => c.id === id) ?? null
 }
+
 export function readRoleVoiceConfig(card: RoleCardEntry): Record<string, unknown> | null {
   if (!card.voice?.configRef) return null
   const abs = path.isAbsolute(card.voice.configRef)
@@ -171,6 +203,7 @@ export function readRoleVoiceConfig(card: RoleCardEntry): Record<string, unknown
     return null
   }
 }
+
 export function resolveRoleVoiceFile(card: RoleCardEntry, relOrAbs: string): string {
   if (!relOrAbs) return ''
   if (path.isAbsolute(relOrAbs)) return relOrAbs

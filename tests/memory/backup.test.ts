@@ -14,7 +14,7 @@ afterAll(() => {
 })
 
 describe('memory backup', () => {
-  it('flush 后产出可打开且通过校验的每日快照', async () => {
+  it('flush 后按角色产出可打开且通过校验的每日快照', async () => {
     await initMemoryDb(root)
     await memoryDbReady()
     appendMessage({ role_id: 'c', role: 'user', content: '内容', ts: 1, archived: 0 })
@@ -22,7 +22,7 @@ describe('memory backup', () => {
     flushMemoryDb()
 
     const day = new Date().toISOString().slice(0, 10)
-    const file = path.join(root, 'backups', `memory-${day}.db`)
+    const file = path.join(root, 'backups', 'roles', 'c', `memory-${day}.db`)
     expect(fs.existsSync(file)).toBe(true)
 
     const probe = new DatabaseSync(file, { readOnly: true })
@@ -40,8 +40,8 @@ describe('memory backup', () => {
     expect(snapshotBackup()).toBe(true)
 
     const day = new Date().toISOString().slice(0, 10)
-    const conflict = path.join(root, 'backups', `memory-${day}.db.tmp`)
-    fs.mkdirSync(conflict)
+    const conflict = path.join(root, 'backups', 'roles', 'c', `memory-${day}.db.tmp`)
+    fs.mkdirSync(conflict, { recursive: true })
     try {
       expect(snapshotBackup()).toBe(false)
     } finally {

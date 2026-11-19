@@ -18,10 +18,12 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["../src/renderer/src/*"],
+      "@core/*": ["../src/core/*"],
       "@shared/*": ["../src/shared/*"]
     }
   },
   "include": [
+    "../src/core/**/*.ts",
     "../src/renderer/src/**/*.ts",
     "../src/renderer/src/**/*.tsx",
     "../src/shared/**/*.ts",

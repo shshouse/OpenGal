@@ -13,10 +13,12 @@
     "types": ["node", "electron", "vite/client"],
     "paths": {
       "@/*": ["../src/renderer/src/*"],
+      "@core/*": ["../src/core/*"],
       "@shared/*": ["../src/shared/*"]
     }
   },
   "include": [
+    "../src/core/**/*.ts",
     "../tests/**/*.ts",
     "./vitest.config.ts",
     "../src/preload/api.d.ts",

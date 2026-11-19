@@ -1,3 +1,5 @@
+import { formatSelfStateBlock, formatStyleAnchorBlock } from '@core/role/styleAnchor'
+import type { RoleStateSnapshot } from '@core/role/types'
 import { STANDARD_EMOTIONS, type RoleCard } from './index'
 import { speechLanguageLabel } from '../dialogue/subtitles'
 
@@ -24,12 +26,18 @@ function formatMotionMenu(motionGroups: string[]): string[] {
     .map((g) => `- "${g}"：${MOTION_GROUP_LABELS[g] ?? g}`)
 }
 
+export interface PromptBuildOptions {
+  selfState?: RoleStateSnapshot | null
+  styleQuery?: string
+}
+
 export function buildSystemPrompt(
   card: RoleCard,
   motionGroups: string[] = [],
   memoryBlock?: string,
   hasTools = false,
   emotions: readonly string[] = STANDARD_EMOTIONS,
+  opts?: PromptBuildOptions,
 ): string {
   const persona = card.persona
   const userIdentity = persona.userIdentity ?? '用户'
@@ -49,14 +57,30 @@ export function buildSystemPrompt(
   if (persona.scenario) lines.push(`场景：${persona.scenario}`)
   if (persona.rules) lines.push(`规则：${persona.rules}`)
   lines.push(`用户身份：${userIdentity}；你称呼用户为：${userTerm}。`)
+
+  const selfStateBlock = formatSelfStateBlock(opts?.selfState)
+  if (selfStateBlock) {
+    lines.push('')
+    lines.push(selfStateBlock)
+  }
+
   if (memoryBlock) {
     lines.push('')
     lines.push(memoryBlock)
   }
+
+  const styleAnchorBlock = formatStyleAnchorBlock(card.examples, card.greeting, opts?.styleQuery ?? '')
+  if (styleAnchorBlock) {
+    lines.push('')
+    lines.push(styleAnchorBlock)
+  }
+
   lines.push('')
   lines.push('说话风格（应用级规则，对所有角色生效，优先于角色设定中的书面化表达）：')
   lines.push('- 台词必须写成自然的口语，像面对面说话；不要书面语、公文腔和括号注释。')
-  lines.push('- 允许适度使用语气词与停顿（如「嗯……」「哈啊」「那个……」），台词会被分段合成语音，真实的呼吸感能让语气更活。')
+  if (!persona.rules?.includes('不堆情绪')) {
+    lines.push('- 允许适度使用语气词与停顿（如「嗯……」「哈啊」「那个……」），台词会被分段合成语音，真实的呼吸感能让语气更活。')
+  }
   lines.push('- 短句优先，一句一个呼吸；情绪和动作都用行内标签表示，不要写进台词。')
   lines.push('')
   lines.push('输出格式（必须严格遵守，否则解析会失败）：')
@@ -88,18 +112,28 @@ export function buildSystemPrompt(
     lines.push(...formatMotionMenu(motionGroups))
   }
   lines.push('')
-  const emotionOpen = emotions.length > 0 ? '<e:happy>' : ''
-  const emotionReset = emotions.length > 0 ? '<e:neutral>' : ''
-  lines.push('EXAMPLE INPUT:')
-  lines.push('你好呀！')
-  lines.push('')
-  lines.push('EXAMPLE OUTPUT:')
-  if (motionGroups.length > 0) {
-    const exampleAction =
-      motionGroups.find((g) => !/^(idle|talk|click)$/i.test(g)) ?? motionGroups[0]
-    lines.push(`${emotionOpen}<a:${exampleAction}>嗨～${emotionReset}你今天看起来心情不错呢。想聊点什么？`)
+  const sampleTurn = card.examples?.[0]
+  if (sampleTurn) {
+    const emotionOpen = emotions.length > 0 ? '<e:neutral>' : ''
+    lines.push('EXAMPLE INPUT:')
+    lines.push(sampleTurn.user)
+    lines.push('')
+    lines.push('EXAMPLE OUTPUT:')
+    lines.push(`${emotionOpen}${sampleTurn.assistant}`)
   } else {
-    lines.push(`${emotionOpen}嗨～${emotionReset}你今天看起来心情不错呢。想聊点什么？`)
+    const emotionOpen = emotions.length > 0 ? '<e:happy>' : ''
+    const emotionReset = emotions.length > 0 ? '<e:neutral>' : ''
+    lines.push('EXAMPLE INPUT:')
+    lines.push('你好呀！')
+    lines.push('')
+    lines.push('EXAMPLE OUTPUT:')
+    if (motionGroups.length > 0) {
+      const exampleAction =
+        motionGroups.find((g) => !/^(idle|talk|click)$/i.test(g)) ?? motionGroups[0]
+      lines.push(`${emotionOpen}<a:${exampleAction}>嗨～${emotionReset}你今天看起来心情不错呢。想聊点什么？`)
+    } else {
+      lines.push(`${emotionOpen}嗨～${emotionReset}你今天看起来心情不错呢。想聊点什么？`)
+    }
   }
   return lines.join('\n')
 }

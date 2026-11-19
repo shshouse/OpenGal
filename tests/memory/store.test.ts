@@ -26,7 +26,6 @@ import {
   archiveMessagesRange,
   clearRoleMessages,
   closeMemoryDb,
-  getMeta,
   latestMessageId,
   listFacts,
   listSummaries,
@@ -66,59 +65,9 @@ describe('memory text and adjudication', () => {
 })
 
 describe('memory persistence pipeline', () => {
-  it('迁移、写入、预算、清理、冻结、召回全链路', async () => {
+  it('单角色分库写入、预算、清理、冻结、召回全链路', async () => {
     const root = path.join(os.tmpdir(), `og-vitest-mem-${Date.now()}`)
     try {
-      const chatDir = path.join(root, 'chat_history')
-      fs.mkdirSync(chatDir, { recursive: true })
-      fs.writeFileSync(
-        path.join(chatDir, 'c1.json'),
-        JSON.stringify({
-          version: 1,
-          roleId: 'c1',
-          messages: [
-            { role: 'user', content: '你好' },
-            { role: 'assistant', content: '嗨，今天想做点什么？' },
-          ],
-        }),
-      )
-
-      const legacyDir = path.join(root, 'memory', 'c1')
-      fs.mkdirSync(legacyDir, { recursive: true })
-      fs.writeFileSync(
-        path.join(legacyDir, 'facts.json'),
-        JSON.stringify([
-          {
-            id: 'legacy_f1',
-            text: '用户的猫叫小饼',
-            entity: 'user',
-            importance: 7,
-            confidence: 0.8,
-            source: 'manual',
-            created_at: '2025-01-01T00:00:00.000Z',
-            last_confirmed_at: '2025-01-01T00:00:00.000Z',
-            status: 'active',
-            evidence: { reinforce: 2, negate: 0 },
-          },
-        ]),
-      )
-      fs.writeFileSync(
-        path.join(legacyDir, 'story.json'),
-        JSON.stringify([
-          {
-            id: 'legacy_s1',
-            kind: 'milestone',
-            text: '第一次见面聊到凌晨',
-            occurred_at: '2025-01-01T00:00:00.000Z',
-            due_at: null,
-            fulfilled: false,
-            importance: 6,
-            status: 'active',
-            created_at: '2025-01-01T00:00:00.000Z',
-          },
-        ]),
-      )
-
       initMemoryStore(root, {
         injectCharCap: 900,
         batchTurns: 8,
@@ -126,15 +75,17 @@ describe('memory persistence pipeline', () => {
         fallbackHours: 12,
       })
       await memoryDbReady()
+
+      saveChatMessages('c1', [
+        { role: 'user', content: '你好' } as unknown as { role: string },
+        { role: 'assistant', content: '嗨，今天想做点什么？' } as unknown as { role: string },
+      ])
+      await manualAddFact('c1', '用户的猫叫小饼')
       assert.strictEqual(listFacts('c1').length, 1)
       const migratedFacts = await loadFacts('c1')
       assert.strictEqual(migratedFacts.length, 1)
       assert.strictEqual(migratedFacts[0].text, '用户的猫叫小饼')
       assert.strictEqual(migratedFacts[0].protected, true)
-      assert.strictEqual((await loadStories('c1')).length, 1)
-      assert.ok(getMeta('legacy_mem:c1'))
-      assert.ok(fs.existsSync(path.join(legacyDir, 'facts.json')))
-      assert.ok(fs.existsSync(path.join(legacyDir, 'story.json')))
 
       const r1 = await applyCandidates('c1', {
         facts: [{ text: '用户的生日是6月12日', entity: 'user', importance: 10, confidence: 1, reason: '明确陈述' }],
@@ -190,8 +141,8 @@ describe('memory persistence pipeline', () => {
       assert.strictEqual(synced.length, 2)
       assert.strictEqual(synced[0].role, 'user')
       assert.strictEqual((JSON.parse(synced[0].content) as { content: string }).content, '你好')
-      assert.ok(fs.existsSync(path.join(root, 'memory.db')))
-      assert.ok(fs.statSync(path.join(root, 'memory.db')).size > 0)
+      assert.ok(fs.existsSync(path.join(root, 'roles', 'c1', 'memory.db')))
+      assert.ok(fs.statSync(path.join(root, 'roles', 'c1', 'memory.db')).size > 0)
       appendMessage({ role_id: 'c1', role: 'user', content: '"再来一条"', ts: Date.now(), archived: 0 })
       assert.strictEqual(listUnarchivedMessages('c1').length, 3)
 

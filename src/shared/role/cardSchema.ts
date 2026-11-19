@@ -18,6 +18,7 @@ const MAX_NAME = 64
 const COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 const WINDOW_MODES: WindowMode[] = ['mate', 'theater']
+const ROLE_MODES = ['agent', 'life'] as const
 // 旧角色卡写的是 pet，读入时归一化，避免存量卡被判为非法
 const LEGACY_WINDOW_MODES: Record<string, WindowMode> = { pet: 'mate' }
 const PERFORMANCE_MODES: PerformanceMode[] = ['live2d', 'sprite', 'auto']
@@ -27,14 +28,26 @@ const KNOWN_KEYS = new Set([
   'id',
   'name',
   'displayName',
+  'version',
+  'kind',
+  'provides',
   'color',
   'language',
+  'mode',
   'windowMode',
+  'greeting',
+  'examples',
+  'describe',
+  'activeOutfitId',
   'performance',
   'voice',
   'asr',
   'llm',
   'persona',
+  'resources',
+  'license',
+  'credits',
+  'provenance',
 ])
 
 export interface RoleCardIssue {
@@ -394,10 +407,11 @@ export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidat
     if (!isObject(raw.voice)) {
       issues.push({ path: 'voice', code: 'type', message: '应为对象', severity: 'error' })
     } else {
+      const rawRef = raw.voice.configRef !== undefined ? raw.voice.configRef : raw.voice.config
       voice = {
         ...(typeof raw.voice.engine === 'string' ? { engine: raw.voice.engine.slice(0, 64) } : {}),
-        ...(raw.voice.configRef !== undefined
-          ? { configRef: relativePath(raw.voice.configRef, 'voice.configRef', issues, false) ?? '' }
+        ...(rawRef !== undefined
+          ? { configRef: relativePath(rawRef, 'voice.configRef', issues, false) ?? '' }
           : {}),
       }
     }
@@ -417,9 +431,50 @@ export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidat
     }
   }
 
+  let examples: RoleCard['examples']
+  if (Array.isArray(raw.examples)) {
+    const parsedExamples = raw.examples
+      .filter((item): item is Obj => isObject(item))
+      .map((item) => ({
+        user: typeof item.user === 'string' ? item.user.trim().slice(0, 2000) : '',
+        assistant: typeof item.assistant === 'string' ? item.assistant.trim().slice(0, 4000) : '',
+      }))
+      .filter((item) => item.user && item.assistant)
+      .slice(0, 40)
+    if (parsedExamples.length > 0) examples = parsedExamples
+  }
+
+  let describe: RoleCard['describe']
+  if (isObject(raw.describe)) {
+    const summary = typeof raw.describe.summary === 'string' ? raw.describe.summary.trim().slice(0, 500) : undefined
+    const tags = Array.isArray(raw.describe.tags)
+      ? raw.describe.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0).slice(0, 20)
+      : undefined
+    if (summary || tags?.length) {
+      describe = {
+        ...(summary ? { summary } : {}),
+        ...(tags?.length ? { tags } : {}),
+      }
+    }
+  }
+
+  const mode =
+    raw.mode !== undefined
+      ? enumValue(raw.mode, [...ROLE_MODES], 'mode', issues, 'agent')
+      : undefined
+  const greeting =
+    typeof raw.greeting === 'string' && raw.greeting.trim()
+      ? text(raw.greeting, 'greeting', issues, { max: 2000 }).trim()
+      : undefined
+  const activeOutfitId =
+    typeof raw.activeOutfitId === 'string' && ID_RE.test(raw.activeOutfitId)
+      ? raw.activeOutfitId
+      : undefined
+
   const card: RoleCard = {
     id,
     name: name.trim(),
+    ...(mode ? { mode } : {}),
     windowMode: enumValue(
       normalizeWindowMode(raw.windowMode),
       WINDOW_MODES,
@@ -436,6 +491,10 @@ export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidat
     ...(raw.language !== undefined
       ? { language: text(raw.language, 'language', issues, { max: MAX_NAME }) }
       : {}),
+    ...(greeting ? { greeting } : {}),
+    ...(examples ? { examples } : {}),
+    ...(describe ? { describe } : {}),
+    ...(activeOutfitId ? { activeOutfitId } : {}),
     ...(voice ? { voice } : {}),
     ...(asr ? { asr } : {}),
     ...(isObject(raw.llm) ? { llm: sanitizeCardLlm(raw.llm) } : {}),

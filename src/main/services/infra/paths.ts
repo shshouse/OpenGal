@@ -45,9 +45,11 @@ export function getModRoot(): string {
 let cachedDataRoot: string | null = null
 
 export function getDataRoot(): string {
+  if (process.env.OPENGAL_DATA_DIR && ensureWritableDir(process.env.OPENGAL_DATA_DIR)) {
+    return process.env.OPENGAL_DATA_DIR
+  }
   if (cachedDataRoot) return cachedDataRoot
   const candidates: string[] = []
-  if (process.env.OPENGAL_DATA_DIR) candidates.push(process.env.OPENGAL_DATA_DIR)
   const exe = getExePath()
   if (exe) {
     const exeDir = path.dirname(exe)
@@ -195,17 +197,28 @@ export function modUrlToAbsPath(url: string): string | null {
   return resolved
 }
 function getFirstRoleVoiceDir(): string | null {
-  const roleRoot = path.join(getModRoot(), 'Role')
-  try {
-    const first = fs.readdirSync(roleRoot, { withFileTypes: true }).find((d) => d.isDirectory())
-    return first ? path.join(roleRoot, first.name, 'voice', 'gpt-sovits') : null
-  } catch {
-    return null
+  const roots = [
+    getRolesRoot(getDataRoot()),
+    getModRoot(),
+    path.join(getModRoot(), 'Role'),
+  ]
+  for (const base of roots) {
+    if (!fs.existsSync(base)) continue
+    try {
+      for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        const candidate = path.join(base, entry.name, 'voice', 'gpt-sovits')
+        if (fs.existsSync(candidate)) return candidate
+      }
+    } catch {
+      continue
+    }
   }
+  return null
 }
 
 export function getVoiceRoot(): string {
-  return getFirstRoleVoiceDir() ?? path.join(getModRoot(), 'Role')
+  return getFirstRoleVoiceDir() ?? getRolesRoot(getDataRoot())
 }
 
 export function resolveVoicePath(relOrAbs: string): string {
@@ -223,16 +236,18 @@ export function getResourceRoot(): string {
 }
 
 export function getGenieTTSRoot(): string {
-  const exeDir = path.dirname(app.getPath('exe'))
+  const exe = getExePath()
+  const exeDir = exe ? path.dirname(exe) : process.cwd()
   const candidates = [
+    path.join(getModRoot(), 'genie'),
     path.join(getResourceRoot(), 'tts', 'genie'),
     path.join(getModRoot(), 'TTS', 'genie'),
-    path.join(exeDir, 'resources', 'tts', 'genie')
+    path.join(exeDir, 'resources', 'tts', 'genie'),
   ]
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate
   }
-  return candidates[0] ?? path.join(getResourceRoot(), 'tts', 'genie')
+  return candidates[1] ?? path.join(getResourceRoot(), 'tts', 'genie')
 }
 
 export function getGeniePythonExe(): string {

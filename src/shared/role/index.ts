@@ -1,4 +1,12 @@
 import type { LLMConfig, Live2DModelConfig } from '../app/config'
+import type { RoleExampleTurn, RoleMode, RoleSummaryMeta } from '@core/role/types'
+
+export type { RoleExampleTurn, RoleMode, RoleSummaryMeta }
+
+export interface RoleDescribe {
+  summary?: string
+  tags?: string[]
+}
 
 export const STANDARD_EMOTIONS = [
   'neutral',
@@ -109,7 +117,12 @@ export interface RoleCard {
   displayName?: string
   color?: string
   language?: string
+  mode?: RoleMode
   windowMode: WindowMode
+  greeting?: string
+  examples?: RoleExampleTurn[]
+  describe?: RoleDescribe
+  activeOutfitId?: string
   performance: RolePerformanceConfig
   voice?: RoleVoiceConfig
   asr?: RoleASRConfig
@@ -121,6 +134,8 @@ export interface RoleCardEntry extends RoleCard {
   rootPath: string
   folderName: string
   builtin?: boolean
+  templateId?: string
+  summary?: RoleSummaryMeta
   spriteFrames?: SpriteFrames
   outfitEntries?: RoleOutfitEntry[]
 }
@@ -130,6 +145,10 @@ export interface RoleCardEditableFields {
   displayName?: string
   color?: string
   language?: string
+  mode?: RoleMode
+  greeting?: string
+  examples?: RoleExampleTurn[]
+  activeOutfitId?: string
   persona: RolePersona
 }
 

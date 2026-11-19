@@ -58,9 +58,12 @@ describe('memory changelog retention', () => {
     await db.memoryDbReady()
 
     const day = new Date().toISOString().slice(0, 10)
-    const probe = new DatabaseSync(path.join(root, 'backups', `memory-${day}.db`), { readOnly: true })
+    const probe = new DatabaseSync(
+      path.join(root, 'backups', 'roles', 'startup', `memory-${day}.db`),
+      { readOnly: true },
+    )
     try {
-      const backup = probe.prepare('SELECT COUNT(*) AS c FROM memory_changelog WHERE role_id = ?').get('startup') as { c: number }
+      const backup = probe.prepare('SELECT COUNT(*) AS c FROM memory_changelog').get() as { c: number }
       expect(backup.c).toBe(1002)
     } finally {
       probe.close()
@@ -72,18 +75,17 @@ describe('memory changelog retention', () => {
   })
 
   it('快照失败时跳过清理，不拿旧备份冒充保险', async () => {
-    seed('startup', 1003)
-    seed('startup', 1004)
+    for (let i = 1003; i <= 1006; i++) seed('startup', i)
     db.closeMemoryDb()
     setReadyPromise(null)
 
     const day = new Date().toISOString().slice(0, 10)
-    const conflict = path.join(root, 'backups', `memory-${day}.db.tmp`)
-    fs.mkdirSync(conflict)
+    const conflict = path.join(root, 'backups', 'roles', 'startup', `memory-${day}.db.tmp`)
+    fs.mkdirSync(conflict, { recursive: true })
     try {
       await db.initMemoryDb(root)
       await db.memoryDbReady()
-      expect(db.listRoleMemoryChanges('startup', 1100)).toHaveLength(1002)
+      expect(db.listRoleMemoryChanges('startup', 1100)).toHaveLength(1004)
     } finally {
       fs.rmSync(conflict, { recursive: true, force: true })
     }

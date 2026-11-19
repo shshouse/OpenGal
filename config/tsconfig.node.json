@@ -16,6 +16,7 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node", "electron-vite/node"],
     "paths": {
+      "@core/*": ["../src/core/*"],
       "@main/*": ["../src/main/*"],
       "@shared/*": ["../src/shared/*"]
     }
@@ -23,6 +24,7 @@
   "include": [
     "../electron.vite.config.ts",
     "./tailwind.config.ts",
+    "../src/core/**/*.ts",
     "../src/main/**/*.ts",
     "../src/preload/**/*.ts",
     "../src/shared/**/*.ts"

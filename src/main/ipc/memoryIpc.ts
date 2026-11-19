@@ -36,21 +36,22 @@ import {
   memoryEntitySchema,
   summarySchema,
 } from '@shared/app/schemas'
-import { externalizeMessage } from '../services/infra/media'
+import { externalizeRoleMessage, hydrateRoleMessageUrls } from '../services/infra/media'
 import { handleValidated, handleValidatedWithEvent } from './validated'
 import { wrap } from './wrap'
 import { z } from 'zod'
 
 export function registerMemoryIpc(): void {
-  // 消息 content 列存完整消息对象 JSON；兼容旧 JSON 导入的裸 content 格式
-  // 附带 dbId 供归档锚点使用
-  const rowToChatMessage = (row: { id?: number; role: string; content: string; ts?: number }): ChatMessage => {
+  const rowToChatMessage = (
+    roleId: string,
+    row: { id?: number; role: string; content: string; ts?: number },
+  ): ChatMessage => {
     try {
       const parsed = JSON.parse(row.content) as unknown
       const base = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'role' in (parsed as Record<string, unknown>))
         ? (parsed as ChatMessage)
         : { role: row.role as ChatMessage['role'], content: parsed as ChatMessage['content'] }
-      return { ...base, dbId: row.id, ts: row.ts } as ChatMessage
+      return hydrateRoleMessageUrls(roleId, { ...base, dbId: row.id, ts: row.ts } as ChatMessage)
     } catch {
       return { role: row.role as ChatMessage['role'], content: row.content, dbId: row.id, ts: row.ts } as ChatMessage
     }
@@ -59,7 +60,7 @@ export function registerMemoryIpc(): void {
   ipcMain.handle(IpcChannels.chatHistory.load, (_, roleId: string) =>
     wrap<ChatMessage[]>(async () => {
       await memoryDbReady()
-      return listUnarchivedMessages(roleId).map(rowToChatMessage)
+      return listUnarchivedMessages(roleId).map((row) => rowToChatMessage(roleId, row))
     })
   )
   handleValidated(
@@ -67,7 +68,7 @@ export function registerMemoryIpc(): void {
     [roleIdSchema, z.array(chatMessageSchema)],
     async (roleId, messages) => {
       await memoryDbReady()
-      return saveChatMessages(roleId, messages.map((message) => externalizeMessage(message)))
+      return saveChatMessages(roleId, messages.map((message) => externalizeRoleMessage(roleId, message)))
     },
   )
   handleValidated(
@@ -80,7 +81,7 @@ export function registerMemoryIpc(): void {
           id: m.dbId,
           role_id: roleId,
           role: m.role,
-          content: JSON.stringify(externalizeMessage(m)),
+          content: JSON.stringify(externalizeRoleMessage(roleId, m)),
           ts: m.ts ?? Date.now(),
           archived: 0,
         })),

@@ -2,11 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import * as db from '../../src/main/services/memory/db'
+import { setReadyPromise } from '../../src/main/services/memory/db/core'
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-schema-v2-'))
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-memory-schema-gate-'))
 
-describe('schema v2 迁移', () => {
+describe('单角色记忆库版本闸门与来源证据', () => {
   beforeAll(async () => {
     await db.initMemoryDb(root)
     await db.memoryDbReady()
@@ -14,10 +16,11 @@ describe('schema v2 迁移', () => {
 
   afterAll(() => {
     db.closeMemoryDb()
+    setReadyPromise(null)
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  it('把旧 evidence 里的印证次数和消息 id 搬到新位置', () => {
+  it('关联记忆与原话消息 ID，支持按证据精确回溯', () => {
     db.appendMessage({
       role_id: 'c-v2',
       role: 'user',
@@ -35,7 +38,7 @@ describe('schema v2 迁移', () => {
     const messageIds = db.listUnarchivedMessages('c-v2').map((row) => row.id as number)
 
     db.insertMemoryRow('c-v2', {
-      id: 'legacy',
+      id: 'mem-cat',
       role_id: 'c-v2',
       kind: 'fact',
       text: '用户养了一只叫年糕的猫',
@@ -47,22 +50,24 @@ describe('schema v2 迁移', () => {
       source_to: 2100,
       supersedes: null,
       pinned: 0,
+      reinforce: 3,
       embedding: null,
       evidence: JSON.stringify({ fromTs: 900, toTs: 2100, messageIds, reinforce: 3 }),
     })
 
-    // 模拟迁移前的库：版本停在 1，印证次数只在 JSON 里
-    db.setMeta('schema_version', '1')
-    db.migrateMemoryV2()
-
-    const row = db.listMemoryRows('c-v2').find((item) => item.id === 'legacy')
+    const row = db.listMemoryRows('c-v2').find((item) => item.id === 'mem-cat')
     expect(row?.reinforce).toBe(3)
-    expect(db.getMeta('schema_version')).toBe('2')
-    expect(db.memoryEvidence('c-v2', 'legacy').map((item) => item.id).sort()).toEqual([...messageIds].sort())
+    expect(db.getRoleMeta('c-v2', 'schema_version')).toBe(String(db.ROLE_DB_SCHEMA_VERSION))
+    expect(db.memoryEvidence('c-v2', 'mem-cat').map((item) => item.id).sort()).toEqual([...messageIds].sort())
   })
 
-  it('重复执行不会重复插入来源', () => {
-    db.migrateMemoryV2()
-    expect(db.memoryEvidence('c-v2', 'legacy')).toHaveLength(2)
+  it('高版本角色文件夹放入旧版软件时拒绝读写挂载以保护数据', () => {
+    const futureDir = path.join(root, 'roles', 'future-role')
+    fs.mkdirSync(futureDir, { recursive: true })
+    const raw = new DatabaseSync(path.join(futureDir, 'memory.db'))
+    raw.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO meta VALUES ('schema_version', '999');")
+    raw.close()
+
+    expect(() => db.openRoleDb('future-role')).toThrow(db.RoleDbVersionError)
   })
 })

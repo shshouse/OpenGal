@@ -1,4 +1,4 @@
-import { db, logger, rows, withTx } from './core'
+import { listOpenRoleHandles, logger, openRoleDb } from './core'
 import { getErrorMessage } from '@shared/app/errors'
 import type { MemoryChange } from '@shared/types'
 
@@ -14,9 +14,27 @@ export const CHANGE_FIELDS = {
 
 export type MemoryChangeField = keyof typeof CHANGE_FIELDS
 
-const COLUMNS = 'seq, memory_id, role_id, action, field, old_value, new_value, actor, reason, ts'
+const COLUMNS = 'seq, memory_id, action, field, old_value, new_value, actor, reason, ts'
 
-// 日志是旁路：写失败只记录，不让它回滚已经生效的记忆变更
+interface RawChangeRow {
+  seq: number
+  memory_id: string
+  action: MemoryChangeAction
+  field: string | null
+  old_value: string | null
+  new_value: string | null
+  actor: MemoryChangeActor
+  reason: string | null
+  ts: number
+}
+
+function toMemoryChange(roleId: string, row: RawChangeRow): MemoryChange {
+  return {
+    ...row,
+    role_id: roleId,
+  } as unknown as MemoryChange
+}
+
 export function recordMemoryChange(input: {
   memoryId: string
   roleId: string
@@ -27,20 +45,19 @@ export function recordMemoryChange(input: {
   actor?: MemoryChangeActor
   reason?: string | null
 }): void {
-  if (!db) return
   try {
-    db.prepare(
-      'INSERT INTO memory_changelog(memory_id, role_id, action, field, old_value, new_value, actor, reason, ts) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      input.memoryId,
-      input.roleId,
-      input.action,
-      input.field ?? null,
-      input.oldValue ?? null,
-      input.newValue ?? null,
-      input.actor ?? 'system',
-      input.reason ?? null,
-      Date.now(),
+    openRoleDb(input.roleId).port.run(
+      'INSERT INTO memory_changelog(memory_id, action, field, old_value, new_value, actor, reason, ts) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        input.memoryId,
+        input.action,
+        input.field ?? null,
+        input.oldValue ?? null,
+        input.newValue ?? null,
+        input.actor ?? 'system',
+        input.reason ?? null,
+        Date.now(),
+      ],
     )
   } catch (err) {
     logger.warn('memory', `变更记录写入失败 ${input.memoryId}/${input.action}: ${getErrorMessage(err)}`)
@@ -61,7 +78,6 @@ export function recordMemoryFieldChange(change: MemoryFieldChange): void {
   recordMemoryChange({ ...change, action: 'update', actor: change.actor ?? 'system' })
 }
 
-// 批量重写只留一条汇总，逐条记录会让一次重建刷出上千行
 export function recordBulkChange(
   roleId: string,
   action: string,
@@ -80,57 +96,69 @@ export function recordBulkChange(
 }
 
 export function listMemoryChanges(roleId: string, memoryId: string, limit = 20): MemoryChange[] {
-  return rows(
-    `SELECT ${COLUMNS} FROM memory_changelog WHERE role_id = ? AND memory_id = ? ORDER BY seq DESC LIMIT ?`,
-    [roleId, memoryId, Math.max(1, limit)],
-  ) as unknown as MemoryChange[]
+  return openRoleDb(roleId)
+    .port.query<RawChangeRow>(
+      `SELECT ${COLUMNS} FROM memory_changelog WHERE memory_id = ? ORDER BY seq DESC LIMIT ?`,
+      [memoryId, Math.max(1, limit)],
+    )
+    .map((row) => toMemoryChange(roleId, row))
 }
 
 export function listRoleMemoryChanges(roleId: string, limit = 200): MemoryChange[] {
-  return rows(
-    `SELECT ${COLUMNS} FROM memory_changelog WHERE role_id = ? ORDER BY seq DESC LIMIT ?`,
-    [roleId, Math.max(1, limit)],
-  ) as unknown as MemoryChange[]
+  return openRoleDb(roleId)
+    .port.query<RawChangeRow>(
+      `SELECT ${COLUMNS} FROM memory_changelog ORDER BY seq DESC LIMIT ?`,
+      [Math.max(1, limit)],
+    )
+    .map((row) => toMemoryChange(roleId, row))
 }
 
-// 仅供显式维护调用：按角色保留最近的审计记录，不动 memories 与 messages
-export function pruneMemoryChangelog(keepPerRole: number): number {
+export function pruneMemoryChangelog(keepPerRole: number, roleId?: string): number {
   if (!Number.isSafeInteger(keepPerRole) || keepPerRole < 1) {
     throw new RangeError('keepPerRole 必须是正整数')
   }
-  const result = db!.prepare(
-    `DELETE FROM memory_changelog WHERE seq IN (
-      SELECT seq FROM (
-        SELECT seq, ROW_NUMBER() OVER (PARTITION BY role_id ORDER BY seq DESC) AS recency
-        FROM memory_changelog
-      ) WHERE recency > ?
-    )`,
-  ).run(keepPerRole)
-  return Number(result.changes)
+  const pruneOne = (id: string): number =>
+    openRoleDb(id).port.run(
+      `DELETE FROM memory_changelog WHERE seq NOT IN (
+        SELECT seq FROM memory_changelog ORDER BY seq DESC LIMIT ?
+      )`,
+      [keepPerRole],
+    ).changes
+
+  if (roleId) return pruneOne(roleId)
+  let total = 0
+  for (const handle of listOpenRoleHandles()) {
+    if (handle.roleId === '_system') continue
+    total += pruneOne(handle.roleId)
+  }
+  return total
 }
 
-// 只回滚 update 与 delete；insert 的撤销等同删除，由调用方决定
 export function restoreMemoryChange(roleId: string, seq: number): boolean {
-  const found = rows(`SELECT ${COLUMNS} FROM memory_changelog WHERE seq = ? AND role_id = ?`, [seq, roleId])
-  const change = found[0] as unknown as MemoryChange | undefined
+  const handle = openRoleDb(roleId)
+  const found = handle.port.query<RawChangeRow>(
+    `SELECT ${COLUMNS} FROM memory_changelog WHERE seq = ?`,
+    [seq],
+  )
+  const change = found[0]
   if (!change) return false
-  return withTx(() => {
+  return handle.port.transaction(() => {
     if (change.action === 'update') {
       if (!change.field || !(change.field in CHANGE_FIELDS)) return false
-      db!
-        .prepare(`UPDATE memories SET ${CHANGE_FIELDS[change.field as MemoryChangeField]} = ? WHERE id = ?`)
-        .run(change.old_value, change.memory_id)
+      handle.port.run(
+        `UPDATE memories SET ${CHANGE_FIELDS[change.field as MemoryChangeField]} = ? WHERE id = ?`,
+        [change.old_value, change.memory_id],
+      )
       return true
     }
     if (change.action === 'delete' && change.old_value) {
       const snapshot = JSON.parse(change.old_value) as Record<string, unknown>
+      delete snapshot.role_id
       const keys = Object.keys(snapshot)
-      // 列名来自本模块自己写入的行快照，不接受外部输入
-      db!
-        .prepare(
-          `INSERT OR REPLACE INTO memories(${keys.join(', ')}) VALUES(${keys.map(() => '?').join(', ')})`
-        )
-        .run(...keys.map((key) => snapshot[key] as never))
+      handle.port.run(
+        `INSERT OR REPLACE INTO memories(${keys.join(', ')}) VALUES(${keys.map(() => '?').join(', ')})`,
+        keys.map((key) => (snapshot[key] ?? null) as string | number | null),
+      )
       return true
     }
     return false

@@ -1,8 +1,27 @@
-import { checkpoint, db, dbFile, logger, openMemoryDb, prepareMemoryDb, readyPromise, setReadyPromise } from './core'
-import { migrateLegacyBackups, preUpgradeBackup, snapshotBackup } from './backup'
-import { SCHEMA, migrateFactsSchema, migrateMemoryV2, migrateMessagesSchema } from './schema'
-import { syncChatHistoryFromJson, syncLegacyMemoryFromJson } from './legacy'
+import fs from 'node:fs'
+import path from 'node:path'
+import {
+  checkpoint,
+  closeMemoryDb,
+  dataRootDir,
+  getMeta,
+  getRoleMeta,
+  listOpenRoleHandles,
+  logger,
+  memoryDbReady,
+  openRoleDb,
+  prepareMemoryDb,
+  readyPromise,
+  resolveRoleDbDir,
+  setMemoryDbLogger,
+  setMeta,
+  setReadyPromise,
+  setRoleMeta,
+  sleepRoleDb,
+} from './core'
+import { exportRoleDbSnapshot, pruneBackups, snapshotBackup, snapshotRoleBackup } from './backup'
 import { pruneMemoryChangelog } from './changelog'
+import { ROLE_DB_SCHEMA_VERSION, RoleDbVersionError } from './schema'
 import { getErrorMessage } from '@shared/app/errors'
 
 export type {
@@ -14,53 +33,75 @@ export type {
   MessageSearchOptions,
   MemoryDbLogger,
 } from '../model/types'
-export { setMemoryDbLogger, memoryDbReady, closeMemoryDb, withTx, getMeta, setMeta } from './core'
-export { migrateMemoryV2 } from './schema'
+export {
+  setMemoryDbLogger,
+  memoryDbReady,
+  closeMemoryDb,
+  openRoleDb,
+  sleepRoleDb,
+  resolveRoleDbDir,
+  getMeta,
+  setMeta,
+  getRoleMeta,
+  setRoleMeta,
+  listOpenRoleHandles,
+}
+export {
+  exportRoleDbSnapshot,
+  pruneBackups,
+  snapshotBackup,
+  snapshotRoleBackup,
+  ROLE_DB_SCHEMA_VERSION,
+  RoleDbVersionError,
+}
 export { searchTokens, visibleMessageText, searchMessages } from '../store/search'
 export * from '../store/messages'
 export * from '../store/memories'
 export * from '../store/summaries'
+export * from '../store/roleState'
 export * from './changelog'
+
+function maintainExistingRoleDbs(): void {
+  const rolesRoot = path.join(dataRootDir, 'roles')
+  if (!fs.existsSync(rolesRoot)) return
+  for (const entry of fs.readdirSync(rolesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === '_system') continue
+    const dbFile = path.join(rolesRoot, entry.name, 'memory.db')
+    if (!fs.existsSync(dbFile)) continue
+    try {
+      const handle = openRoleDb(entry.name)
+      const changeCount = Number(
+        handle.port.query<{ c: number }>('SELECT COUNT(*) AS c FROM memory_changelog')[0]?.c ?? 0,
+      )
+      if (changeCount > 1000) {
+        if (snapshotRoleBackup(handle.roleId)) {
+          pruneMemoryChangelog(1000, handle.roleId)
+        }
+      }
+      sleepRoleDb(handle.roleId)
+    } catch (err) {
+      logger.warn('memory', `启动维护跳过角色库 (${entry.name}): ${getErrorMessage(err)}`)
+    }
+  }
+}
 
 export function initMemoryDb(dataRoot: string, backupRoot?: string): Promise<void> {
   if (readyPromise) return readyPromise
   const promise = (async () => {
     prepareMemoryDb(dataRoot, backupRoot)
-    migrateLegacyBackups(dataRoot)
-    openMemoryDb()
-    const check = db!.prepare('PRAGMA quick_check').get() as { quick_check?: string } | undefined
-    if (check?.quick_check !== 'ok') {
-      throw new Error(`memory.db 完整性检查失败: ${JSON.stringify(check)}`)
-    }
-    checkpoint()
-    if (!preUpgradeBackup()) {
-      throw new Error('升级前备份失败，已中止记忆库初始化')
-    }
-    db!.exec(SCHEMA)
-    migrateMessagesSchema()
-    migrateFactsSchema()
-    migrateMemoryV2()
-    checkpoint()
-    const snapshotReady = snapshotBackup()
-    syncLegacyMemoryFromJson(dataRoot)
-    await syncChatHistoryFromJson(dataRoot)
-    if (!snapshotReady) {
-      logger.warn('memory', '快照失败，已跳过变更审计清理')
-    } else {
-      const pruned = pruneMemoryChangelog(1000)
-      if (pruned > 0) logger.info('memory', `旧变更审计已清理 ${pruned} 条（每角色保留 1000 条）`)
-    }
-    logger.info('memory', `记忆库已就绪(WAL): ${dbFile}`)
+    maintainExistingRoleDbs()
+    logger.info('memory', `单角色独立记忆库池已就绪 (schema v${ROLE_DB_SCHEMA_VERSION}): ${dataRoot}/roles`)
   })().catch((err) => {
-    logger.error('memory', `记忆库初始化失败: ${getErrorMessage(err)}`)
+    logger.error('memory', `记忆库池初始化失败: ${getErrorMessage(err)}`)
     throw err
   })
   setReadyPromise(promise)
   return promise
 }
 
-// 进程退出前调用，把 WAL 合并回主库并补一份当日快照
 export function flushMemoryDb(): void {
   checkpoint()
-  snapshotBackup()
+  if (snapshotBackup()) {
+    pruneMemoryChangelog(1000)
+  }
 }

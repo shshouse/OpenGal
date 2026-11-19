@@ -1,11 +1,10 @@
 import type { MessageRow, MessageSearchOptions } from '../model/types'
-import { rows, run } from '../db/core'
+import { openRoleDb, type RoleDbHandle } from '../db/core'
 
-const CJK_RE = /[㐀-鿿豈-﫿]/
+const CJK_RE = /[\u3400-\u9fff\uf900-\ufaff]/
 
-/** 中文按相邻双字切词、英文与数字按整词；写入与查询必须使用同一套规则。 */
 export function searchTokens(text: string): string[] {
-  const parts = text.match(/[㐀-鿿豈-﫿]+|[A-Za-z0-9]+/g) ?? []
+  const parts = text.match(/[\u3400-\u9fff\uf900-\ufaff]+|[A-Za-z0-9]+/g) ?? []
   const tokens: string[] = []
   for (const part of parts) {
     if (CJK_RE.test(part)) {
@@ -18,7 +17,6 @@ export function searchTokens(text: string): string[] {
   return [...new Set(tokens)]
 }
 
-/** 消息 content 可能是完整消息 JSON，也可能是不带 JSON 的旧裸文本。 */
 export function visibleMessageText(raw: string): string {
   try {
     const parsed = JSON.parse(raw) as unknown
@@ -43,64 +41,50 @@ export function visibleMessageText(raw: string): string {
   }
 }
 
-export function indexMessage(id: number, content: string): void {
-  run('DELETE FROM messages_fts WHERE rowid = ?', [id])
-  run('INSERT INTO messages_fts(rowid, message_id, tokens) VALUES(?, ?, ?)', [
+export function indexMessage(handle: RoleDbHandle, id: number, content: string): void {
+  handle.port.run('DELETE FROM messages_fts WHERE rowid = ?', [id])
+  handle.port.run('INSERT INTO messages_fts(rowid, message_id, tokens) VALUES(?, ?, ?)', [
     id,
     id,
     searchTokens(visibleMessageText(content)).join(' '),
   ])
 }
 
-export const MESSAGE_COLUMNS = 'id, role_id, role, content, ts, archived, kind'
+export const MESSAGE_COLUMNS = 'id, role, content, ts, archived, kind'
 
-function likePattern(term: string): string {
-  return `%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`
+interface RawMessageRow {
+  id: number
+  role: string
+  content: string
+  ts: number
+  archived: number
+  kind?: string
 }
 
-function searchMessagesInternal(
-  roleId: string,
-  query: string,
-  limit: number,
-  radius: number,
-  fromTs?: number,
-  toTs?: number,
-): MessageRow[] {
-  const terms = query.trim().split(/\s+/).filter(Boolean)
-  if (terms.length === 0) return []
-  const range = fromTs !== undefined && toTs !== undefined
-  const rangeParams = range ? [fromTs as number, toTs as number] : []
-  const hits: MessageRow[] = []
-
-  const tokens = searchTokens(query)
-  if (tokens.length > 0) {
-    const match = tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ')
-    const found = rows(
-      `SELECT m.id, m.role_id, m.role, m.content, m.ts, m.archived, m.kind
-       FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid
-       WHERE messages_fts MATCH ? AND m.role_id = ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
-       ORDER BY bm25(messages_fts) LIMIT ?`,
-      [match, roleId, ...rangeParams, limit]
-    ) as unknown as MessageRow[]
-    for (const row of found) {
-      if (terms.every((term) => visibleMessageText(String(row.content)).includes(term))) hits.push(row)
-    }
+export function toMessageRow(roleId: string, row: RawMessageRow): MessageRow {
+  return {
+    id: row.id,
+    role_id: roleId,
+    role: row.role,
+    content: row.content,
+    ts: row.ts,
+    archived: row.archived,
+    ...(row.kind !== undefined ? { kind: row.kind } : {}),
   }
+}
 
-  // 单字与短词不会被相邻双字索引覆盖，用子串兜底
-  if (hits.length === 0) {
-    const where = terms.map(() => "content LIKE ? ESCAPE '\\'").join(' AND ')
-    const fallback = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE role_id = ? AND ${where}${range ? ' AND ts >= ? AND ts <= ?' : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
-      [roleId, ...terms.map(likePattern), ...rangeParams, limit]
-    ) as unknown as MessageRow[]
-    hits.push(...fallback)
+function escapeLike(term: string): string {
+  const out: string[] = ['%']
+  for (const ch of term) {
+    if (ch === '%' || ch === '_' || ch === '!') out.push('!', ch)
+    else out.push(ch)
   }
-
-  return expandNeighbors(roleId, hits, radius, fromTs, toTs)
+  out.push('%')
+  return out.join('')
 }
 
 function expandNeighbors(
+  handle: RoleDbHandle,
   roleId: string,
   hits: MessageRow[],
   radius: number,
@@ -115,25 +99,64 @@ function expandNeighbors(
     const id = hit.id as number
     found.set(id, hit)
     if (radius <= 0) continue
-    const before = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE role_id = ? AND id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
-      [roleId, id, ...rangeParams, radius]
-    ) as unknown as MessageRow[]
-    const after = rows(
-      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE role_id = ? AND id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
-      [roleId, id, ...rangeParams, radius]
-    ) as unknown as MessageRow[]
+    const before = handle.port
+      .query<RawMessageRow>(
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id < ?${rangeSql} ORDER BY id DESC LIMIT ?`,
+        [id, ...rangeParams, radius],
+      )
+      .map((r) => toMessageRow(roleId, r))
+    const after = handle.port
+      .query<RawMessageRow>(
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id > ?${rangeSql} ORDER BY id ASC LIMIT ?`,
+        [id, ...rangeParams, radius],
+      )
+      .map((r) => toMessageRow(roleId, r))
     for (const row of [...before, ...after]) found.set(row.id as number, row)
   }
   return [...found.values()].sort((a, b) => a.ts - b.ts || (a.id ?? 0) - (b.id ?? 0))
 }
 
-
-/** 中文原文检索：先走相邻双字索引，未命中再退回子串；结果含相邻上下文。 */
 export function searchMessages(
   roleId: string,
   query: string,
   opts: MessageSearchOptions = {},
 ): MessageRow[] {
-  return searchMessagesInternal(roleId, query, opts.limit ?? 3, opts.radius ?? 1, opts.fromTs, opts.toTs)
+  const terms = query.trim().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return []
+  const handle = openRoleDb(roleId)
+  const limit = opts.limit ?? 3
+  const radius = opts.radius ?? 1
+  const range = opts.fromTs !== undefined && opts.toTs !== undefined
+  const rangeParams = range ? [opts.fromTs as number, opts.toTs as number] : []
+  const hits: MessageRow[] = []
+
+  const tokens = searchTokens(query)
+  if (tokens.length > 0) {
+    const match = tokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ')
+    const found = handle.port.query<RawMessageRow>(
+      `SELECT m.id, m.role, m.content, m.ts, m.archived, m.kind
+       FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid
+       WHERE messages_fts MATCH ?${range ? ' AND m.ts >= ? AND m.ts <= ?' : ''}
+       ORDER BY bm25(messages_fts) LIMIT ?`,
+      [match, ...rangeParams, limit],
+    )
+    for (const row of found) {
+      if (terms.every((term) => visibleMessageText(String(row.content)).includes(term))) {
+        hits.push(toMessageRow(roleId, row))
+      }
+    }
+  }
+
+  if (hits.length === 0) {
+    const where = terms.map(() => "content LIKE ? ESCAPE '!'").join(' AND ')
+    const fallback = handle.port
+      .query<RawMessageRow>(
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE ${where}${range ? ' AND ts >= ? AND ts <= ?' : ''} ORDER BY ts DESC, id DESC LIMIT ?`,
+        [...terms.map(escapeLike), ...rangeParams, limit],
+      )
+      .map((r) => toMessageRow(roleId, r))
+    hits.push(...fallback)
+  }
+
+  return expandNeighbors(handle, roleId, hits, radius, opts.fromTs, opts.toTs)
 }

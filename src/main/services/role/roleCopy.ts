@@ -1,32 +1,56 @@
-import type { RoleCardEntry } from '@shared/types'
+import type { RoleCardEntry, RoleMode } from '@shared/types'
 import { getDataRoot } from '../infra/paths'
-import { getRoleCard } from './cardLoader'
-import { isFolderNameTaken, materializeRole } from './store'
+import { getOwnedRoleCard, getRoleCard } from './cardLoader'
+import { allocateUniqueRoleId, isFolderNameTaken, materializeRole } from './store'
 
 const MAX_NAME = 64
 
-/** 市场模板直接编辑会污染模板；复制成 data/roles 下的玩家角色后再改。 */
-export function createRoleCopy(roleId: string, requestedName?: string): RoleCardEntry {
-  const source = getRoleCard(roleId)
-  if (!source) throw new Error('找不到这个角色')
-  if (!source.builtin) throw new Error('这个角色已经可以编辑，不需要再复制')
+function pickFolderName(dataRoot: string, base: string): string {
+  const clean = base.trim().slice(0, MAX_NAME)
+  if (!clean) throw new Error('角色名称不能为空')
+  if (!isFolderNameTaken(dataRoot, clean)) return clean
 
-  const baseName = (requestedName?.trim() || `${source.displayName ?? source.name}（我的）`).slice(0, MAX_NAME)
-  const dataRoot = getDataRoot()
-  let name = baseName
-  let suffix = 2
-  while (isFolderNameTaken(dataRoot, name)) {
-    name = `${baseName} ${suffix++}`.slice(0, MAX_NAME)
+  for (let n = 2; n < 100; n++) {
+    const candidate = `${clean} ${n}`.slice(0, MAX_NAME)
+    if (!isFolderNameTaken(dataRoot, candidate)) return candidate
   }
+  throw new Error('同名角色过多，请换一个名称')
+}
 
-  materializeRole(dataRoot, source.rootPath, name, {
-    id: source.id,
-    folder: source.folderName,
-    version: null,
-  })
+/** 从模组模板或已有角色实例化独立角色目录（独立 ID、独立记忆库与资产副本） */
+export function createRoleCopy(
+  roleId: string,
+  customName?: string,
+  mode?: RoleMode,
+  dataRoot = getDataRoot(),
+): RoleCardEntry {
+  const source = getRoleCard(roleId)
+  if (!source) throw new Error('找不到要实例化的角色模板')
 
-  const copied = getRoleCard(roleId)
-  if (!copied) throw new Error('副本创建后无法读取，请检查角色目录')
-  // 副本沿用原角色 id，记忆和聊天记录随角色一起保留
-  return copied
+  const defaultBase = source.builtin
+    ? (source.displayName ?? source.name)
+    : `${source.displayName ?? source.name}（副本）`
+  const name = pickFolderName(dataRoot, customName?.trim() || defaultBase)
+  const newRoleId =
+    typeof allocateUniqueRoleId === 'function'
+      ? allocateUniqueRoleId(dataRoot, source.id)
+      : source.id
+
+  materializeRole(
+    dataRoot,
+    source.rootPath,
+    name,
+    {
+      id: source.id,
+      folder: source.folderName,
+      version: null,
+    },
+    { roleId: newRoleId, ...(mode ? { mode } : {}) },
+  )
+
+  const created =
+    (typeof getOwnedRoleCard === 'function' ? getOwnedRoleCard(newRoleId, dataRoot) : null) ??
+    getRoleCard(newRoleId)
+  if (!created) throw new Error('角色实例创建后无法读取，请检查角色目录')
+  return created
 }

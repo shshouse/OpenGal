@@ -10,7 +10,14 @@ import {
   type MemoryEvidence,
   type MemorySource,
 } from '../model/model'
-import { deleteMemory, insertMemory, listMemories, reinforceMemory, setMemoryFrozen, setMemoryState } from './store'
+import {
+  deleteMemory,
+  insertMemory,
+  listMemories,
+  reinforceMemory,
+  setMemoryFrozen,
+  setMemoryState,
+} from './store'
 import { listMessageIdsInRange } from './memories'
 import { pruneSummaries } from './summaries'
 
@@ -18,7 +25,6 @@ const MAX_ACTIVE_MEMORIES = 2000
 
 let lastStamp = 0
 
-// 同一毫秒内的两次写入也要有先后，否则槽位解析分不出哪条更新
 function nowMs(): number {
   lastStamp = Math.max(Date.now(), lastStamp + 1)
   return lastStamp
@@ -48,7 +54,6 @@ function toMemory(roleId: string, candidate: MemoryCandidateFact, at: number): M
     attribute: candidate.attribute?.trim() || null,
     value: candidate.object?.trim() || null,
     negated: candidate.polarity === false,
-    // 推断不能和用户原话同级：压到 0.6 以下靠置信度表达，排序由来源可信度负责
     importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
     source,
     state: 'active',
@@ -84,16 +89,16 @@ function applyFactCandidate(context: ApplyContext, candidate: MemoryCandidateFac
   const entry = toMemory(roleId, candidate, at)
   if (evidence) entry.evidence = { ...entry.evidence, ...evidence }
 
-  // 只处理“同一件事又说了一遍”：同槽位、同极性、几乎同一句话。其余一律追加，旧值留给读时解析
-  const repeated = existing.find((memory) =>
-    memory.kind === 'fact'
-    && memory.state === 'active'
-    && slotOf(memory) === slotOf(entry)
-    && isPositive({ polarity: !memory.negated }) === isPositive({ polarity: !entry.negated })
-    && similarity(memory.text, entry.text) >= 0.9,
+  const repeated = existing.find(
+    (memory) =>
+      memory.kind === 'fact' &&
+      memory.state === 'active' &&
+      slotOf(memory) === slotOf(entry) &&
+      isPositive({ polarity: !memory.negated }) === isPositive({ polarity: !entry.negated }) &&
+      similarity(memory.text, entry.text) >= 0.9,
   )
   if (repeated) {
-    reinforceMemory(repeated.id, at)
+    reinforceMemory(repeated.id, at, roleId)
     result.refreshedFacts++
     return
   }
@@ -108,34 +113,41 @@ function applyEpisodeCandidate(
   at: number,
   evidence: MemoryEvidence | undefined,
 ): void {
-  insertMemory(roleId, {
-    id: newId('s'),
+  insertMemory(
     roleId,
-    kind: 'episode',
-    episodeKind: candidate.kind,
-    text: candidate.text.trim(),
-    entity: 'relationship',
-    subject: null,
-    attribute: null,
-    value: null,
-    negated: false,
-    importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
-    source: 'llm_inferred',
-    state: 'active',
-    happenedAt: at,
-    dueAt: candidate.due_at ?? null,
-    validFrom: new Date(at).toISOString(),
-    invalidAt: null,
-    confirmedAt: at,
-    evidence: evidence ? { ...evidence } : { reinforce: 0, negate: 0 },
-    pinned: false,
-    frozen: false,
-    embedding: null,
-    createdAt: at,
-  }, 'llm')
+    {
+      id: newId('s'),
+      roleId,
+      kind: 'episode',
+      episodeKind: candidate.kind,
+      text: candidate.text.trim(),
+      entity: 'relationship',
+      subject: null,
+      attribute: null,
+      value: null,
+      negated: false,
+      importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
+      source: 'llm_inferred',
+      state: 'active',
+      happenedAt: at,
+      dueAt: candidate.due_at ?? null,
+      validFrom: new Date(at).toISOString(),
+      invalidAt: null,
+      confirmedAt: at,
+      evidence: evidence ? { ...evidence } : { reinforce: 0, negate: 0 },
+      pinned: false,
+      frozen: false,
+      embedding: null,
+      createdAt: at,
+    },
+    'llm',
+  )
 }
 
-export async function applyCandidates(roleId: string, payload: MemoryApplyPayload): Promise<ApplyResult> {
+export async function applyCandidates(
+  roleId: string,
+  payload: MemoryApplyPayload,
+): Promise<ApplyResult> {
   await memoryDbReady()
   const existing = listMemories(roleId)
   const result: ApplyResult = { insertedFacts: 0, refreshedFacts: 0, insertedStories: 0 }
@@ -163,7 +175,11 @@ export async function applyCandidates(roleId: string, payload: MemoryApplyPayloa
   return result
 }
 
-export async function manualAddFact(roleId: string, text: string, entity: MemoryEntity = 'user'): Promise<Memory> {
+export async function manualAddFact(
+  roleId: string,
+  text: string,
+  entity: MemoryEntity = 'user',
+): Promise<Memory> {
   await memoryDbReady()
   const at = nowMs()
   const entry: Memory = {
@@ -195,8 +211,10 @@ export async function manualAddFact(roleId: string, text: string, entity: Memory
   return entry
 }
 
-// 超过上限时按重要性归档，钉住的记忆不计入上限也不被归档
-export async function pruneOverflow(roleId: string, limit = MAX_ACTIVE_MEMORIES): Promise<{ archived: number }> {
+export async function pruneOverflow(
+  roleId: string,
+  limit = MAX_ACTIVE_MEMORIES,
+): Promise<{ archived: number }> {
   await memoryDbReady()
   pruneSummaries(roleId)
   const active = listMemories(roleId).filter((memory) => memory.state === 'active')
@@ -207,21 +225,21 @@ export async function pruneOverflow(roleId: string, limit = MAX_ACTIVE_MEMORIES)
     .sort((a, b) => b.importance - a.importance || b.createdAt - a.createdAt)
   const room = Math.max(0, limit - pinned.length)
   const drop = rest.slice(room)
-  for (const memory of drop) setMemoryState(memory.id, 'archived')
+  for (const memory of drop) setMemoryState(memory.id, 'archived', roleId)
   return { archived: drop.length }
 }
 
-export async function freezeFact(_roleId: string, factId: string): Promise<boolean> {
+export async function freezeFact(roleId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
-  return setMemoryFrozen(factId, new Date(nowMs()).toISOString()) > 0
+  return setMemoryFrozen(factId, new Date(nowMs()).toISOString(), roleId) > 0
 }
 
-export async function unfreezeFact(_roleId: string, factId: string): Promise<boolean> {
+export async function unfreezeFact(roleId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
-  return setMemoryFrozen(factId, null) > 0
+  return setMemoryFrozen(factId, null, roleId) > 0
 }
 
-export async function deleteFact(_roleId: string, factId: string): Promise<boolean> {
+export async function deleteFact(roleId: string, factId: string): Promise<boolean> {
   await memoryDbReady()
-  return deleteMemory(factId) > 0
+  return deleteMemory(factId, roleId) > 0
 }

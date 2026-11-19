@@ -1,4 +1,4 @@
-import { rows, run } from '../db/core'
+import { openRoleDb } from '../db/core'
 import { recordMemoryChange, type MemoryChangeActor } from '../db/changelog'
 import type { MemoryRow, FactRow, StoryRow } from '../model/types'
 
@@ -7,42 +7,43 @@ export function insertMemoryRowRaw(
   row: MemoryRow,
   opts: { log?: boolean; actor?: MemoryChangeActor } = {},
 ): void {
-  const existed = opts.log === false
-    ? false
-    : rows('SELECT 1 FROM memories WHERE id = ?', [row.id]).length > 0
-  run(
-      `INSERT OR REPLACE INTO memories(id, role_id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, reinforce, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        row.id,
-        roleId,
-        row.kind,
-        row.text,
-        row.entity ?? 'user',
-        row.subject ?? null,
-        row.attribute ?? null,
-        row.object ?? null,
-        row.polarity ?? null,
-        row.confidence ?? 0.8,
-        row.source ?? 'llm_inferred',
-        row.state,
-        row.importance,
-        row.happened_at,
-        row.created_at,
-        row.confirmed_at ?? null,
-        row.source_from,
-        row.source_to,
-        row.supersedes,
-        row.pinned,
-        row.reinforce ?? 0,
-        row.embedding,
-        row.valid_from ?? null,
-        row.invalid_at ?? null,
-        row.due_at ?? null,
-        row.frozen_at ?? null,
-        row.evidence ?? null,
-      ]
-    )
+  const handle = openRoleDb(roleId)
+  const existed =
+    opts.log === false
+      ? false
+      : handle.port.query('SELECT 1 FROM memories WHERE id = ? LIMIT 1', [row.id]).length > 0
+  handle.port.run(
+    `INSERT OR REPLACE INTO memories(id, kind, text, entity, subject, attribute, object, polarity, confidence, source, state, importance, happened_at, created_at, confirmed_at, source_from, source_to, supersedes, pinned, reinforce, embedding, valid_from, invalid_at, due_at, frozen_at, evidence)
+     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      row.id,
+      row.kind,
+      row.text,
+      row.entity ?? 'user',
+      row.subject ?? null,
+      row.attribute ?? null,
+      row.object ?? null,
+      row.polarity ?? null,
+      row.confidence ?? 0.8,
+      row.source ?? 'llm_inferred',
+      row.state,
+      row.importance,
+      row.happened_at,
+      row.created_at,
+      row.confirmed_at ?? null,
+      row.source_from,
+      row.source_to,
+      row.supersedes,
+      row.pinned,
+      row.reinforce ?? 0,
+      row.embedding,
+      row.valid_from ?? null,
+      row.invalid_at ?? null,
+      row.due_at ?? null,
+      row.frozen_at ?? null,
+      row.evidence ?? null,
+    ],
+  )
   if (opts.log === false) return
   recordMemoryChange({
     memoryId: row.id,

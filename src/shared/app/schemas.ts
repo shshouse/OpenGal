@@ -12,11 +12,43 @@ const roleColorSchema = z.union([
   z.literal(''),
 ])
 
+export const roleModeSchema = z.enum(['agent', 'life'])
+
+export const roleExampleTurnSchema = z.object({
+  user: z.string().min(1).max(2_000),
+  assistant: z.string().min(1).max(4_000),
+})
+
 export const roleCardEditableSchema = z
   .object({
     displayName: z.string().max(64).optional(),
     color: roleColorSchema.optional(),
     language: z.string().max(64).optional(),
+    mode: roleModeSchema.optional(),
+    greeting: z.string().max(2_000).optional(),
+    examples: z.array(roleExampleTurnSchema).max(40).optional(),
+    activeOutfitId: z.string().max(64).optional(),
+    persona: z
+      .object({
+        description: z.string().min(1).max(20_000),
+        personality: z.string().min(1).max(20_000),
+        scenario: z.string().max(20_000).optional(),
+        rules: z.string().max(20_000).optional(),
+        userIdentity: z.string().max(2_000).optional(),
+        userTerm: z.string().max(200).optional(),
+      })
+      .strict(),
+  })
+  .strict()
+
+export const createBlankRoleSchema = z
+  .object({
+    name: z.string().min(1).max(64),
+    displayName: z.string().max(64).optional(),
+    color: roleColorSchema.optional(),
+    language: z.string().max(64).optional(),
+    mode: roleModeSchema.optional(),
+    greeting: z.string().max(2_000).optional(),
     persona: z
       .object({
         description: z.string().min(1).max(20_000),

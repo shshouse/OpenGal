@@ -1,8 +1,9 @@
 import type { MemoryConfig, MemoryFact, MemoryStory } from '@shared/types'
-import { getMeta, memoryDbReady } from './db/core'
-import { initMemoryDb } from './db'
+import { memoryDbReady, sleepRoleDb } from './db/core'
+import { exportRoleDbSnapshot, initMemoryDb } from './db'
 import {
   isCursorInitialized,
+  getMemoryCursor,
   listMessagesAfter,
   markCursorInitialized,
   bootstrapCursor,
@@ -12,17 +13,57 @@ import {
 import { memoryEvidence } from './store/messages'
 import { searchMessages, visibleMessageText } from './store/search'
 import { listMemories, clearMemories, markRecalled } from './store/store'
+import {
+  appendLifeLog,
+  clearLifeLogs,
+  getRoleState,
+  listLifeLogs,
+  patchRoleState,
+  readRoleSummaryCache,
+  writeRoleSummaryCache,
+} from './store/roleState'
 import { relevanceScore } from './model/lexical'
 import { similarity, normalizeText, retentionOf, type Memory } from './model/model'
 import { assembleBlock } from './recall/recall'
 import { searchSimilarAsync } from './model/vector'
-import { assembleWithVectors, buildMemoryBlock, buildMemoryBlockVector, toFactView, toStoryView } from './recall/project'
-import { applyCandidates, deleteFact, freezeFact, manualAddFact, pruneOverflow, unfreezeFact } from './store/write'
+import {
+  assembleWithVectors,
+  buildMemoryBlock,
+  buildMemoryBlockVector,
+  toFactView,
+  toStoryView,
+} from './recall/project'
+import {
+  applyCandidates,
+  deleteFact,
+  freezeFact,
+  manualAddFact,
+  pruneOverflow,
+  unfreezeFact,
+} from './store/write'
 
-export { applyCandidates, deleteFact, freezeFact, manualAddFact, pruneOverflow, unfreezeFact }
+export {
+  applyCandidates,
+  deleteFact,
+  freezeFact,
+  manualAddFact,
+  pruneOverflow,
+  unfreezeFact,
+  appendLifeLog,
+  clearLifeLogs,
+  getRoleState,
+  listLifeLogs,
+  patchRoleState,
+  readRoleSummaryCache,
+  writeRoleSummaryCache,
+  sleepRoleDb,
+  exportRoleDbSnapshot,
+}
 export { buildMemoryBlock, buildMemoryBlockVector }
 export { listMemories, normalizeText, relevanceScore }
 export { similarity as textSimilarity }
+
+const LF = '\u000a'
 
 let config: MemoryConfig = {
   injectCharCap: 900,
@@ -31,19 +72,27 @@ let config: MemoryConfig = {
   fallbackHours: 12,
 }
 
-export function initMemoryStore(root: string, cfg?: Partial<MemoryConfig>, backupRoot?: string): void {
+export function initMemoryStore(
+  root: string,
+  cfg?: Partial<MemoryConfig>,
+  backupRoot?: string,
+): void {
   if (cfg) config = { ...config, ...cfg }
   void initMemoryDb(root, backupRoot).catch(() => {})
 }
 
 export async function loadFacts(roleId: string): Promise<MemoryFact[]> {
   await memoryDbReady()
-  return listMemories(roleId).filter((memory) => memory.kind === 'fact').map(toFactView)
+  return listMemories(roleId)
+    .filter((memory) => memory.kind === 'fact')
+    .map(toFactView)
 }
 
 export async function loadStories(roleId: string): Promise<MemoryStory[]> {
   await memoryDbReady()
-  return listMemories(roleId).filter((memory) => memory.kind === 'episode').map(toStoryView)
+  return listMemories(roleId)
+    .filter((memory) => memory.kind === 'episode')
+    .map(toStoryView)
 }
 
 export async function clearMemory(roleId: string): Promise<void> {
@@ -51,7 +100,6 @@ export async function clearMemory(roleId: string): Promise<void> {
   clearMemories(roleId)
 }
 
-/** 新鲜度：留给界面和测试的兼容导出。 */
 export function retentionScore(fact: {
   frozen_at?: string | null
   valid_until?: string | null
@@ -84,8 +132,7 @@ export async function getMemoryBlock(
         onUsed,
       })
 
-  // 只有真正进了上下文的才算"被想起"；历史区不计，避免过期记忆一直续命
-  markRecalled([...new Set(used)])
+  markRecalled([...new Set(used)], roleId)
   return block
 }
 
@@ -95,12 +142,16 @@ function formatMessageTime(ts: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-// 原话召回：补充 facts/episodes 覆盖不到的逐字历史，带时间戳，供模型区分"当年说的"和"刚说的"
-// 词法没命中时退回记忆向量：命中的事实再展开成当时的原话
-async function recallFromMemoryVectors(roleId: string, query: string, charCap: number): Promise<string | null> {
-  const facts = listMemories(roleId).filter((memory) => memory.kind === 'fact' && memory.state === 'active')
+async function recallFromMemoryVectors(
+  roleId: string,
+  query: string,
+  charCap: number,
+): Promise<string | null> {
+  const facts = listMemories(roleId).filter(
+    (memory) => memory.kind === 'fact' && memory.state === 'active',
+  )
   if (facts.length === 0) return null
-  let hits: Array<{ id: string, similarity: number }>
+  let hits: Array<{ id: string; similarity: number }>
   try {
     hits = await searchSimilarAsync(facts, query, 3, 0.35)
   } catch {
@@ -120,20 +171,26 @@ async function recallFromMemoryVectors(roleId: string, query: string, charCap: n
     }
   }
   if (lines.length === 0) {
-    return hits.map((hit) => `[记忆] ${facts.find((fact) => fact.id === hit.id)?.text ?? ''}`).join('\n')
+    return hits
+      .map((hit) => `[记忆] ${facts.find((fact) => fact.id === hit.id)?.text ?? ''}`)
+      .join(LF)
   }
-  return `相关历史原话（按时间排列）：\n${lines.join('\n')}`
+  return `相关历史原话（按时间排列）：${LF}${lines.join(LF)}`
 }
 
 export async function recallVerbatim(
   roleId: string,
   query: string,
   charCap = 1500,
-  range?: { fromTs: number, toTs: number },
+  range?: { fromTs: number; toTs: number },
 ): Promise<string | null> {
   if (!query.trim()) return null
   await memoryDbReady()
-  const rows = searchMessages(roleId, query, { fromTs: range?.fromTs, toTs: range?.toTs, radius: 1 })
+  const rows = searchMessages(roleId, query, {
+    fromTs: range?.fromTs,
+    toTs: range?.toTs,
+    radius: 1,
+  })
   if (rows.length === 0) return recallFromMemoryVectors(roleId, query, charCap)
   const lines: string[] = []
   let used = 0
@@ -145,7 +202,7 @@ export async function recallVerbatim(
     lines.push(line)
     used += line.length
   }
-  return lines.length > 0 ? `相关历史原话（按时间排列）：\n${lines.join('\n')}` : null
+  return lines.length > 0 ? `相关历史原话（按时间排列）：${LF}${lines.join(LF)}` : null
 }
 
 const BOOTSTRAP_LOOKBACK = 200
@@ -156,13 +213,12 @@ export interface PendingEntry {
   at: number
 }
 
-// 启动时把库里还没提取的原文带回内存缓冲：崩溃/退出的会话也能补记
 export async function pendingFromArchive(
   roleId: string,
   limit = 200,
-): Promise<{ cursor: number, entries: PendingEntry[] }> {
+): Promise<{ cursor: number; entries: PendingEntry[] }> {
   await memoryDbReady()
-  let cursor = Number(getMeta(`memory.cursor.${roleId}`) ?? 0)
+  let cursor = getMemoryCursor(roleId)
   if (!isCursorInitialized(roleId)) {
     cursor = bootstrapCursor(roleId, BOOTSTRAP_LOOKBACK)
     setMemoryCursor(roleId, cursor)
@@ -180,16 +236,15 @@ export async function pendingFromArchive(
 
 export async function advanceCursor(roleId: string, ts: number): Promise<void> {
   await memoryDbReady()
-  const current = Number(getMeta(`memory.cursor.${roleId}`) ?? 0)
+  const current = getMemoryCursor(roleId)
   if (ts > current) setMemoryCursor(roleId, ts)
   markCursorInitialized(roleId)
 }
 
-// 清空派生数据并从零重放；原文与聊天记录一条不动。必须显式传确认标记
 export async function rebuildMemory(
   roleId: string,
   confirm: string,
-): Promise<{ facts: number, stories: number }> {
+): Promise<{ facts: number; stories: number }> {
   if (confirm !== `rebuild:${roleId}`) throw new Error(`重建需要确认标记 rebuild:${roleId}`)
   await memoryDbReady()
   const removed = resetDerived(roleId)

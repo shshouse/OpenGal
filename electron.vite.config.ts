@@ -12,6 +12,7 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        '@core': resolve(__dirname, 'src/core'),
         '@main': resolve(__dirname, 'src/main'),
         '@shared': resolve(__dirname, 'src/shared')
       }
@@ -24,6 +25,7 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        '@core': resolve(__dirname, 'src/core'),
         '@shared': resolve(__dirname, 'src/shared')
       }
     }
@@ -48,6 +50,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),
+        '@core': resolve(__dirname, 'src/core'),
         '@shared': resolve(__dirname, 'src/shared')
       }
     }

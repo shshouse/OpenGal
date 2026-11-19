@@ -65,6 +65,23 @@ function mergeCard(raw: Record<string, unknown>, fields: RoleCardEditableFields)
     if (language) next.language = language
     else delete next.language
   }
+  if (fields.mode !== undefined) {
+    next.mode = fields.mode
+  }
+  if (fields.greeting !== undefined) {
+    const greeting = fields.greeting.trim()
+    if (greeting) next.greeting = greeting
+    else delete next.greeting
+  }
+  if (fields.examples !== undefined) {
+    if (fields.examples.length > 0) next.examples = fields.examples
+    else delete next.examples
+  }
+  if (fields.activeOutfitId !== undefined) {
+    const outfitId = fields.activeOutfitId.trim()
+    if (outfitId) next.activeOutfitId = outfitId
+    else delete next.activeOutfitId
+  }
 
   const persona = raw.persona && typeof raw.persona === 'object' && !Array.isArray(raw.persona)
     ? raw.persona as Record<string, unknown>
