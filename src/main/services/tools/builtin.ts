@@ -18,6 +18,7 @@ import { logBus } from '../infra/logBus'
 import { isScreenWatchEnabled, lookAtScreen } from '../perception/screenWatch'
 import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/presence/screen'
 import { changeOutfitTool } from './outfit'
+import { workshopBuiltinTools } from './workshopTools'
 
 type RetryFn = <T>(task: () => Promise<T>, opts?: { retries?: number }) => Promise<T>
 async function withRetry<T>(task: () => Promise<T>, retries = 2): Promise<T> {
@@ -303,7 +304,7 @@ async function tavilySearch(query: string, key: string): Promise<BingResult[]> {
   }))
 }
 
-async function handleWebSearch(query: string): Promise<string> {
+export async function handleWebSearch(query: string): Promise<string> {
   const key = query.trim().replace(/\s+/g, ' ').toLowerCase()
   const cached = searchCache.get(key)
   if (cached && Date.now() - cached.at < SEARCH_CACHE_TTL_MS) {
@@ -416,6 +417,7 @@ export function registerBuiltinTools(): void {
       async (args) => handleRecallMemory(args.query, args.from, args.to),
     ),
     changeOutfitTool,
+    ...workshopBuiltinTools,
   ]
   for (const tool of tools) registerTool(tool.def, tool.handle)
   logBus.info('tools', `内置工具已注册: ${tools.map((t) => t.def.function.name).join(', ')}`)

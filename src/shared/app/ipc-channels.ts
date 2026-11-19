@@ -46,7 +46,36 @@ export const IpcChannels = {
   mate: {
     control: 'mate:control',
     sync: 'mate:sync',
-    update: 'mate:update'
+    update: 'mate:update',
+    setIgnoreMouse: 'mate:setIgnoreMouse',
+    setDrawerOpen: 'mate:setDrawerOpen',
+    openStudio: 'mate:openStudio',
+  },
+  mods: {
+    list: 'mods:list',
+  },
+  runtime: {
+    snapshot: 'runtime:snapshot',
+    setRunning: 'runtime:setRunning',
+    setMode: 'runtime:setMode',
+    focus: 'runtime:focus',
+    userActivity: 'runtime:userActivity',
+    triggerLifeTick: 'runtime:triggerLifeTick',
+    changed: 'runtime:changed',
+    autonomousSpeak: 'runtime:autonomousSpeak',
+  },
+  workshop: {
+    list: 'workshop:list',
+    get: 'workshop:get',
+    save: 'workshop:save',
+    delete: 'workshop:delete',
+    pickAsset: 'workshop:pickAsset',
+    fetchAsset: 'workshop:fetchAsset',
+    portraitPreview: 'workshop:portraitPreview',
+    finalizeRole: 'workshop:finalizeRole',
+    exportMod: 'workshop:exportMod',
+    publishMikuMod: 'workshop:publishMikuMod',
+    updated: 'workshop:updated',
   },
   model: {
     scan: 'model:scan',
@@ -55,10 +84,18 @@ export const IpcChannels = {
   },
   role: {
     list: 'role:list',
+    templates: 'role:templates',
     get: 'role:get',
     voiceConfig: 'role:voiceConfig',
     saveCard: 'role:saveCard',
     createCopy: 'role:createCopy',
+    createBlank: 'role:createBlank',
+    delete: 'role:delete',
+    exportFolder: 'role:exportFolder',
+    getState: 'role:getState',
+    patchState: 'role:patchState',
+    lifeLogs: 'role:lifeLogs',
+    roleLogs: 'role:roleLogs',
     outfitChanged: 'role:outfitChanged'
   },
   chatHistory: {

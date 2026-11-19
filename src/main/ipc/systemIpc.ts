@@ -68,9 +68,24 @@ export function registerSystemIpc(windows: WindowManager): void {
 
   // 气泡是高频推送；主窗口与相伴窗口共享同一次表演，状态统一经 mate:sync 上送
   ipcMain.on(IpcChannels.mate.sync, (_, payload: unknown) => {
-    const state = parseMateState(payload)
-    if (state) windows.dispatchMateState(state)
+    const parsed = parseMateState(payload)
+    if (parsed) windows.dispatchMateState(parsed)
   })
+
+  ipcMain.on(IpcChannels.mate.setIgnoreMouse, (_, ignore: unknown) => {
+    windows.setMateIgnoreMouse(Boolean(ignore))
+  })
+
+  ipcMain.handle(IpcChannels.mate.setDrawerOpen, (_, open: unknown) =>
+    wrap(() => windows.setMateDrawerOpen(Boolean(open))),
+  )
+
+  ipcMain.handle(IpcChannels.mate.openStudio, () =>
+    wrap(() => {
+      windows.createMainWindow()
+      return true
+    }),
+  )
 
   ipcMain.handle(IpcChannels.window.minimize, () => {
     windows.minimizeMain()

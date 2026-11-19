@@ -27,15 +27,24 @@ function mainWindowBounds(saved?: WindowState): BrowserWindowConstructorOptions 
   return { width, height }
 }
 
+const STAGE_BASE_WIDTH = 380
+const STAGE_DRAWER_WIDTH = 340
+const STAGE_BASE_HEIGHT = 520
+
 function mateWindowBounds(saved?: MateState): BrowserWindowConstructorOptions {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
-  const fallback = { width: 320, height: 420, x: width - 340, y: height - 440 }
+  const fallback = {
+    width: STAGE_BASE_WIDTH,
+    height: STAGE_BASE_HEIGHT,
+    x: width - STAGE_BASE_WIDTH - 24,
+    y: height - STAGE_BASE_HEIGHT - 24,
+  }
   if (!saved || !intersectsDisplay(saved)) return fallback
   return {
     x: saved.x,
     y: saved.y,
-    width: Number.isFinite(saved.width) ? Math.max(180, Math.min(saved.width, 1200)) : 320,
-    height: Number.isFinite(saved.height) ? Math.max(240, Math.min(saved.height, 1600)) : 420,
+    width: Number.isFinite(saved.width) ? Math.max(280, Math.min(saved.width, 1200)) : STAGE_BASE_WIDTH,
+    height: Number.isFinite(saved.height) ? Math.max(360, Math.min(saved.height, 1600)) : STAGE_BASE_HEIGHT,
   }
 }
 
@@ -66,6 +75,8 @@ export class WindowManager {
   private mate: BrowserWindow | null = null
   private mateDragCursor: { x: number; y: number } | null = null
   private mateDragPos: number[] | null = null
+  private mateDrawerOpen = false
+  private mateCollapsedWidth = STAGE_BASE_WIDTH
   private excludeSelf = true
 
   constructor(private readonly deps: WindowDeps) {}
@@ -148,12 +159,52 @@ export class WindowManager {
     const tray = new Tray(windowIcon)
     tray.setToolTip('OpenGal')
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '打开 OpenGal', click: () => this.createMainWindow() },
+      { label: '召唤桌面舞台', click: () => this.openMateWindow() },
+      { label: '打开工作台', click: () => this.createMainWindow() },
       { type: 'separator' },
       { label: '退出', click: onQuit }
     ]))
     tray.on('click', () => this.createMainWindow())
     return tray
+  }
+
+  setMateIgnoreMouse(ignore: boolean): void {
+    if (!this.mate || this.mate.isDestroyed()) return
+    if (ignore && !this.mateDrawerOpen) {
+      this.mate.setIgnoreMouseEvents(true, { forward: true })
+    } else {
+      this.mate.setIgnoreMouseEvents(false)
+    }
+  }
+
+  /** 侧滑对话抽屉横向拓宽窗口，保持角色原本屏幕坐标不动，绝不纵向挤压或遮挡人物 */
+  setMateDrawerOpen(open: boolean): { open: boolean } {
+    if (!this.mate || this.mate.isDestroyed()) {
+      this.mateDrawerOpen = open
+      return { open }
+    }
+    if (this.mateDrawerOpen === open) return { open }
+
+    const bounds = this.mate.getBounds()
+    if (open) {
+      this.mateCollapsedWidth = bounds.width
+      const expandedWidth = bounds.width + STAGE_DRAWER_WIDTH
+      const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y }).workArea
+      const shiftLeft = bounds.x + expandedWidth > display.x + display.width
+      const nextX = shiftLeft ? Math.max(display.x, bounds.x - STAGE_DRAWER_WIDTH) : bounds.x
+      this.mateDrawerOpen = true
+      this.mate.setIgnoreMouseEvents(false)
+      this.mate.setBounds({ ...bounds, x: nextX, width: expandedWidth })
+    } else {
+      const targetWidth = Math.max(280, this.mateCollapsedWidth)
+      const delta = bounds.width - targetWidth
+      const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y }).workArea
+      const wasShiftedLeft = bounds.x + bounds.width >= display.x + display.width - 48
+      const nextX = wasShiftedLeft ? bounds.x + Math.max(0, delta) : bounds.x
+      this.mateDrawerOpen = false
+      this.mate.setBounds({ ...bounds, x: nextX, width: targetWidth })
+    }
+    return { open: this.mateDrawerOpen }
   }
 
   openMateWindow(): { success: true } {
@@ -185,7 +236,7 @@ export class WindowManager {
     this.mate.setContentProtection?.(this.excludeSelf)
     setUIState({ mate: { open: true } })
     const saveBounds = (): void => {
-      if (!this.mate || this.mate.isDestroyed()) return
+      if (!this.mate || this.mate.isDestroyed() || this.mateDrawerOpen) return
       try {
         const bounds = this.mate.getBounds()
         setUIState({ mate: { ...bounds, open: true } })
@@ -198,6 +249,7 @@ export class WindowManager {
     this.mate.on('move', saveBoundsSoon)
     this.loadRoute(this.mate, 'mate')
     this.mate.on('closed', () => {
+      this.mateDrawerOpen = false
       setUIState({ mate: { open: false } })
       this.mate = null
     })

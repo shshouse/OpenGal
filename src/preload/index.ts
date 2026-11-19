@@ -19,10 +19,36 @@ import type {
   ToolDefinition
 } from '@shared/types'
 import type { LogEntry } from '@shared/app/log'
+import type { DiscoveredModSummary } from '@core/mods/manifest'
+import type { LifeLogEntry, RoleMode, RoleStateSnapshot } from '@core/role/types'
+import type { WorkshopDraft } from '@core/workshop/types'
 import type { RoleOutfitChange } from '@shared/role'
 import type { MateControl, MateStatePayload } from '@shared/ui/mate'
 import type { UIState, UIStatePatch } from '@shared/ui/uiState'
 import type { StorageUsage } from '@shared/app/storage'
+
+export interface RuntimeRoleItemView {
+  roleId: string
+  displayName: string
+  mode: RoleMode
+  running: boolean
+  thinking: boolean
+  state: RoleStateSnapshot
+}
+
+export interface RuntimePoolSnapshotView {
+  focusedRoleId: string | null
+  runningRoleIds: string[]
+  roles: Record<string, RuntimeRoleItemView>
+}
+
+export interface AutonomousSpeakEvent {
+  roleId: string
+  line: string
+  mood: string
+  activity: string
+  ts: number
+}
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, ...args) as Promise<IpcResult<T>>
@@ -128,6 +154,77 @@ const api = {
         context
       )
   },
+  mods: {
+    list: () => invoke<Array<DiscoveredModSummary & { rootPath: string }>>(IpcChannels.mods.list)
+  },
+  runtime: {
+    snapshot: () => invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.snapshot),
+    setRunning: (roleId: string, running: boolean) =>
+      invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.setRunning, roleId, running),
+    setMode: (roleId: string, mode: RoleMode) =>
+      invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.setMode, roleId, mode),
+    focus: (roleId: string | null) =>
+      invoke<RuntimePoolSnapshotView>(IpcChannels.runtime.focus, roleId),
+    notifyUserActivity: (roleId: string) =>
+      invoke<boolean>(IpcChannels.runtime.userActivity, roleId),
+    triggerLifeTick: (roleId: string) =>
+      invoke<boolean>(IpcChannels.runtime.triggerLifeTick, roleId),
+    onChanged: (listener: (snapshot: RuntimePoolSnapshotView) => void) => {
+      const handler = (_: unknown, snapshot: RuntimePoolSnapshotView) => listener(snapshot)
+      ipcRenderer.on(IpcChannels.runtime.changed, handler)
+      return () => ipcRenderer.off(IpcChannels.runtime.changed, handler)
+    },
+    onAutonomousSpeak: (listener: (event: AutonomousSpeakEvent) => void) => {
+      const handler = (_: unknown, event: AutonomousSpeakEvent) => listener(event)
+      ipcRenderer.on(IpcChannels.runtime.autonomousSpeak, handler)
+      return () => ipcRenderer.off(IpcChannels.runtime.autonomousSpeak, handler)
+    }
+  },
+  workshop: {
+    list: () => invoke<WorkshopDraft[]>(IpcChannels.workshop.list),
+    get: (draftId: string) => invoke<WorkshopDraft | null>(IpcChannels.workshop.get, draftId),
+    save: (input: {
+      draftId?: string
+      name: string
+      displayName?: string
+      color?: string
+      language?: string
+      mode?: RoleMode
+      greeting?: string
+      examples?: Array<{ user: string; assistant: string }>
+      persona: {
+        description: string
+        personality: string
+        scenario?: string
+        rules?: string
+        userIdentity?: string
+        userTerm?: string
+      }
+      voice?: Partial<WorkshopDraft['voice']>
+      provenance?: Partial<WorkshopDraft['provenance']>
+    }) => invoke<WorkshopDraft>(IpcChannels.workshop.save, input),
+    delete: (draftId: string) => invoke<boolean>(IpcChannels.workshop.delete, draftId),
+    pickAsset: (draftId: string, kind: 'portrait' | 'voice') =>
+      invoke<WorkshopDraft | null>(IpcChannels.workshop.pickAsset, draftId, kind),
+    fetchAsset: (draftId: string, kind: 'portrait' | 'voice', url: string) =>
+      invoke<WorkshopDraft>(IpcChannels.workshop.fetchAsset, draftId, kind, url),
+    portraitPreview: (draftId: string) =>
+      invoke<string | null>(IpcChannels.workshop.portraitPreview, draftId),
+    finalizeRole: (draftId: string) =>
+      invoke<RoleCardEntry>(IpcChannels.workshop.finalizeRole, draftId),
+    exportMod: (draftId: string) =>
+      invoke<{ modPath: string; recipeOnly: boolean } | null>(IpcChannels.workshop.exportMod, draftId),
+    publishMikuMod: (draftId: string) =>
+      invoke<{ modPath: string; uploadUrl: string; recipeOnly: boolean }>(
+        IpcChannels.workshop.publishMikuMod,
+        draftId
+      ),
+    onUpdated: (listener: (draft: WorkshopDraft) => void) => {
+      const handler = (_: unknown, draft: WorkshopDraft) => listener(draft)
+      ipcRenderer.on(IpcChannels.workshop.updated, handler)
+      return () => ipcRenderer.off(IpcChannels.workshop.updated, handler)
+    }
+  },
   model: {
     resolveDefault: () => invoke<Live2DModelConfig | null>(IpcChannels.model.resolveDefault),
     resolveFromCard: (cardId: string) =>
@@ -137,13 +234,43 @@ const api = {
   },
   role: {
     list: () => invoke<RoleCardEntry[]>(IpcChannels.role.list),
+    templates: () => invoke<RoleCardEntry[]>(IpcChannels.role.templates),
     get: (id: string) => invoke<RoleCardEntry | null>(IpcChannels.role.get, id),
     voiceConfig: (id: string) =>
       invoke<Record<string, unknown> | null>(IpcChannels.role.voiceConfig, id),
     saveCard: (id: string, fields: RoleCardEditableFields) =>
       invoke<RoleCardSaveResult>(IpcChannels.role.saveCard, id, fields),
-    createCopy: (id: string, name?: string) =>
-      invoke<RoleCardEntry>(IpcChannels.role.createCopy, id, name),
+    createCopy: (id: string, name?: string, mode?: RoleMode) =>
+      invoke<RoleCardEntry>(IpcChannels.role.createCopy, id, name, mode),
+    createBlank: (input: {
+      name: string
+      displayName?: string
+      color?: string
+      language?: string
+      mode?: RoleMode
+      greeting?: string
+      persona: {
+        description: string
+        personality: string
+        scenario?: string
+        rules?: string
+        userIdentity?: string
+        userTerm?: string
+      }
+    }) => invoke<RoleCardEntry>(IpcChannels.role.createBlank, input),
+    delete: (id: string) => invoke<boolean>(IpcChannels.role.delete, id),
+    exportFolder: (id: string) => invoke<string | null>(IpcChannels.role.exportFolder, id),
+    getState: (id: string) => invoke<RoleStateSnapshot>(IpcChannels.role.getState, id),
+    patchState: (id: string, patch: Partial<RoleStateSnapshot>) =>
+      invoke<RoleStateSnapshot>(IpcChannels.role.patchState, id, patch),
+    lifeLogs: (id: string, limit?: number) =>
+      invoke<LifeLogEntry[]>(IpcChannels.role.lifeLogs, id, limit),
+    roleLogs: (id: string, limit?: number) =>
+      invoke<Array<{ ts: number; level: string; scope: string; message: string; detail?: string }>>(
+        IpcChannels.role.roleLogs,
+        id,
+        limit
+      ),
     onOutfitChanged: (listener: (change: RoleOutfitChange) => void) => {
       const handler = (_: unknown, change: RoleOutfitChange) => listener(change)
       ipcRenderer.on(IpcChannels.role.outfitChanged, handler)
@@ -190,6 +317,10 @@ const api = {
     close: () => mateControl('close'),
     dragStart: () => mateControl('dragStart'),
     dragMove: () => mateControl('dragMove'),
+    setIgnoreMouse: (ignore: boolean) => ipcRenderer.send(IpcChannels.mate.setIgnoreMouse, ignore),
+    setDrawerOpen: (open: boolean) =>
+      invoke<{ open: boolean }>(IpcChannels.mate.setDrawerOpen, open),
+    openStudio: () => invoke<boolean>(IpcChannels.mate.openStudio),
     setBubble: (text: string) => mateSync({ type: 'bubble', text }),
     emitPerformance: (payload: { emotion?: string; motion?: string; roleId?: string; speaking?: boolean }) =>
       mateSync({ type: 'performance', ...payload }),

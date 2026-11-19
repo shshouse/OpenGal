@@ -17,6 +17,7 @@ import { registerSystemIpc } from './systemIpc'
 import { registerLogsIpc } from './logsIpc'
 import { registerUIStateIpc } from './uiStateIpc'
 import { registerStorageIpc } from './storageIpc'
+import { registerRuntimeAndWorkshopIpc } from './runtimeIpc'
 
 export function registerIpc(windows: WindowManager): void {
   setMemoryDbLogger(logBus)
@@ -28,6 +29,7 @@ export function registerIpc(windows: WindowManager): void {
   setScreenWatchEnabled(readConfig().screen?.watch ?? false)
 
   registerConfigIpc(windows)
+  registerRuntimeAndWorkshopIpc()
   registerUIStateIpc()
   registerStorageIpc()
   registerLlmIpc()

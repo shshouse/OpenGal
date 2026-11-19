@@ -3,15 +3,16 @@ import { IpcChannels } from '@shared/app/ipc-channels'
 import type { AppConfig } from '@shared/types'
 import { readConfig, writeConfig } from '../services/config/store'
 import { resolveDefaultModel, scanModel, resolveModelFromCard } from '../services/role/modelScanner'
-import { listRoleCards, getRoleCard, readRoleVoiceConfig } from '../services/role/cardLoader'
+import { getRoleCard, listOwnedRoleCards, readRoleVoiceConfig } from '../services/role/cardLoader'
 import { saveRoleCard } from '../services/role/cardWriter'
 import { createRoleCopy } from '../services/role/roleCopy'
+import { focusRoleInPool, setRoleRunningInPool } from '../services/runtime/roleRuntimePool'
 import { warmupTTS } from '../services/tts/client'
 import { setScreenWatchEnabled } from '../services/perception/screenWatch'
 import type { WindowManager } from '../windows/windowManager'
 import { wrap } from './wrap'
 import { handleValidated } from './validated'
-import { configPatchSchema, roleCardEditableSchema, roleIdSchema } from '@shared/app/schemas'
+import { configPatchSchema, roleCardEditableSchema, roleIdSchema, roleModeSchema } from '@shared/app/schemas'
 import { z } from 'zod'
 
 export function registerConfigIpc(windows: WindowManager): void {
@@ -42,7 +43,7 @@ export function registerConfigIpc(windows: WindowManager): void {
     scanModel(folderPath, modelJsonFile),
   )
 
-  ipcMain.handle(IpcChannels.role.list, () => wrap(() => listRoleCards()))
+  ipcMain.handle(IpcChannels.role.list, () => wrap(() => listOwnedRoleCards()))
   handleValidated(IpcChannels.role.get, [z.string().min(1)], (id) => getRoleCard(id))
   handleValidated(IpcChannels.role.voiceConfig, [z.string().min(1)], (id) => {
     const card = getRoleCard(id)
@@ -51,7 +52,14 @@ export function registerConfigIpc(windows: WindowManager): void {
   handleValidated(IpcChannels.role.saveCard, [roleIdSchema, roleCardEditableSchema], (id, fields) =>
     saveRoleCard(id, fields),
   )
-  handleValidated(IpcChannels.role.createCopy, [roleIdSchema, z.string().max(64).optional()], (id, name) =>
-    createRoleCopy(id, name),
+  handleValidated(
+    IpcChannels.role.createCopy,
+    [roleIdSchema, z.string().max(64).optional(), roleModeSchema.optional()],
+    async (id, name, mode) => {
+      const created = createRoleCopy(id, name, mode)
+      await setRoleRunningInPool(created.id, true)
+      focusRoleInPool(created.id)
+      return created
+    },
   )
 }

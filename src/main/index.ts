@@ -14,6 +14,8 @@ import { flushMemoryDb } from './services/memory/db'
 import { shutdownPlugins } from './services/plugins/registry'
 import { logBus, initLogFile } from './services/infra/logBus'
 import { initUpdater } from './services/system/updater'
+import { listOwnedRoleCards } from './services/role/cardLoader'
+import { initRoleRuntimePool, shutdownRoleRuntimePool } from './services/runtime/roleRuntimePool'
 
 registerModProtocolSchemes()
 registerTTSServerCleanup()
@@ -63,10 +65,22 @@ app.whenReady().then(() => {
   logBus.info('app', `__dirname: ${__dirname}`)
   logBus.info('app', `mods 根目录: ${getModRoot()}`)
   logBus.info('app', `数据目录: ${getDataRoot()}`)
-  windows.createMainWindow()
+
+  void initRoleRuntimePool().then(() => {
+    const ownedRoles = listOwnedRoleCards()
+    if (ownedRoles.length > 0) {
+      windows.openMateWindow()
+    } else {
+      windows.createMainWindow()
+    }
+  })
 
   app.on('activate', () => {
-    windows.createMainWindow()
+    if (listOwnedRoleCards().length > 0) {
+      windows.openMateWindow()
+    } else {
+      windows.createMainWindow()
+    }
   })
 }).catch((err: Error) => {
   console.error('[fatal] 应用启动失败:', err.stack ?? err.message)
@@ -74,7 +88,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (quitting && process.platform !== 'darwin') {
     app.quit()
   }
 })
@@ -83,6 +97,7 @@ app.on('before-quit', () => {
   quitting = true
   tray?.destroy()
   tray = null
+  shutdownRoleRuntimePool()
   shutdownPlugins()
   flushMemoryDb()
   void stopTTSServer()
