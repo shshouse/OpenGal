@@ -1,6 +1,6 @@
 import type { RoleCardEntry, RoleMode } from '@shared/types'
 import { getDataRoot } from '../infra/paths'
-import { getOwnedRoleCard, getRoleCard } from './cardLoader'
+import { getOwnedRoleCard, getRoleCard, listRoleTemplatesDetailed } from './cardLoader'
 import { allocateUniqueRoleId, isFolderNameTaken, materializeRole } from './store'
 
 const MAX_NAME = 64
@@ -24,7 +24,9 @@ export function createRoleCopy(
   mode?: RoleMode,
   dataRoot = getDataRoot(),
 ): RoleCardEntry {
-  const source = getRoleCard(roleId)
+  // 模板优先：模组模板与已创建角色可能共用同一个 id，实例化必须取模组里的原始模板
+  const source =
+    listRoleTemplatesDetailed().find((item) => item.entry.id === roleId)?.entry ?? getRoleCard(roleId)
   if (!source) throw new Error('找不到要实例化的角色模板')
 
   const defaultBase = source.builtin

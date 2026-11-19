@@ -56,11 +56,13 @@ export function SpriteStage({ frames, roleId, sleeping, mate = false }: {
     return () => window.clearInterval(timer)
   }, [speaking, sleeping])
 
-  const src = blink && mouth ? frames.blinkTalk ?? frames.blink ?? frames.idle
+  // 约定目录里的表情优先；没有对应文件时才回落到眨眼、口型和固定槽位
+  const emotionFrame = emotion ? frames.emotions?.[emotion] : undefined
+  const src = emotionFrame ?? (blink && mouth ? frames.blinkTalk ?? frames.blink ?? frames.idle
     : blink ? frames.blink ?? frames.idle
       : mouth ? frames.talk ?? frames.idle
         : ['happy', 'excited', 'relaxed'].includes(emotion) ? frames.happy ?? frames.idle
-          : ['sad', 'worried'].includes(emotion) ? frames.sad ?? frames.idle : frames.idle
+          : ['sad', 'worried'].includes(emotion) ? frames.sad ?? frames.idle : frames.idle)
   return <div className="flex h-full w-full items-end justify-center overflow-hidden" style={{ background: mate ? 'transparent' : undefined }}>
     <img src={src} alt="角色立绘" draggable={false} className={`h-full max-w-full object-contain object-bottom ${sleeping ? '' : 'sprite-breathe'}`} style={{ filter: sleeping ? 'saturate(0.55) brightness(0.7)' : undefined }}
       onLoad={() => { if (!mate) useStartupStore.getState().reportLive2d('ok') }}

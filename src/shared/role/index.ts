@@ -50,6 +50,8 @@ export interface SpriteFrames {
   blinkTalk?: string
   happy?: string
   sad?: string
+  /** sprites/emotions/<name>.png：文件名即表情名，不需要在卡片里声明 */
+  emotions?: Record<string, string>
 }
 
 export interface RoleVoiceConfig {

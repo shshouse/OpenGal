@@ -102,7 +102,27 @@ function spriteFramesOf(rootPath: string, sprite: RoleSpriteConfig, owned: boole
     blinkTalk: frame('blink-talk.png'),
     happy: frame('happy.png'),
     sad: frame('sad.png'),
+    ...(emotionFramesOf(rootPath, path.join(rootPath, sprite.spriteDir), owned) ?? {}),
   }
+}
+
+/** 约定目录 sprites/emotions/：文件名就是表情名，加一张图就多一种表情 */
+function emotionFramesOf(
+  rootPath: string,
+  spriteDir: string,
+  owned: boolean,
+): { emotions?: Record<string, string> } | undefined {
+  const dir = path.join(spriteDir, 'emotions')
+  if (!fs.existsSync(dir)) return undefined
+  const emotions: Record<string, string> = {}
+  for (const file of fs.readdirSync(dir)) {
+    if (!/\.png$/i.test(file)) continue
+    const name = file.slice(0, -4).trim()
+    if (!name) continue
+    const url = cardFileUrl(rootPath, path.relative(rootPath, path.join(dir, file)), owned)
+    if (url) emotions[name] = url
+  }
+  return Object.keys(emotions).length ? { emotions } : undefined
 }
 
 function loadCardFromFolder(folderName: string, folderPath: string, owned: boolean): LoadedRoleCard | null {

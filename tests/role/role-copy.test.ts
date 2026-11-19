@@ -4,6 +4,7 @@ import type { RoleCardEntry } from '@shared/types'
 const state = vi.hoisted(() => ({
   dataRoot: 'C:/fake-data',
   source: null as RoleCardEntry | null,
+  template: null as RoleCardEntry | null,
   created: null as RoleCardEntry | null,
   taken: [] as string[],
   nextId: 'kaltsit',
@@ -21,6 +22,9 @@ vi.mock('../../src/main/services/infra/paths', () => ({
 vi.mock('../../src/main/services/role/cardLoader', () => ({
   getRoleCard: vi.fn(() => state.source),
   getOwnedRoleCard: vi.fn(() => state.created),
+  listRoleTemplatesDetailed: vi.fn(() =>
+    state.template ? [{ entry: state.template, issues: [] }] : [],
+  ),
 }))
 vi.mock('../../src/main/services/role/store', () => ({
   allocateUniqueRoleId: vi.fn(() => state.nextId),
@@ -63,6 +67,7 @@ function builtinCard(): RoleCardEntry {
 beforeEach(() => {
   state.source = null
   state.created = null
+  state.template = null
   state.taken = []
   state.nextId = 'kaltsit'
   state.calls = []
@@ -97,6 +102,25 @@ describe('从模组模板创建独立角色实例', () => {
 
     expect(copied.id).toBe('kaltsit-2')
     expect(state.calls[0]?.displayName).toBe('凯尔希 2')
+    expect(state.calls[0]?.roleId).toBe('kaltsit-2')
+  })
+
+  it('模组模板与已创建角色同 id 时，仍从模组模板实例化', () => {
+    state.source = {
+      ...builtinCard(),
+      builtin: false,
+      displayName: "凯尔希 Kal'tsit（副本）",
+      folderName: "凯尔希 Kal'tsit",
+      rootPath: "C:/fake-data/roles/凯尔希 Kal'tsit",
+    }
+    state.template = builtinCard()
+    state.created = { ...builtinCard(), builtin: false }
+    state.nextId = 'kaltsit-2'
+
+    createRoleCopy('kaltsit')
+
+    expect(state.calls[0]?.templateFolder).toBe('凯尔希')
+    expect(state.calls[0]?.displayName).toBe('凯尔希')
     expect(state.calls[0]?.roleId).toBe('kaltsit-2')
   })
 })

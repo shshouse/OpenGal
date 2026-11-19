@@ -7,6 +7,16 @@ import type { RolePersona } from '@shared/types'
 const ROLES_DIR = 'roles'
 const META_FILE = 'meta.json'
 const SUMMARY_FILE = 'summary.json'
+// 副本是新角色实例：记忆库与聊天附件不随目录复制。
+// 活动中的 SQLite 文件带 -wal/-shm，直接拷贝也可能不一致。
+const COPY_SKIP_ENTRIES = new Set([
+  'memory.db',
+  'memory.db-wal',
+  'memory.db-shm',
+  'logs',
+  'attachments',
+  SUMMARY_FILE,
+])
 const LF = String.fromCharCode(10)
 
 export interface RoleMeta {
@@ -141,9 +151,14 @@ function ensureSelfContainedSubdirs(roleDir: string): void {
   }
 }
 
-function copyDirectorySync(srcDir: string, destDir: string): void {
+function copyDirectorySync(
+  srcDir: string,
+  destDir: string,
+  skipTopLevel?: ReadonlySet<string>,
+): void {
   fs.mkdirSync(destDir, { recursive: true })
   for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (skipTopLevel?.has(entry.name)) continue
     const srcPath = path.join(srcDir, entry.name)
     const destPath = path.join(destDir, entry.name)
     if (entry.isDirectory()) {
@@ -169,7 +184,7 @@ export function materializeRole(
   if (fs.existsSync(target)) throw new Error(`角色目录已存在：${folder}`)
 
   const roleId = opts.roleId ?? allocateUniqueRoleId(dataRoot, template.id)
-  copyDirectorySync(templateDir, target)
+  copyDirectorySync(templateDir, target, COPY_SKIP_ENTRIES)
   patchMaterializedCardFile(target, { id: roleId, displayName, mode: opts.mode })
   ensureSelfContainedSubdirs(target)
 

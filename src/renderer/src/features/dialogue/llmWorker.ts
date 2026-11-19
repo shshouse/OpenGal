@@ -13,6 +13,7 @@ import { getAvailableExpressions, getAvailableMotionGroups } from '@/features/li
 import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getActiveRoleCard } from '@/features/pipeline/activeCard'
+import { useRoleStore } from '@/features/role/roleStore'
 import { calibratePromptTokens, computeContextUsage, estimateTokens, messageText, promptRawTokens, type ContextUsage } from './llmContext'
 import { compressHistory, getCachedSummariesText } from './llmCompression'
 import { fetchEnvBlock } from './llmEnv'
@@ -51,12 +52,19 @@ export function getLastRawResponse(): string {
   return accumulatedRaw
 }
 
+/** 角色自带的 sprite 表情优先；Live2D 角色的表情来自模型定义 */
+function resolveEmotions(cardId: string | null | undefined): string[] {
+  const entry = useRoleStore.getState().list.find((item) => item.id === cardId)
+  const fromSprite = Object.keys(entry?.spriteFrames?.emotions ?? {})
+  return fromSprite.length ? fromSprite : getAvailableExpressions()
+}
+
 export function getContextUsage(): ContextUsage | null {
   const card = getActiveRoleCard()
   if (!card) return null
   const history = useChatStore.getState().messages
   const motionGroups = getAvailableMotionGroups()
-  const emotions = getAvailableExpressions()
+  const emotions = resolveEmotions(card?.id)
   const memoryBlock = getMemorySnapshot(card.id) ?? undefined
   const systemContent = buildSystemPrompt(card, motionGroups, memoryBlock, false, emotions)
   return computeContextUsage(systemContent, memoryBlock, history, resolveTurnBudget(), getCachedSummariesText())
@@ -173,7 +181,7 @@ export function startLLMWorker(): () => void {
       motionGroups,
       memoryBlock ?? undefined,
       tools.length > 0,
-      getAvailableExpressions(),
+      resolveEmotions(card?.id),
       { selfState, styleQuery: userText },
     )
     const compressedHistory = await compressHistory(
