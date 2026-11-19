@@ -116,6 +116,10 @@ function startRuntimePoolBridge(): () => void {
     for (const seg of parsed.segments) {
       pipelineBus.emit('llm:dialog', {
         name: roleName,
+        roleId: event.roleId,
+        segmentId: crypto.randomUUID(),
+        language: activeCard.language,
+        turnStartedAt: event.ts,
         text: seg.text,
         emotion: seg.emotion,
         effect: seg.motion,
