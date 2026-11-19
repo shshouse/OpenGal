@@ -13,6 +13,8 @@ export function useChatPipeline() {
 
   useEffect(() => {
     const off = pipelineBus.on('llm:done', (msg) => {
+      // 没有进行中的对话轮时（例如外部主动播报）不落库，否则会重复写入上一条消息
+      if (!useChatStore.getState().isSending) return
       const toolCallsSnapshot = useToolCallsStore.getState().records
       if (!msg.ok) {
         replaceError(msg.error || 'LLM stream failed')

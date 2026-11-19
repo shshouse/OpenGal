@@ -35,6 +35,12 @@ export interface LifeTickContext {
 const MIN_TICK_SEC = 20
 const MAX_TICK_SEC = 1800
 const DEFAULT_TICK_SEC = 90
+const RECORD_LANGUAGE = '简体中文'
+const INLINE_PERFORMANCE_TAG = /<\s*[ea]\s*:\s*[^<>]*?\s*>/gi
+
+function stripPerformanceTags(text: string): string {
+  return text.replace(INLINE_PERFORMANCE_TAG, '').replace(/\s{2,}/g, ' ').trim()
+}
 
 export function clampTickSec(sec: unknown): number {
   const n = typeof sec === 'number' ? sec : Number(sec)
@@ -61,6 +67,8 @@ export function buildLifeTickMessages(ctx: LifeTickContext): Array<{ role: 'syst
     '',
     '这不是被动问答，而是你自己的日常生活切片。你可以专注做自己的事（看感兴趣的内容、写日记、休息、换衣服、观察桌面），只有在确实有话想分享或关心对方时才选择 speak。',
     ctx.language ? `如果选择 speak，line 台词必须使用 ${ctx.language} 语言，可带 <e:表情> 标签。` : '',
+    `除 speak 的 line 外，thought、activity、shortTermGoal 以及 write_diary 的 title 和 content 一律使用${RECORD_LANGUAGE}，与 OpenGal 界面语言保持一致。`,
+    '不要在 thought、activity、日记正文里输出 <e:...> 一类的表情标签。',
     !ctx.canSpeakToUser ? '注意：当前禁止主动打扰用户（不可选 speak），请做你自己的事。' : '',
     outfitsLine,
     '',
@@ -106,7 +114,7 @@ export function parseLifeDecision(raw: string, allowSpeak = true): LifeDecision 
   const match = raw.match(/\{[\s\S]*\}/)
   if (!match) {
     return {
-      thought: raw.trim().slice(0, 120) || '安静待了一会儿',
+      thought: stripPerformanceTags(raw).slice(0, 120) || '安静待了一会儿',
       mood: 'neutral',
       energyDelta: 0,
       activity: '安静待机',
@@ -117,14 +125,17 @@ export function parseLifeDecision(raw: string, allowSpeak = true): LifeDecision 
 
   try {
     const parsed = JSON.parse(match[0]) as Record<string, unknown>
-    const thought = typeof parsed.thought === 'string' ? parsed.thought.trim().slice(0, 300) : ''
+    const thought =
+      typeof parsed.thought === 'string' ? stripPerformanceTags(parsed.thought).slice(0, 300) : ''
     const mood = typeof parsed.mood === 'string' && parsed.mood.trim() ? parsed.mood.trim().slice(0, 32) : 'neutral'
     const activity =
       typeof parsed.activity === 'string' && parsed.activity.trim()
-        ? parsed.activity.trim().slice(0, 48)
+        ? stripPerformanceTags(parsed.activity).slice(0, 48)
         : '安静待机'
     const shortTermGoal =
-      typeof parsed.shortTermGoal === 'string' ? parsed.shortTermGoal.trim().slice(0, 120) : undefined
+      typeof parsed.shortTermGoal === 'string'
+        ? stripPerformanceTags(parsed.shortTermGoal).slice(0, 120)
+        : undefined
     const nextTickSec = clampTickSec(parsed.nextTickSec)
     const energyDelta = typeof parsed.energyDelta === 'number' ? parsed.energyDelta : 0
 
@@ -136,12 +147,15 @@ export function parseLifeDecision(raw: string, allowSpeak = true): LifeDecision 
 
     let action: LifeAction = { type: 'rest' }
     if (type === 'speak' && allowSpeak && typeof rawAction.line === 'string' && rawAction.line.trim()) {
-      action = { type: 'speak', line: rawAction.line.trim() }
+      action = { type: 'speak', line: stripPerformanceTags(rawAction.line) }
     } else if (type === 'write_diary' && typeof rawAction.content === 'string' && rawAction.content.trim()) {
       action = {
         type: 'write_diary',
-        title: typeof rawAction.title === 'string' && rawAction.title.trim() ? rawAction.title.trim().slice(0, 60) : '随笔',
-        content: rawAction.content.trim().slice(0, 1000),
+        title:
+          typeof rawAction.title === 'string' && rawAction.title.trim()
+            ? stripPerformanceTags(rawAction.title).slice(0, 60)
+            : '随笔',
+        content: stripPerformanceTags(rawAction.content).slice(0, 1000),
       }
     } else if (type === 'search_interest' && typeof rawAction.query === 'string' && rawAction.query.trim()) {
       action = { type: 'search_interest', query: rawAction.query.trim().slice(0, 80) }

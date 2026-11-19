@@ -159,7 +159,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true 
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="relative flex h-full min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
         onScroll={handleScroll}

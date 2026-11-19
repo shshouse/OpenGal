@@ -8,6 +8,7 @@ import {
 import type { RoleMode, RoleStateSnapshot } from '@core/role/types'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import { getErrorMessage } from '@shared/app/errors'
+import { summarizeToolResult } from '@shared/dialogue/toolSummary'
 import type { ChatMessage, RoleCardEntry } from '@shared/types'
 import { readConfig, writeConfig } from '../config/store'
 import { logBus } from '../infra/logBus'
@@ -201,11 +202,11 @@ async function performLifeAction(
     })
     try {
       const searchRes = await handleWebSearch(action.query)
-      const digest = searchRes.replace(/\s+/g, ' ').slice(0, 360)
+      const digest = summarizeToolResult('web_search', searchRes)
       appendLifeLog(roleId, {
         kind: 'observation',
         title: `检索：${action.query}`,
-        content: `${thought} | 摘要：${digest}`,
+        content: `${thought} | ${digest}`,
         mood,
       })
     } catch (err) {

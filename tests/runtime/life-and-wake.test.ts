@@ -80,6 +80,38 @@ describe('Life 自主认知循环决策解析与文风锚定', () => {
     expect(fallback.action.type).toBe('rest')
   })
 
+  it('生活记录与日记统一用界面语言，表情标签不写进正文', () => {
+    const state = createDefaultRoleState(10_000)
+    const msgs = buildLifeTickMessages({
+      now: 10_000,
+      roleName: '凯尔希',
+      language: '日语',
+      personaSummary: '冷静的医生',
+      state,
+      recentLifeLogs: [],
+      recentChatLines: [],
+      canSpeakToUser: true,
+    })
+    expect(msgs[0]?.content).toContain('一律使用简体中文')
+
+    const decision = parseLifeDecision(
+      JSON.stringify({
+        thought: '……ドクター。<e:thinking>まだ席にいる',
+        mood: 'thinking',
+        activity: '照合中<e:neutral>',
+        action: { type: 'speak', line: 'こんにちは<e:happy>、ドクター' },
+        nextTickSec: 60,
+      }),
+    )
+    expect(decision.thought).not.toContain('<e:')
+    expect(decision.activity).not.toContain('<e:')
+    expect(decision.action.type).toBe('speak')
+    if (decision.action.type === 'speak') {
+      expect(decision.action.line).toBe('こんにちは、ドクター')
+    }
+  })
+
+
   it('按当前话题动态检索最贴近的角色原声台词作口癖锚定', () => {
     const examples = [
       { user: '身体不舒服', assistant: '先坐下，把最近的作息如实告诉我。' },

@@ -107,6 +107,7 @@ function startRuntimePoolBridge(): () => void {
     useRoleRuntimeStore.getState().hydrate(map)
   })
   const offSpeak = window.opengal.runtime?.onAutonomousSpeak?.((event) => {
+    // 主动搭话不是对话轮：不发 llm:done，否则对话管线会把上一次的原始响应重复落库
     void useChatStore.getState().reloadSession(event.roleId)
     const activeCard = useRoleStore.getState().getActive()
     if (!activeCard || event.roleId !== activeCard.id) return
@@ -120,7 +121,6 @@ function startRuntimePoolBridge(): () => void {
         effect: seg.motion,
       })
     }
-    pipelineBus.emit('llm:done', { ok: true })
   })
   return () => {
     offChanged?.()

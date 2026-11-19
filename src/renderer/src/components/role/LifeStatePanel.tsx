@@ -19,6 +19,15 @@ const KIND_LABELS: Record<string, string> = {
   thought: '独白',
 }
 
+function formatLifeTime(ts: number): string {
+  return new Date(ts).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function LifeStatePanel({ role, onDeleted }: Props): React.JSX.Element {
   const [state, setState] = React.useState<RoleStateSnapshot | null>(null)
   const [logs, setLogs] = React.useState<LifeLogEntry[]>([])
@@ -31,6 +40,9 @@ export function LifeStatePanel({ role, onDeleted }: Props): React.JSX.Element {
   const [error, setError] = React.useState('')
 
   const currentMode: RoleMode = role.mode ?? 'agent'
+
+  const diaries = logs.filter((entry) => entry.kind === 'diary')
+  const traces = logs.filter((entry) => entry.kind !== 'diary')
 
   const loadData = React.useCallback(async () => {
     const [stateRes, logRes] = await Promise.all([
@@ -234,14 +246,37 @@ export function LifeStatePanel({ role, onDeleted }: Props): React.JSX.Element {
       </section>
 
       <section className="flex flex-col gap-3 border-t pt-5">
-        <h2 className="text-sm font-semibold">自主生活轨迹与日记</h2>
-        {logs.length === 0 ? (
+        <h2 className="text-sm font-semibold">日记</h2>
+        {diaries.length === 0 ? (
           <div className="rounded-lg border bg-card px-4 py-6 text-center text-xs text-muted-foreground">
-            暂无生活轨迹记录。开启 Life 模式后，她的内心独白、浏览见闻与随笔日记会记录在这里。
+            Life 模式下她偶尔会把当天的心情写在这里。
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {diaries.map((entry) => (
+              <article key={entry.id} className="rounded-lg border bg-card px-4 py-3">
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{entry.title || '随笔'}</span>
+                  <span className="tabular-nums">{formatLifeTime(entry.ts)}</span>
+                </div>
+                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                  {entry.content}
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3 border-t pt-5">
+        <h2 className="text-sm font-semibold">生活轨迹</h2>
+        {traces.length === 0 ? (
+          <div className="rounded-lg border bg-card px-4 py-6 text-center text-xs text-muted-foreground">
+            暂无生活轨迹。开启 Life 模式后，她的内心独白、浏览见闻与自主行动会记录在这里。
           </div>
         ) : (
           <div className="divide-y rounded-lg border bg-card">
-            {logs.map((entry) => (
+            {traces.map((entry) => (
               <div key={entry.id} className="flex flex-col gap-1 px-3.5 py-3">
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -251,12 +286,7 @@ export function LifeStatePanel({ role, onDeleted }: Props): React.JSX.Element {
                     {entry.title ? <span className="font-medium text-foreground">{entry.title}</span> : null}
                   </div>
                   <span className="tabular-nums">
-                    {new Date(entry.ts).toLocaleString('zh-CN', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatLifeTime(entry.ts)}
                   </span>
                 </div>
                 <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
