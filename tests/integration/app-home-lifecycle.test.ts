@@ -5,78 +5,75 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => {
   ;(globalThis as unknown as { window: Record<string, unknown> }).window = {}
   return {
-    homeProps: null as null | { onToggleRunning: (id: string) => Promise<void> },
     configSet: vi.fn(),
+    runtimeSetRunning: vi.fn(),
   }
 })
 
 vi.mock('@/components/shell/WindowBar', () => ({ WindowBar: () => null }))
 vi.mock('@/components/shell/NavRail', () => ({ NavRail: () => null }))
-vi.mock('@/components/chat/RoleSessionList', () => ({
-  RoleSessionList: () => React.createElement('div', null, 'SESSION_LIST'),
+vi.mock('@/components/stage/RoleStageCanvas', () => ({
+  RoleStageCanvas: () => React.createElement('div', null, 'LEFT_STAGE'),
 }))
-vi.mock('@/components/home/HomePage', () => ({
-  HomePage: (props: { onToggleRunning: (id: string) => Promise<void> }) => {
-    state.homeProps = props
-    return React.createElement('div', null, 'HOME')
-  },
+vi.mock('@/components/chat/ChatThread', () => ({
+  ChatThread: () => React.createElement('div', null, 'CHAT_THREAD'),
 }))
-vi.mock('@/components/chat/GalgameChatPanel', () => ({
-  GalgameChatPanel: () => React.createElement('div', null, 'CHAT_PANEL'),
+vi.mock('@/components/chat/ChatComposerBar', () => ({
+  ChatComposerBar: () => React.createElement('div', null, 'CHAT_COMPOSER'),
 }))
-vi.mock('@/components/dashboard/RoleDashboard', () => ({ RoleDashboard: () => null }))
-vi.mock('@/components/live2d/Live2DStage', () => ({ Live2DStage: () => null }))
-vi.mock('@/components/sprite/SpriteStage', () => ({ SpriteStage: () => null }))
+vi.mock('@/components/chat/ContextUsageIndicator', () => ({
+  ContextUsageIndicator: () => null,
+}))
+vi.mock('@/components/role/RoleCreatorPanel', () => ({
+  RoleCreatorPanel: () => React.createElement('div', null, 'ROLE_CREATOR'),
+}))
+vi.mock('@/components/workshop/RoleWorkshopPanel', () => ({
+  RoleWorkshopPanel: () => React.createElement('div', null, 'WORKSHOP'),
+}))
 vi.mock('@/components/settings/SettingsCenter', () => ({ SettingsCenter: () => null }))
 vi.mock('@/components/market/MarketPage', () => ({ MarketPage: () => null }))
 vi.mock('@/components/logs/LogsPanel', () => ({ LogsPanel: () => null }))
 
-import App from '../../src/renderer/src/App'
-import { useRoleStore } from '../../src/renderer/src/features/role/roleStore'
-import { useRoleRuntimeStore } from '../../src/renderer/src/features/role/roleRuntimeStore'
+import App from '@/App'
+import { useRoleStore } from '@/features/role/roleStore'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 
-describe('App home lifecycle', () => {
+describe('Studio 双栏工作台与多角色实例池交互', () => {
   beforeEach(() => {
-    state.homeProps = null
     state.configSet = vi.fn()
-    useRoleStore.setState({
-      activeId: 'a',
-      list: [
-        { id: 'a', name: 'A', performance: { mode: 'auto' }, persona: { description: '', personality: '' } },
-        { id: 'b', name: 'B', performance: { mode: 'auto' }, persona: { description: '', personality: '' } },
-      ] as never,
-      setActive: async (id: string) => { useRoleStore.setState({ activeId: id }) },
-    })
+    state.runtimeSetRunning = vi.fn()
+    const list = [
+      { id: 'a', name: 'A', performance: { mode: 'auto' }, persona: { description: '', personality: '' } },
+      { id: 'b', name: 'B', performance: { mode: 'auto' }, persona: { description: '', personality: '' } },
+    ] as never
+    useRoleStore.setState({ activeId: 'a', list })
+    Object.assign(useRoleStore.getInitialState(), { activeId: 'a', list })
+
     useRoleRuntimeStore.setState({ byId: { a: true, b: false } })
+    Object.assign(useRoleRuntimeStore.getInitialState(), { byId: { a: true, b: false } })
+
     vi.stubGlobal('window', {
       opengal: {
         config: { set: state.configSet },
+        runtime: { setRunning: state.runtimeSetRunning },
       },
     })
   })
 
-  it('主页仍保留会话列表与聊天面板挂载', () => {
+  it('同时挂载左侧实时角色舞台与右侧无遮挡对话工作区，不再挂载三栏会话列表', () => {
     const html = renderToString(React.createElement(App))
-    expect(html).toContain('HOME')
-    expect(html).toContain('SESSION_LIST')
-    expect(html).toContain('CHAT_PANEL')
+    expect(html).toContain('LEFT_STAGE')
+    expect(html).toContain('CHAT_THREAD')
+    expect(html).toContain('CHAT_COMPOSER')
+    expect(html).toContain('回到桌面陪伴')
+    expect(html).not.toContain('SESSION_LIST')
   })
 
-  it('主页切换后台角色运行状态不改变当前角色', async () => {
-    state.configSet.mockResolvedValue({ success: true, data: {} })
-    renderToString(React.createElement(App))
-    await state.homeProps!.onToggleRunning('b')
-
-    expect(useRoleStore.getState().activeId).toBe('a')
-    expect(useRoleRuntimeStore.getState().byId.b).toBe(true)
-  })
-
-  it('配置保存失败时运行状态保持原值', async () => {
-    state.configSet.mockResolvedValue({ success: false, error: 'disk full' })
-    renderToString(React.createElement(App))
-    await state.homeProps!.onToggleRunning('b')
-
-    expect(useRoleStore.getState().activeId).toBe('a')
-    expect(useRoleRuntimeStore.getState().byId.b).toBe(false)
+  it('无已创建角色时展示创建角色引导入口', () => {
+    useRoleStore.setState({ activeId: null, list: [] })
+    Object.assign(useRoleStore.getInitialState(), { activeId: null, list: [] })
+    const html = renderToString(React.createElement(App))
+    expect(html).toContain('还没有创建角色')
+    expect(html).toContain('立即创建角色')
   })
 })

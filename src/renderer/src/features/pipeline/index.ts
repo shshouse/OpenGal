@@ -11,9 +11,12 @@ import { startASRBridge } from '@/features/asr/asrStore'
 import { startSubtitleWorker, useSubtitleStore } from '@/features/speech/subtitles'
 import { startSpokenLineBridge } from '@/features/speech/spokenLine'
 import { subtitleText } from '@shared/dialogue/subtitles'
+import { parsePerformance } from '@shared/dialogue/protocol'
 import { startBargeInBridge } from './bargeIn'
 import { startActivityBridge } from '@/features/activity/activityBridge'
 import { useLogsStore } from '@/features/logs/logsStore'
+import { useRoleStore } from '@/features/role/roleStore'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 
 export { pipelineBus, setActiveRoleCard }
 export type { MessageHandler } from './handlerChain'
@@ -95,6 +98,36 @@ function startMateBubbleBridge(): () => void {
   }
 }
 
+function startRuntimePoolBridge(): () => void {
+  const offChanged = window.opengal.runtime?.onChanged?.((snap) => {
+    const map: Record<string, boolean> = {}
+    for (const [id, item] of Object.entries(snap.roles)) {
+      map[id] = item.running
+    }
+    useRoleRuntimeStore.getState().hydrate(map)
+  })
+  const offSpeak = window.opengal.runtime?.onAutonomousSpeak?.((event) => {
+    void useChatStore.getState().reloadSession(event.roleId)
+    const activeCard = useRoleStore.getState().getActive()
+    if (!activeCard || event.roleId !== activeCard.id) return
+    const roleName = activeCard.displayName ?? activeCard.name
+    const parsed = parsePerformance(event.line)
+    for (const seg of parsed.segments) {
+      pipelineBus.emit('llm:dialog', {
+        name: roleName,
+        text: seg.text,
+        emotion: seg.emotion,
+        effect: seg.motion,
+      })
+    }
+    pipelineBus.emit('llm:done', { ok: true })
+  })
+  return () => {
+    offChanged?.()
+    offSpeak?.()
+  }
+}
+
 export function startPipeline(): PipelineHandle {
   const stopTrace = installPipelineTrace()
   const stopSubtitles = startSubtitleWorker()
@@ -115,8 +148,10 @@ export function startPipeline(): PipelineHandle {
   const stopMateBubble = startMateBubbleBridge()
   const stopSpokenLine = startSpokenLineBridge()
   const stopInitiative = startInitiative()
+  const stopRuntimePool = startRuntimePoolBridge()
   return {
     dispose: () => {
+      stopRuntimePool()
       stopTrace()
       stopActivity()
       stopInitiative()

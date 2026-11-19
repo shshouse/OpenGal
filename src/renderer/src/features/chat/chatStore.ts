@@ -38,6 +38,7 @@ interface ChatState {
   clear: () => void
   switchSession: (roleId: string | null) => void
   ensureHydrated: (roleId: string) => Promise<void>
+  reloadSession: (roleId: string) => Promise<void>
 }
 
 function buildUserContent(text: string, images?: string[]): ChatMessage['content'] {
@@ -168,6 +169,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error('[chatStore] 历史加载失败:', err.message)
       return null
     })
+    if (!res || !res.success) return
+    const loaded = (Array.isArray(res.data) ? res.data : []) as (
+      | PersistedAssistantMessage
+      | PersistedUserMessage
+    )[]
+    set((state) => {
+      const sessions = { ...state.sessions, [roleId]: { messages: loaded } }
+      const hydratedIds = { ...state.hydratedIds, [roleId]: true as const }
+      if (state.sessionId === roleId) {
+        suppressPersist++
+        return { sessions, hydratedIds, messages: loaded }
+      }
+      return { sessions, hydratedIds }
+    })
+  },
+  reloadSession: async (roleId) => {
+    const res = await window.opengal.chatHistory?.load?.(roleId).catch(() => null)
     if (!res || !res.success) return
     const loaded = (Array.isArray(res.data) ? res.data : []) as (
       | PersistedAssistantMessage

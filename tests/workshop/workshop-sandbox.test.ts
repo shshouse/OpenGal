@@ -10,8 +10,12 @@ import {
 } from '../../src/main/services/workshop/roleWorkshop'
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'og-workshop-test-'))
+const prevDataDir = process.env.OPENGAL_DATA_DIR
+process.env.OPENGAL_DATA_DIR = path.join(tmpRoot, 'data')
 
 afterAll(() => {
+  if (prevDataDir === undefined) delete process.env.OPENGAL_DATA_DIR
+  else process.env.OPENGAL_DATA_DIR = prevDataDir
   fs.rmSync(tmpRoot, { recursive: true, force: true })
 })
 

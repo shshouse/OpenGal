@@ -43,6 +43,8 @@ export function startInitiative(): () => void {
       if (!policy.enabled) return
       const activeId = useRoleStore.getState().activeId
       if (!isRoleRunning(useRoleRuntimeStore.getState().byId, activeId)) return
+      const activeCard = useRoleStore.getState().list.find((c) => c.id === activeId)
+      if (activeCard?.mode === 'life') return
       if (useChatStore.getState().isSending) return
       const envRes = await window.opengal.env.get()
       const env = envRes.success ? (envRes.data ?? null) : null

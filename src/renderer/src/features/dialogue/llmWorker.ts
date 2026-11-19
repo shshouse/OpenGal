@@ -155,20 +155,26 @@ export function startLLMWorker(): () => void {
     if (!card) return
     const stale = (): boolean => myTurn !== turnSeq
     const turnStartedAt = Date.now()
+    void window.opengal.runtime?.notifyUserActivity?.(card.id)?.catch(() => {})
     const history = useChatStore.getState().messages
     const motionGroups = getAvailableMotionGroups()
-    const [memoryBlock, toolsResp] = await Promise.all([
+    const [memoryBlock, toolsResp, stateResp] = await Promise.all([
       fetchRelevantMemory(card.id, userText),
       window.opengal.tools.list(),
+      window.opengal.role.getState
+        ? window.opengal.role.getState(card.id).catch(() => null)
+        : Promise.resolve(null),
     ])
     if (stale()) return
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
+    const selfState = stateResp && stateResp.success ? (stateResp.data ?? null) : null
     const systemContent = buildSystemPrompt(
       card,
       motionGroups,
       memoryBlock ?? undefined,
       tools.length > 0,
       getAvailableExpressions(),
+      { selfState, styleQuery: userText },
     )
     const compressedHistory = await compressHistory(
       card.id,

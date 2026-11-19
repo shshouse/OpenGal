@@ -1,29 +1,31 @@
 import * as React from 'react'
-import { X } from 'lucide-react'
-import { WindowBar } from '@/components/shell/WindowBar'
-import { NavRail } from '@/components/shell/NavRail'
-import { RoleSessionList } from '@/components/chat/RoleSessionList'
-import { GalgameChatPanel } from '@/components/chat/GalgameChatPanel'
-import { Live2DStage } from '@/components/live2d/Live2DStage'
-import { SpriteStage } from '@/components/sprite/SpriteStage'
-import { SpineStage } from '@/components/spine/SpineStage'
-import { HomePage } from '@/components/home/HomePage'
-import { LogsPanel } from '@/components/logs/LogsPanel'
-import type { AppConfig, Live2DModelConfig } from '@shared/types'
-import { startPipeline } from '@/features/pipeline'
-import { useRoleStore } from '@/features/role/roleStore'
-import { startLogsBridge } from '@/features/logs/logsStore'
-import { mergeSavedTransform } from '@/features/live2d/modelTransform'
-import { cropImageHead } from '@/lib/avatar'
-import { useStartupStore, maybeGreet } from '@/features/startup/startupStore'
-import { useASRStore } from '@/features/asr/asrStore'
-import { shouldShowMainStage } from '@shared/presence/stagePolicy'
-import { isRoleRunning } from '@shared/role/runtime'
-import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
-import { setEyesClosed } from '@/features/live2d/live2dBus'
-import { pipelineBus } from '@/features/pipeline/pipelineBus'
+import { MonitorUp, Moon, Play, Plus, Trash2, X } from 'lucide-react'
 import { getErrorMessage } from '@shared/app/errors'
+import { isRoleRunning } from '@shared/role/runtime'
+import type { AppConfig, Live2DModelConfig, RoleMode } from '@shared/types'
 import type { AppViewName } from '@shared/ui/uiState'
+import { Button } from '@/components/ui/button'
+import { ChatComposerBar } from '@/components/chat/ChatComposerBar'
+import { ChatThread } from '@/components/chat/ChatThread'
+import { ContextUsageIndicator } from '@/components/chat/ContextUsageIndicator'
+import { LogsPanel } from '@/components/logs/LogsPanel'
+import { RoleCreatorPanel } from '@/components/role/RoleCreatorPanel'
+import { NavRail } from '@/components/shell/NavRail'
+import { WindowBar } from '@/components/shell/WindowBar'
+import { RoleStageCanvas } from '@/components/stage/RoleStageCanvas'
+import { RoleWorkshopPanel } from '@/components/workshop/RoleWorkshopPanel'
+import { cropImageHead } from '@/lib/avatar'
+import { cn } from '@/lib/utils'
+import { useASRStore } from '@/features/asr/asrStore'
+import { useChatStore } from '@/features/chat/chatStore'
+import { setEyesClosed } from '@/features/live2d/live2dBus'
+import { mergeSavedTransform } from '@/features/live2d/modelTransform'
+import { startLogsBridge } from '@/features/logs/logsStore'
+import { startPipeline } from '@/features/pipeline'
+import { pipelineBus } from '@/features/pipeline/pipelineBus'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
+import { useRoleStore } from '@/features/role/roleStore'
+import { maybeGreet, useStartupStore } from '@/features/startup/startupStore'
 import { useUIStateStore } from '@/features/uiState/uiStateStore'
 
 const MarketPage = React.lazy(() =>
@@ -36,142 +38,101 @@ const RoleStudio = React.lazy(() =>
   import('@/components/role/RoleStudio').then((m) => ({ default: m.RoleStudio })),
 )
 
-const VIEW_ORDER: AppViewName[] = ['home', 'chat', 'role', 'market', 'settings', 'logs']
-
-export default function App() {
+export default function App(): React.JSX.Element {
   const [config, setConfig] = React.useState<AppConfig | null>(null)
   const [model, setModel] = React.useState<Live2DModelConfig | null>(null)
-  const [mateOpen, setMateOpen] = React.useState(false)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [view, setView] = React.useState<AppViewName>('home')
-  const [roleReturnView, setRoleReturnView] = React.useState<AppViewName>('chat')
+  const [workshopPreviewUrl, setWorkshopPreviewUrl] = React.useState<string | null>(null)
+  const [view, setView] = React.useState<AppViewName>('chat')
   const [actionError, setActionError] = React.useState('')
-  const [selectedId, setSelectedId] = React.useState<string | null>(
-    () => useUIStateStore.getState().state.homeSelectedId ?? null,
-  )
+
   const uiStateLoaded = useUIStateStore((s) => s.loaded)
   const uiRestored = React.useRef(false)
   const roles = useRoleStore((s) => s.list)
-  const bootSteps = useStartupStore((s) => s.steps)
   const loadRoles = useRoleStore((s) => s.loadRoles)
   const activeId = useRoleStore((s) => s.activeId)
-  const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
+  const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId)) ?? null
   const outfits = useRoleStore((s) => s.outfits)
-  React.useEffect(
-    () =>
-      window.opengal.role.onOutfitChanged((change) => {
-        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
-      }),
-    [],
-  )
   const runningById = useRoleRuntimeStore((s) => s.byId)
   const activeRunning = isRoleRunning(runningById, activeId)
-  const selectedRole = roles.find((card) => card.id === (selectedId ?? activeId)) ?? activeCard ?? null
-  const selectedRunning = selectedRole ? isRoleRunning(runningById, selectedRole.id) : false
 
   React.useEffect(() => {
-    void useUIStateStore.getState().load()
+    void useUIStateStore.getState().load?.()
   }, [])
 
   React.useEffect(() => {
     if (!uiStateLoaded || uiRestored.current) return
     uiRestored.current = true
     const saved = useUIStateStore.getState().state
-    if (saved.view) setView(saved.view)
-    if (saved.homeSelectedId !== undefined) setSelectedId(saved.homeSelectedId)
-    if (saved.mate?.open) {
-      void window.opengal.mate.open().then((res) => {
-        if (res.success) setMateOpen(true)
-      }).catch(() => {})
+    if (saved.view) {
+      setView(saved.view === 'home' ? 'chat' : saved.view)
     }
   }, [uiStateLoaded])
 
   React.useEffect(() => {
     if (!uiRestored.current) return
-    useUIStateStore.getState().patch({ view })
+    useUIStateStore.getState().patch?.({ view })
   }, [view])
-
-  React.useEffect(() => {
-    const onMouseUp = (e: MouseEvent) => {
-      const idx = VIEW_ORDER.indexOf(view)
-      if (idx < 0) return
-      if (e.button === 3) {
-        const prev = VIEW_ORDER[idx - 1]
-        if (!prev) return
-        e.preventDefault()
-        setView(prev)
-      } else if (e.button === 4) {
-        const next = VIEW_ORDER[idx + 1]
-        if (!next) return
-        e.preventDefault()
-        setView(next)
-      }
-    }
-    window.addEventListener('mouseup', onMouseUp)
-    return () => window.removeEventListener('mouseup', onMouseUp)
-  }, [view])
-
-  React.useEffect(() => {
-    const toSettings = () => setView('settings')
-    const toLogs = () => setView('logs')
-    window.addEventListener('opengal:open-settings', toSettings)
-    window.addEventListener('opengal:open-logs', toLogs)
-    return () => {
-      window.removeEventListener('opengal:open-settings', toSettings)
-      window.removeEventListener('opengal:open-logs', toLogs)
-    }
-  }, [])
 
   React.useEffect(() => {
     const handle = startPipeline()
-    return () => handle.dispose()
+    const stopLogs = startLogsBridge()
+    return () => {
+      stopLogs()
+      handle.dispose()
+    }
   }, [])
-
-  React.useEffect(() => startLogsBridge(), [])
-
-  React.useEffect(() => {
-    void (async () => {
-      const cfg = await window.opengal.config.get()
-      if (cfg.success && cfg.data) {
-        setConfig(cfg.data)
-        useRoleRuntimeStore.getState().hydrate(cfg.data.runningRoles)
-        await useASRStore.getState().applySettings(cfg.data.asr)
-        if (!cfg.data.showLive2D) useStartupStore.getState().reportLive2d('skipped')
-        await loadRoles(cfg.data.activeRoleId)
-        const active = useRoleStore.getState().getActive()
-        if (active) {
-          const fromCard = await window.opengal.model.resolveFromCard(active.id)
-          if (fromCard.success && fromCard.data) {
-            setModel(mergeSavedTransform(fromCard.data, cfg.data.model))
-            return
-          }
-        }
-        if (cfg.data.model?.modelUrl) {
-          setModel(cfg.data.model)
-          return
-        }
-        const resolved = await window.opengal.model.resolveDefault()
-        if (resolved.success && resolved.data) {
-          setModel(resolved.data)
-        }
-      }
-    })()
-  }, [loadRoles])
-
-  React.useEffect(() => {
-    window.opengal.mate?.emitRuntime?.({
-      runningRoles: runningById,
-      activeRoleId: activeId,
-    })
-  }, [runningById, activeId])
 
   React.useEffect(
     () =>
-      window.opengal.mate?.onUpdate?.((payload) => {
-        if (payload.type === 'avatar') setAvatarUrl(payload.dataUrl)
-      }),
-    []
+      window.opengal.role?.onOutfitChanged?.((change) => {
+        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
+      }) ?? (() => {}),
+    [],
   )
+
+  React.useEffect(() => {
+    void (async () => {
+      if (!window.opengal.config?.get) return
+      const [cfg, snap] = await Promise.all([
+        window.opengal.config.get(),
+        window.opengal.runtime?.snapshot?.().catch(() => null) ?? Promise.resolve(null),
+      ])
+      if (!cfg.success || !cfg.data) return
+      setConfig(cfg.data)
+      if (snap?.success && snap.data) {
+        const map: Record<string, boolean> = {}
+        for (const [id, item] of Object.entries(snap.data.roles)) map[id] = item.running
+        useRoleRuntimeStore.getState().hydrate(map)
+      } else {
+        useRoleRuntimeStore.getState().hydrate(cfg.data.runningRoles)
+      }
+      await useASRStore.getState().applySettings(cfg.data.asr).catch(() => {})
+      if (!cfg.data.showLive2D) useStartupStore.getState().reportLive2d('skipped')
+      await loadRoles(snap?.data?.focusedRoleId ?? cfg.data.activeRoleId)
+
+      const loadedList = useRoleStore.getState().list
+      if (loadedList.length === 0) {
+        setView('create')
+        return
+      }
+
+      const active = useRoleStore.getState().getActive()
+      if (active) {
+        const fromCard = await window.opengal.model.resolveFromCard(active.id)
+        if (fromCard.success && fromCard.data) {
+          setModel(mergeSavedTransform(fromCard.data, cfg.data.model))
+          return
+        }
+      }
+      if (cfg.data.model?.modelUrl) {
+        setModel(cfg.data.model)
+        return
+      }
+      const resolved = await window.opengal.model.resolveDefault()
+      if (resolved.success && resolved.data) setModel(resolved.data)
+    })()
+  }, [loadRoles])
 
   React.useEffect(() => {
     setEyesClosed(!activeRunning)
@@ -181,11 +142,11 @@ export default function App() {
       return
     }
     pipelineBus.emit('pipeline:abort', undefined)
-    void window.opengal.tts.cancel()
+    void window.opengal.tts?.cancel?.()
   }, [activeId, activeRunning])
 
   React.useEffect(() => {
-    if (!activeId) return
+    if (!activeId || !window.opengal.model?.resolveFromCard) return
     void (async () => {
       const fromCard = await window.opengal.model.resolveFromCard(activeId)
       if (fromCard.success && fromCard.data) {
@@ -193,268 +154,385 @@ export default function App() {
         setModel(mergeSavedTransform(fromCard.data, currentCfg?.model))
       } else {
         const cfg = await window.opengal.config.get()
-        if (cfg.data?.model?.modelUrl) {
-          setModel(cfg.data.model)
-        }
+        if (cfg.data?.model?.modelUrl) setModel(cfg.data.model)
       }
     })()
   }, [activeId])
 
-  async function saveConfig(patch: Partial<AppConfig>): Promise<void> {
+  const spriteIdleUrl =
+    activeCard?.performance.mode === 'sprite' ? (activeCard.spriteFrames?.idle ?? null) : null
+  React.useEffect(() => {
+    if (!spriteIdleUrl) {
+      setAvatarUrl(null)
+      return
+    }
+    let cancelled = false
+    setAvatarUrl(spriteIdleUrl)
+    void cropImageHead(spriteIdleUrl).then((cropped) => {
+      if (!cancelled && cropped) setAvatarUrl(cropped)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [spriteIdleUrl])
+
+  const saveConfig = React.useCallback(async (patch: Partial<AppConfig>): Promise<void> => {
     const res = await window.opengal.config.set(patch)
-    if (!res.success || !res.data) throw new Error(res.error || 'save failed')
+    if (!res.success || !res.data) throw new Error(res.error || '保存配置失败')
     setConfig(res.data)
     if (patch.asr) {
-      try { await useASRStore.getState().applySettings(res.data.asr) }
-      catch (error) { throw new Error(`设置已保存，但识别重载失败：${getErrorMessage(error)}`) }
+      try {
+        await useASRStore.getState().applySettings(res.data.asr)
+      } catch (error) {
+        throw new Error(`设置已保存，但语音识别重载失败：${getErrorMessage(error)}`)
+      }
     }
-    if (patch.model && model) {
-      setModel({
-        ...model,
-        scale: patch.model.scale ?? model.scale,
-        xRatio: patch.model.xRatio ?? model.xRatio,
-        canvasYRatio: patch.model.canvasYRatio ?? model.canvasYRatio
-      })
+    if (patch.model) {
+      setModel((prev) =>
+        prev
+          ? {
+              ...prev,
+              scale: patch.model?.scale ?? prev.scale,
+              xRatio: patch.model?.xRatio ?? prev.xRatio,
+              canvasYRatio: patch.model?.canvasYRatio ?? prev.canvasYRatio,
+            }
+          : prev,
+      )
     }
-  }
+  }, [])
 
-  async function setRunningFor(roleId: string): Promise<void> {
-    const nextRunning = !isRoleRunning(
-      useRoleRuntimeStore.getState().byId,
-      roleId,
-    )
-    const runningRoles = {
-      ...useRoleRuntimeStore.getState().byId,
-      [roleId]: nextRunning,
-    }
+  const handleStageTransformChange = React.useCallback(
+    (next: { scale: number; xRatio: number; yRatio: number }) => {
+      if (!model) return
+      void saveConfig({
+        model: { ...model, scale: next.scale, xRatio: next.xRatio, canvasYRatio: next.yRatio },
+      }).catch(() => {})
+    },
+    [model, saveConfig],
+  )
+
+  async function toggleRunningFor(roleId: string): Promise<void> {
+    const nextRunning = !isRoleRunning(useRoleRuntimeStore.getState().byId, roleId)
     try {
-      await saveConfig({ runningRoles })
-      useRoleRuntimeStore.getState().setRunning(roleId, nextRunning)
+      if (window.opengal.runtime?.setRunning) {
+        const res = await window.opengal.runtime.setRunning(roleId, nextRunning)
+        if (!res.success) throw new Error(res.error || '运行状态切换失败')
+        if (res.data) {
+          const map: Record<string, boolean> = {}
+          for (const [id, item] of Object.entries(res.data.roles)) map[id] = item.running
+          useRoleRuntimeStore.getState().hydrate(map)
+        }
+      } else {
+        const runningRoles = {
+          ...useRoleRuntimeStore.getState().byId,
+          [roleId]: nextRunning,
+        }
+        await saveConfig({ runningRoles })
+        useRoleRuntimeStore.getState().setRunning(roleId, nextRunning)
+      }
       setActionError('')
     } catch {
-      setActionError('运行状态保存失败，请重试')
+      setActionError('角色运行状态保存失败，请重试')
     }
   }
 
-  async function openRole(roleId: string): Promise<void> {
-    setSelectedId(roleId)
-    useUIStateStore.getState().patch({ homeSelectedId: roleId })
-    if (roleId !== activeId) await useRoleStore.getState().setActive(roleId)
-    setView('chat')
+  async function switchActiveRole(roleId: string): Promise<void> {
+    await useRoleStore.getState().setActive(roleId)
+    await window.opengal.runtime?.focus?.(roleId)?.catch(() => {})
+    void useChatStore.getState().reloadSession(roleId)
   }
 
-  function handleSelectRole(roleId: string): void {
-    setSelectedId(roleId)
-    useUIStateStore.getState().patch({ homeSelectedId: roleId })
-    if (view !== 'home' && roleId !== activeId) {
-      void useRoleStore.getState().setActive(roleId)
+  async function switchRoleMode(mode: RoleMode): Promise<void> {
+    if (!activeCard) return
+    const res = await window.opengal.runtime?.setMode?.(activeCard.id, mode)
+    if (res && !res.success) {
+      setActionError(res.error ?? '模式切换失败')
+      return
     }
+    await loadRoles(activeCard.id)
   }
 
-  function openRoleStudio(roleId: string): void {
-    setSelectedId(roleId)
-    useUIStateStore.getState().patch({ homeSelectedId: roleId })
-    if (view !== 'role') setRoleReturnView(view)
-    setView('role')
+  async function returnToDesktopStage(): Promise<void> {
+    await window.opengal.mate?.open?.()
+    await window.opengal.window?.close?.()
   }
 
   function openSettingsTab(tab: string): void {
-    useUIStateStore.getState().patch({ settingsTab: tab })
+    useUIStateStore.getState().patch?.({ settingsTab: tab })
     setView('settings')
   }
 
-  async function toggleMate(): Promise<void> {
-    if (mateOpen) {
-      await window.opengal.mate.close()
-      setMateOpen(false)
-      useUIStateStore.getState().patch({ mate: { open: false } })
-    } else {
-      const res = await window.opengal.mate.open()
-      if (res.success) {
-        setMateOpen(true)
-        useUIStateStore.getState().patch({ mate: { open: true } })
-      }
-    }
-  }
-
-  async function toggleLive2D(): Promise<void> {
-    const next = !(config?.showLive2D ?? true)
-    try {
-      await saveConfig({ showLive2D: next })
-      setActionError('')
-    } catch (err) {
-      setActionError(`显示设置保存失败：${getErrorMessage(err)}`)
-    }
-  }
-
-  const handleModelChange = React.useCallback(
-    (next: { scale: number; xRatio: number; yRatio: number }) => {
-      if (!model) return
-      saveConfig({
-        model: {
-          ...model,
-          scale: next.scale,
-          xRatio: next.xRatio,
-          canvasYRatio: next.yRatio
-        }
-      }).catch((err: Error) => {
-        setActionError(`模型设置保存失败：${err.message}`)
-      })
-    },
-    [model]
-  )
-
-  const handleSnapshot = React.useCallback((url: string) => setAvatarUrl(url), [])
-  React.useEffect(
-    () =>
-      window.opengal.role.onOutfitChanged((change) => {
-        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
-      }),
-    [],
-  )
-  const activeOutfit = React.useMemo(() => {
-    const entries = activeCard?.outfitEntries
-    if (!activeCard || !entries?.length) return null
-    const wanted = outfits[activeCard.id] ?? activeCard.performance.defaultOutfit
-    return entries.find((outfit) => outfit.id === wanted) ?? entries[0] ?? null
-  }, [activeCard, outfits])
-
-  const spriteAvatarSource = activeOutfit?.spriteFrames?.idle
-    ?? (activeCard?.performance.mode === 'sprite' ? activeCard.spriteFrames?.idle : null)
-    ?? null
-
-  React.useEffect(() => {
-    if (!spriteAvatarSource) return
-    let cancelled = false
-    void cropImageHead(spriteAvatarSource).then((url) => {
-      if (!cancelled) setAvatarUrl(url ?? spriteAvatarSource)
-    })
-    return () => { cancelled = true }
-  }, [spriteAvatarSource])
-
-  React.useEffect(() => {
-    window.opengal.logs.append(
-      'info',
-      'stage',
-      JSON.stringify({
-        card: activeCard?.id ?? null,
-        mode: activeCard?.performance.mode ?? null,
-        sprite: activeCard?.spriteFrames?.idle ?? null,
-        outfits: activeCard?.outfitEntries?.length ?? 0,
-        outfit: activeOutfit?.id ?? null,
-        outfitMode: activeOutfit?.mode ?? null,
-        spine: activeOutfit?.spineSkelUrl ?? null,
-        show: config?.showLive2D ?? null,
-        mateOpen,
-      }),
-    )
-  }, [activeCard, activeOutfit, config?.showLive2D, mateOpen])
-
-  const live2dLayer = shouldShowMainStage(config?.showLive2D ?? true, mateOpen) ? (
-    activeOutfit?.mode === 'spine' && activeOutfit.spineSkelUrl && activeOutfit.spineAtlasUrl ? (
-      <SpineStage
-        skelUrl={activeOutfit.spineSkelUrl}
-        atlasUrl={activeOutfit.spineAtlasUrl}
-        scale={activeOutfit.spine?.scale}
-        sleeping={!activeRunning}
-        roleId={activeCard?.id ?? ''}
-        fallbackFrames={
-          activeCard?.outfitEntries?.find((outfit) => outfit.id === activeCard.performance.defaultOutfit)
-            ?.spriteFrames ?? activeCard?.spriteFrames
-        }
-      />
-    ) : activeOutfit?.spriteFrames ? (
-      <SpriteStage frames={activeOutfit.spriteFrames} roleId={activeCard?.id ?? ''} sleeping={!activeRunning} />
-    ) : activeCard?.performance.mode === 'sprite' && activeCard.spriteFrames ? (
-      <SpriteStage frames={activeCard.spriteFrames} roleId={activeCard.id} sleeping={!activeRunning} />
-    ) : (
-      <Live2DStage
-        model={model}
-        sleeping={!activeRunning}
-        onChange={handleModelChange}
-        onSnapshot={handleSnapshot}
-      />
-    )
-  ) : (
-    <div className="flex h-full w-full items-end justify-center bg-background pb-24 text-xs text-muted-foreground">
-      {mateOpen ? '立绘显示在相伴窗口' : '立绘已隐藏'}
-    </div>
-  )
+  const activeLabel = activeCard?.displayName ?? activeCard?.name ?? '未创建角色'
+  const activeMode = activeCard?.mode ?? 'agent'
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <WindowBar />
-      <div className="flex min-h-0 flex-1">
-        <NavRail view={view === 'role' ? 'home' : view} onNavigate={setView} />
-        <RoleSessionList
-          roles={roles}
-          activeId={activeId}
-          selectedId={selectedId}
-          runningById={runningById}
-          avatarUrl={avatarUrl}
-          onSelectRole={handleSelectRole}
-          onAddRole={() => setView('market')}
-        />
 
-        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-          {actionError && (
+      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b bg-card px-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1">
+          {roles.map((role) => {
+            const selected = role.id === activeId
+            const isRunning = isRoleRunning(runningById, role.id)
+            const rLabel = role.displayName ?? role.name
+            return (
+              <div
+                key={role.id}
+                className={cn(
+                  'flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors',
+                  selected ? 'border-brand bg-brand/10 text-foreground' : 'bg-background text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    void switchActiveRole(role.id)
+                    if (view === 'create') setView('chat')
+                  }}
+                  className="flex items-center gap-1.5 font-medium"
+                >
+                  <span
+                    className={cn(
+                      'size-2 rounded-full',
+                      isRunning ? 'bg-brand' : 'bg-muted-foreground/40',
+                    )}
+                  />
+                  <span className="max-w-[120px] truncate">{rLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void toggleRunningFor(role.id)}
+                  title={isRunning ? `让${rLabel}休息` : `唤醒${rLabel}`}
+                  aria-label={isRunning ? `让${rLabel}休息` : `唤醒${rLabel}`}
+                  className="ml-0.5 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {isRunning ? <Moon className="size-3" /> : <Play className="size-3" />}
+                </button>
+              </div>
+            )
+          })}
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setView('create')}
+            className="h-7 shrink-0 px-2 text-xs"
+          >
+            <Plus className="size-3.5" />
+            新建角色
+          </Button>
+        </div>
+
+        {roles.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void returnToDesktopStage()}
+            className="h-7 shrink-0 px-2.5 text-xs"
+          >
+            <MonitorUp className="size-3.5" />
+            回到桌面陪伴
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <NavRail view={view} onNavigate={setView} />
+
+        <aside className="hidden w-[320px] shrink-0 flex-col border-r bg-card/40 md:flex lg:w-[360px]">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            {activeCard || workshopPreviewUrl ? (
+              <RoleStageCanvas
+                role={activeCard}
+                model={model}
+                sleeping={!activeRunning}
+                outfitId={activeCard ? outfits[activeCard.id] : undefined}
+                previewPortraitUrl={view === 'workshop' ? workshopPreviewUrl : null}
+                onTransformChange={handleStageTransformChange}
+                onSnapshot={setAvatarUrl}
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-xs text-muted-foreground">
+                <p>右侧创建第一个角色后，她会站在这里</p>
+              </div>
+            )}
+          </div>
+
+          {activeCard ? (
+            <div className="flex shrink-0 flex-col gap-2 border-t bg-card px-3.5 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{activeLabel}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {activeRunning ? (activeMode === 'life' ? 'Life 自主生活中' : 'Agent 在旁待命') : '休息中'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="flex rounded-md border bg-background p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => void switchRoleMode('agent')}
+                      className={cn(
+                        'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                        activeMode === 'agent'
+                          ? 'bg-brand text-brand-foreground'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Agent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void switchRoleMode('life')}
+                      className={cn(
+                        'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                        activeMode === 'life'
+                          ? 'bg-brand text-brand-foreground'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Life
+                    </button>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant={activeRunning ? 'outline' : 'default'}
+                    size="sm"
+                    onClick={() => void toggleRunningFor(activeCard.id)}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    {activeRunning ? <Moon className="size-3.5" /> : <Play className="size-3.5" />}
+                    {activeRunning ? '休息' : '唤醒'}
+                  </Button>
+                </div>
+              </div>
+
+              {activeCard.outfitEntries && activeCard.outfitEntries.length > 1 ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">服装</span>
+                  <select
+                    value={outfits[activeCard.id] ?? activeCard.activeOutfitId ?? activeCard.performance.defaultOutfit ?? ''}
+                    onChange={(e) => useRoleStore.getState().setOutfit(activeCard.id, e.target.value)}
+                    className="h-7 flex-1 rounded-md border bg-background px-2 text-xs"
+                  >
+                    {activeCard.outfitEntries.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </aside>
+
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+          {actionError ? (
             <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
               {actionError}
             </div>
-          )}
+          ) : null}
 
-          {view === 'home' && (
-            <HomePage
-              role={selectedRole}
-              running={selectedRunning}
-              steps={bootSteps}
-              onOpenRole={(id) => void openRole(id)}
-              onOpenSettings={openRoleStudio}
-              onToggleRunning={setRunningFor}
+          <div className={view === 'chat' ? 'flex h-full min-w-0 flex-1 flex-col' : 'hidden'}>
+            {activeCard ? (
+              <>
+                <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b bg-card px-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h1 className="truncate text-sm font-semibold">{activeLabel}</h1>
+                    <ContextUsageIndicator />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => useChatStore.getState().clear()}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Trash2 className="size-3.5" />
+                      清空对话
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setView('role')}
+                      className="h-7 px-2.5 text-xs"
+                    >
+                      生活与设定
+                    </Button>
+                  </div>
+                </header>
+                <div className="min-h-0 flex-1">
+                  <ChatThread
+                    roleLabel={activeLabel}
+                    avatarUrl={avatarUrl}
+                    roleColor={activeCard.color}
+                  />
+                </div>
+                <div className="shrink-0 border-t bg-background px-4 py-3">
+                  <div className="mx-auto w-full max-w-[820px]">
+                    <ChatComposerBar />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                <p className="text-sm font-medium">还没有创建角色</p>
+                <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+                  先从 mods 模组模板或空白设定创建一个独立角色，她就会出现在你的桌面与工作台中。
+                </p>
+                <Button type="button" size="sm" onClick={() => setView('create')}>
+                  <Plus className="size-4" />
+                  立即创建角色
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {view === 'create' ? (
+            <RoleCreatorPanel
+              onRoleCreated={() => setView('chat')}
+              onOpenWorkshop={() => setView('workshop')}
+              onOpenMarket={() => setView('market')}
             />
-          )}
+          ) : null}
 
-          {view === 'role' && (
+          {(view === 'role' || view === 'home') ? (
             <React.Suspense fallback={null}>
               <RoleStudio
-                role={selectedRole}
-                onClose={() => setView(roleReturnView)}
+                role={activeCard}
+                onClose={() => setView('create')}
+                onRoleDeleted={() => {
+                  if (useRoleStore.getState().list.length === 0) setView('create')
+                  else setView('chat')
+                }}
                 onOpenDisplaySettings={() => openSettingsTab('display')}
                 onOpenTtsSettings={() => openSettingsTab('tts')}
                 onOpenModelSettings={() => openSettingsTab('llm')}
               />
             </React.Suspense>
-          )}
+          ) : null}
 
-          <div className={view === 'chat' ? 'h-full min-w-0 flex-1' : 'hidden'}>
-            <GalgameChatPanel
-              stage={(
-                <div className="relative h-full min-w-0 overflow-hidden">
-                  <div className="absolute inset-0">{live2dLayer}</div>
-                </div>
-              )}
-              avatarUrl={avatarUrl}
-              onOpenDetails={() => setView('home')}
-              onOpenRoleSettings={() => {
-                if (activeId) openRoleStudio(activeId)
-              }}
-              onToggleRunning={() => {
-                if (activeId) void setRunningFor(activeId)
-              }}
-              mateOpen={mateOpen}
-              onToggleMate={() => void toggleMate()}
-              showLive2D={config?.showLive2D ?? true}
-              onToggleLive2D={() => void toggleLive2D()}
+          {view === 'workshop' ? (
+            <RoleWorkshopPanel
+              onPreviewPortraitChange={setWorkshopPreviewUrl}
+              onRoleFinalized={() => setView('chat')}
             />
-          </div>
+          ) : null}
 
-          {view === 'market' && (
+          {view === 'market' ? (
             <React.Suspense fallback={null}>
               <MarketPage />
             </React.Suspense>
-          )}
+          ) : null}
 
-          {view === 'settings' && (
+          {view === 'settings' ? (
             <div className="flex h-full w-full flex-col bg-background">
               <div className="flex h-12 shrink-0 items-center border-b px-4">
                 <span className="text-sm font-semibold">设置</span>
@@ -469,16 +547,16 @@ export default function App() {
                 </button>
               </div>
               <div className="min-h-0 flex-1">
-                {config && (
+                {config ? (
                   <React.Suspense fallback={null}>
                     <SettingsCenter config={config} model={model} onSave={saveConfig} />
                   </React.Suspense>
-                )}
+                ) : null}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {view === 'logs' && <LogsPanel onClose={() => setView('chat')} />}
+          {view === 'logs' ? <LogsPanel onClose={() => setView('chat')} /> : null}
         </main>
       </div>
     </div>

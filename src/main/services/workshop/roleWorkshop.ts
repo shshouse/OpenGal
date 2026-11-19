@@ -440,7 +440,7 @@ export function finalizeWorkshopDraftToRole(
   )
 
   const card = getOwnedRoleCard(roleId, dataRoot)
-  if (!card) throw new Error('角色生成后校验未通过，请检查人设字段')
+  if (!card) throw new Error('角色生成未通过校验，请检查人设内容是否填写完整')
   return card
 }
 
