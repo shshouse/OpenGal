@@ -12,7 +12,7 @@ import {
 import type { AppConfig, LLMProvider, LLMPreset } from '@shared/types'
 import { getErrorMessage } from '@shared/app/errors'
 
-interface SettingsDialogProps {
+interface ModelSettingsProps {
   config: AppConfig | null
   onSave: (next: Partial<AppConfig>) => Promise<void>
 }
@@ -117,7 +117,7 @@ const EMPTY_FORM: ModelForm = {
   thinkingBudget: '1024',
 }
 
-export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
+export function ModelSettings({ config, onSave }: ModelSettingsProps) {
   const [presets, setPresets] = React.useState<LLMPreset[]>([])
   const [activePresetId, setActivePresetId] = React.useState<string | null>(null)
   // null=列表视图；'new'=选服务商/新建；'custom'=自定义表单；其他=预设 id（编辑）

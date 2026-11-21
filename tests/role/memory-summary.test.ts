@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MemoryFact, MemoryStory } from '../../src/shared/types'
-import { summarizeMemories } from '../../src/renderer/src/components/dashboard/memorySummary'
+import { summarizeMemories } from '../../src/renderer/src/features/memory/summary'
 
 function fact(entity: MemoryFact['entity'], status: MemoryFact['status'] = 'active'): MemoryFact {
   return { id: entity, text: entity, entity, status } as MemoryFact

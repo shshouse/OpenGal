@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Users, Monitor, Sparkles, Volume2, Mic, Puzzle, Brain, Gamepad2 } from 'lucide-react'
 import { RoleSettings } from './RoleSettings'
 import { RoleDisplaySettings } from './RoleDisplaySettings'
-import { SettingsDialog } from './SettingsDialog'
+import { ModelSettings } from './ModelSettings'
 import { TTSSettings } from './TTSSettings'
 import { ASRSettings } from './ASRSettings'
 import { PluginSettings } from './PluginSettings'
@@ -60,7 +60,7 @@ function SettingsPanels({ config, model, onSave }: SettingsCenterProps): React.J
           <SubtitleSettings config={config} onSave={onSave} />
         </TabsContent>
         <TabsContent value="llm" className="mt-0">
-          <SettingsDialog config={config} onSave={onSave} />
+          <ModelSettings config={config} onSave={onSave} />
         </TabsContent>
         <TabsContent value="tts" className="mt-0">
           <TTSSettings config={config} onSave={onSave} />
