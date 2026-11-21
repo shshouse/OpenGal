@@ -29,6 +29,7 @@ vi.mock('../../src/main/services/role/cardLoader', () => ({
 vi.mock('../../src/main/services/role/store', () => ({
   allocateUniqueRoleId: vi.fn(() => state.nextId),
   isFolderNameTaken: vi.fn((_root: string, name: string) => state.taken.includes(name)),
+  allocateRoleFolder: vi.fn((_root: string, name: string) => state.taken.includes(name) ? `${name} 2` : name),
   materializeRole: vi.fn(
     (
       _root: string,

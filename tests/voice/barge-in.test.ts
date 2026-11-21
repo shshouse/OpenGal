@@ -36,7 +36,7 @@ vi.mock('@/features/live2d/live2dBus', () => ({
   applyEmotion: () => {},
   playMotionGroup: () => {},
 }))
-vi.mock('../../src/renderer/src/features/director/directorWorker', () => ({
+vi.mock('@/features/director/directorWorker', () => ({
   cancelDirectorPending: () => {
     state.directorCancels++
   },
@@ -44,15 +44,15 @@ vi.mock('../../src/renderer/src/features/director/directorWorker', () => ({
 }))
 
 describe('voice barge-in and playback cancellation', () => {
-  let pipelineBus: typeof import('../../src/renderer/src/features/pipeline/pipelineBus').pipelineBus
-  let startTTSWorker: typeof import('../../src/renderer/src/features/speech/ttsWorker').startTTSWorker
-  let stopTTSWorker: typeof import('../../src/renderer/src/features/speech/ttsWorker').stopTTSWorker
-  let isTTSBusy: typeof import('../../src/renderer/src/features/speech/ttsWorker').isTTSBusy
-  let startUIWorker: typeof import('../../src/renderer/src/features/speech/uiWorker').startUIWorker
-  let stopUIWorker: typeof import('../../src/renderer/src/features/speech/uiWorker').stopUIWorker
-  let isUIBusy: typeof import('../../src/renderer/src/features/speech/uiWorker').isUIBusy
-  let startBargeInBridge: typeof import('../../src/renderer/src/features/pipeline/bargeIn').startBargeInBridge
-  let consumeVoiceInterruption: typeof import('../../src/renderer/src/features/pipeline/bargeIn').consumeVoiceInterruption
+  let pipelineBus: typeof import('@/features/pipeline/pipelineBus').pipelineBus
+  let startTTSWorker: typeof import('@/features/speech/ttsWorker').startTTSWorker
+  let stopTTSWorker: typeof import('@/features/speech/ttsWorker').stopTTSWorker
+  let isTTSBusy: typeof import('@/features/speech/ttsWorker').isTTSBusy
+  let startUIWorker: typeof import('@/features/speech/uiWorker').startUIWorker
+  let stopUIWorker: typeof import('@/features/speech/uiWorker').stopUIWorker
+  let isUIBusy: typeof import('@/features/speech/uiWorker').isUIBusy
+  let startBargeInBridge: typeof import('@/features/pipeline/bargeIn').startBargeInBridge
+  let consumeVoiceInterruption: typeof import('@/features/pipeline/bargeIn').consumeVoiceInterruption
   let stopBridge: () => void
 
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
@@ -92,17 +92,17 @@ describe('voice barge-in and playback cancellation', () => {
         state.stops++
       },
     }
-    const bus = await import('../../src/renderer/src/features/pipeline/pipelineBus')
+    const bus = await import('@/features/pipeline/pipelineBus')
     pipelineBus = bus.pipelineBus
-    const tts = await import('../../src/renderer/src/features/speech/ttsWorker')
+    const tts = await import('@/features/speech/ttsWorker')
     startTTSWorker = tts.startTTSWorker
     stopTTSWorker = tts.stopTTSWorker
     isTTSBusy = tts.isTTSBusy
-    const ui = await import('../../src/renderer/src/features/speech/uiWorker')
+    const ui = await import('@/features/speech/uiWorker')
     startUIWorker = ui.startUIWorker
     stopUIWorker = ui.stopUIWorker
     isUIBusy = ui.isUIBusy
-    const barge = await import('../../src/renderer/src/features/pipeline/bargeIn')
+    const barge = await import('@/features/pipeline/bargeIn')
     startBargeInBridge = barge.startBargeInBridge
     consumeVoiceInterruption = barge.consumeVoiceInterruption
 

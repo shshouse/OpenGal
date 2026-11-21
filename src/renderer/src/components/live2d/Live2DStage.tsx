@@ -9,7 +9,9 @@ import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
 import { getErrorMessage } from '@shared/app/errors'
 
-;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
+if (typeof window !== 'undefined') {
+  ;(window as unknown as { PIXI: typeof PIXI }).PIXI = PIXI
+}
 
 let Live2DModelClass:
   | typeof import('pixi-live2d-display-lipsyncpatch/cubism4').Live2DModel

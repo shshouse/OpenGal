@@ -12,16 +12,16 @@ const storage = vi.hoisted(() => {
   return target
 })
 
-vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
+vi.mock('@/features/chat/chatStore', () => ({
   useChatStore: { getState: () => ({ sessionId: 'role' }) },
 }))
-vi.mock('../../src/renderer/src/features/pipeline/pipelineBus', () => ({
+vi.mock('@/features/pipeline/pipelineBus', () => ({
   pipelineBus: { on: () => () => {} },
 }))
 
-import { startActivityBridge } from '../../src/renderer/src/features/activity/activityBridge'
-import { useActivityStore } from '../../src/renderer/src/features/activity/activityStore'
-import { useToolCallsStore, type ToolCallRecord } from '../../src/renderer/src/features/tools/toolCallsStore'
+import { startActivityBridge } from '@/features/activity/activityBridge'
+import { useActivityStore } from '@/features/activity/activityStore'
+import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
 
 function record(id: string, name = 'web_search'): ToolCallRecord {
   return { id, name, args: {}, ok: true, result: 'done', durationMs: 1 }

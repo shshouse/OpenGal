@@ -235,7 +235,7 @@ export function playMotionGroup(group: string): void {
 }
 
 
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   ;(window as unknown as Record<string, unknown>).__opengalLive2D = {
     getMotionGroups: getAvailableMotionGroups,
     playMotionGroup,

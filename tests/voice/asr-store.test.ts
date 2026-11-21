@@ -31,9 +31,9 @@ vi.mock('@/features/asr/micCapture', () => ({
 }))
 
 describe('asrStore live settings', () => {
-  let store: typeof import('../../src/renderer/src/features/asr/asrStore')
-  let needsASRRestart: typeof import('../../src/shared/asr/settings').needsASRRestart
-  let pipelineBus: typeof import('../../src/renderer/src/features/pipeline/pipelineBus').pipelineBus
+  let store: typeof import('@/features/asr/asrStore')
+  let needsASRRestart: typeof import('@shared/asr/settings').needsASRRestart
+  let pipelineBus: typeof import('@/features/pipeline/pipelineBus').pipelineBus
 
   beforeAll(async () => {
     vi.stubGlobal('window', {
@@ -52,9 +52,9 @@ describe('asrStore live settings', () => {
         },
       },
     })
-    store = await import('../../src/renderer/src/features/asr/asrStore')
-    needsASRRestart = (await import('../../src/shared/asr/settings')).needsASRRestart
-    pipelineBus = (await import('../../src/renderer/src/features/pipeline/pipelineBus')).pipelineBus
+    store = await import('@/features/asr/asrStore')
+    needsASRRestart = (await import('@shared/asr/settings')).needsASRRestart
+    pipelineBus = (await import('@/features/pipeline/pipelineBus')).pipelineBus
   })
 
   it('行为设置不重启、设备切换真实切换、失败可恢复', async () => {

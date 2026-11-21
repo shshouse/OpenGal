@@ -22,8 +22,8 @@ vi.mock('@/features/logs/logsStore', () => ({
 }))
 
 describe('subtitle worker', () => {
-  let mod: typeof import('../../src/renderer/src/features/speech/subtitles')
-  let pipelineBus: typeof import('../../src/renderer/src/features/pipeline/pipelineBus').pipelineBus
+  let mod: typeof import('@/features/speech/subtitles')
+  let pipelineBus: typeof import('@/features/pipeline/pipelineBus').pipelineBus
   let stop: () => void
 
   const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
@@ -59,8 +59,8 @@ describe('subtitle worker', () => {
       },
       localStorage: state.localStorage,
     })
-    mod = await import('../../src/renderer/src/features/speech/subtitles')
-    const bus = await import('../../src/renderer/src/features/pipeline/pipelineBus')
+    mod = await import('@/features/speech/subtitles')
+    const bus = await import('@/features/pipeline/pipelineBus')
     pipelineBus = bus.pipelineBus
     stop = mod.startSubtitleWorker()
   })

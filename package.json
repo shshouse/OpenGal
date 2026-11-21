@@ -17,7 +17,7 @@
     "typecheck:web": "tsc -p config/tsconfig.web.json --noEmit",
     "typecheck:test": "tsc -p config/tsconfig.test.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
-    "test": "vitest run --config config/vitest.config.ts",
+    "test": "vitest run --config config/vitest.config.ts --pool=vmForks",
     "test:watch": "vitest --config config/vitest.config.ts",
     "test:coverage": "vitest run --config config/vitest.config.ts --coverage",
     "eval:memory": "node --experimental-strip-types src/scripts/memory-eval.ts",

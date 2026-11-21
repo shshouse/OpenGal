@@ -6,15 +6,15 @@ const state = vi.hoisted(() => ({
   inputs: [] as Array<{ text: string }>,
 }))
 
-vi.mock('../../src/renderer/src/features/live2d/live2dBus', () => ({
+vi.mock('@/features/live2d/live2dBus', () => ({
   setEyesClosed: (closed: boolean) => state.eyes.push(closed),
 }))
-vi.mock('../../src/renderer/src/features/pipeline/pipelineBus', () => ({
+vi.mock('@/features/pipeline/pipelineBus', () => ({
   pipelineBus: { emit: (event: string, payload: { text: string }) => {
     if (event === 'user:input') state.inputs.push(payload)
   } },
 }))
-vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
+vi.mock('@/features/chat/chatStore', () => ({
   useChatStore: {
     getState: () => ({
       sessionId: 'sonetto',
@@ -25,18 +25,18 @@ vi.mock('../../src/renderer/src/features/chat/chatStore', () => ({
     }),
   },
 }))
-vi.mock('../../src/renderer/src/features/logs/logsStore', () => ({
+vi.mock('@/features/logs/logsStore', () => ({
   useLogsStore: { getState: () => ({ appendLocal: () => {} }) },
 }))
-vi.mock('../../src/renderer/src/features/role/roleRuntimeStore', () => ({
+vi.mock('@/features/role/roleRuntimeStore', () => ({
   useRoleRuntimeStore: { getState: () => ({ byId: { sonetto: state.running } }) },
 }))
-vi.mock('../../src/renderer/src/features/role/roleStore', () => ({
+vi.mock('@/features/role/roleStore', () => ({
   useRoleStore: { getState: () => ({ activeId: 'sonetto', list: [{ id: 'sonetto', language: 'en' }] }) },
 }))
 
 async function boot(): Promise<void> {
-  const mod = await import('../../src/renderer/src/features/startup/startupStore')
+  const mod = await import('@/features/startup/startupStore')
   mod.useStartupStore.getState().beginBoot()
   await vi.advanceTimersByTimeAsync(0)
   await vi.advanceTimersByTimeAsync(700)
