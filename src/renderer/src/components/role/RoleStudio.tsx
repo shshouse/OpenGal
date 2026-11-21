@@ -18,6 +18,8 @@ interface Props {
   onOpenDisplaySettings: () => void
   onOpenTtsSettings: () => void
   onOpenModelSettings: () => void
+  avatarSrc?: string | null
+  onRequestAvatarSrc?: () => void
 }
 
 export function RoleStudio({
@@ -27,6 +29,8 @@ export function RoleStudio({
   onOpenDisplaySettings,
   onOpenTtsSettings,
   onOpenModelSettings,
+  avatarSrc,
+  onRequestAvatarSrc,
 }: Props): React.JSX.Element {
   const [tab, setTab] = React.useState('status')
 
@@ -123,6 +127,9 @@ export function RoleStudio({
               <RoleTransferPanel
                 key={role.id}
                 role={role}
+                avatarSrc={avatarSrc}
+                onRequestAvatarSrc={onRequestAvatarSrc}
+                onAvatarSaved={() => void refreshRole()}
                 onDeleted={onRoleDeleted}
                 onOpenDisplaySettings={onOpenDisplaySettings}
                 onOpenTtsSettings={onOpenTtsSettings}

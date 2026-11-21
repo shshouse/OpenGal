@@ -1,20 +1,12 @@
 import type { RoleCardEntry, RoleMode } from '@shared/types'
 import { getDataRoot } from '../infra/paths'
 import { getOwnedRoleCard, getRoleCard, listRoleTemplatesDetailed } from './cardLoader'
-import { allocateUniqueRoleId, isFolderNameTaken, materializeRole } from './store'
+import { allocateRoleFolder, allocateUniqueRoleId, materializeRole } from './store'
 
 const MAX_NAME = 64
 
 function pickFolderName(dataRoot: string, base: string): string {
-  const clean = base.trim().slice(0, MAX_NAME)
-  if (!clean) throw new Error('角色名称不能为空')
-  if (!isFolderNameTaken(dataRoot, clean)) return clean
-
-  for (let n = 2; n < 100; n++) {
-    const candidate = `${clean} ${n}`.slice(0, MAX_NAME)
-    if (!isFolderNameTaken(dataRoot, candidate)) return candidate
-  }
-  throw new Error('同名角色过多，请换一个名称')
+  return allocateRoleFolder(dataRoot, base.trim().slice(0, MAX_NAME))
 }
 
 /** 从模组模板或已有角色实例化独立角色目录（独立 ID、独立记忆库与资产副本） */

@@ -21,6 +21,21 @@ const WINDOW_MODES: WindowMode[] = ['mate', 'theater']
 const ROLE_MODES = ['agent', 'life'] as const
 // 旧角色卡写的是 pet，读入时归一化，避免存量卡被判为非法
 const LEGACY_WINDOW_MODES: Record<string, WindowMode> = { pet: 'mate' }
+function validateAvatar(value: unknown, issues: RoleCardIssue[]): RoleCard['performance']['avatar'] {
+  if (value === undefined || value === null) return undefined
+  if (!isObject(value)) {
+    issues.push({ path: 'performance.avatar', code: 'type', message: '应为对象', severity: 'error' })
+    return undefined
+  }
+  const keys = ['x', 'y', 'radius'] as const
+  const valid = keys.every((key) => typeof value[key] === 'number' && Number.isFinite(value[key]) && value[key] >= 0 && value[key] <= (key === 'radius' ? 0.5 : 1))
+  if (!valid) {
+    issues.push({ path: 'performance.avatar', code: 'range', message: '圆心与半径应在合法范围内', severity: 'error' })
+    return undefined
+  }
+  return { x: value.x as number, y: value.y as number, radius: value.radius as number }
+}
+
 const PERFORMANCE_MODES: PerformanceMode[] = ['live2d', 'sprite', 'auto']
 
 const KNOWN_KEYS = new Set([
@@ -283,6 +298,20 @@ function validatePerformance(value: unknown, issues: RoleCardIssue[]): RoleCard[
     ? value.preferred.filter((item): item is 'live2d' | 'sprite' => item === 'live2d' || item === 'sprite')
     : undefined
 
+  const avatar = validateAvatar(value.avatar, issues)
+  let transform: RoleCard['performance']['transform']
+  if (value.transform !== undefined) {
+    const rawTransform: unknown = value.transform
+    if (!isObject(rawTransform) || !['scale', 'xRatio', 'yRatio'].every((key) => typeof rawTransform[key] === 'number' && Number.isFinite(rawTransform[key]))) {
+      issues.push({ path: 'performance.transform', code: 'type', message: '应为缩放与位置数值', severity: 'error' })
+    } else {
+      transform = {
+        scale: Math.max(0.2, Math.min(5, rawTransform.scale as number)),
+        xRatio: Math.max(0, Math.min(1, rawTransform.xRatio as number)),
+        yRatio: Math.max(0, Math.min(1, rawTransform.yRatio as number)),
+      }
+    }
+  }
   const outfits = validateOutfits(value.outfits, issues)
   let defaultOutfit: string | undefined
   if (outfits) {
@@ -305,6 +334,8 @@ function validatePerformance(value: unknown, issues: RoleCardIssue[]): RoleCard[
     ...(preferred?.length ? { preferred } : {}),
     ...(live2d ? { live2d } : {}),
     ...(sprite ? { sprite } : {}),
+    ...(avatar ? { avatar } : {}),
+    ...(transform ? { transform } : {}),
     ...(outfits ? { outfits, defaultOutfit } : {}),
   }
 }

@@ -1,7 +1,7 @@
 import { dialog, ipcMain, shell } from 'electron'
 import { z } from 'zod'
 import { IpcChannels } from '@shared/app/ipc-channels'
-import { createBlankRoleSchema, roleExampleTurnSchema, roleIdSchema, roleModeSchema } from '@shared/app/schemas'
+import { createBlankRoleSchema, roleAvatarSchema, roleExampleTurnSchema, roleIdSchema, roleModeSchema } from '@shared/app/schemas'
 import { getBackupRoot, getDataRoot } from '../services/infra/paths'
 import { clearLifeLogs, getRoleState, listLifeLogs, patchRoleState } from '../services/memory/db'
 import { scanMods } from '../services/mods/scanner'
@@ -59,6 +59,7 @@ const saveDraftIpcSchema = z.object({
       language: z.string().max(16).optional(),
     })
     .optional(),
+  avatar: roleAvatarSchema.nullable().optional(),
   provenance: z
     .object({
       kind: z.enum(['original', 'authorized-derivative', 'recipe-only', 'local-personal']).optional(),

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { ArrowDown } from 'lucide-react'
-import type { ChatMessage } from '@shared/types'
+import type { ChatMessage, RoleAvatarRegion } from '@shared/types'
+import { RoleAvatar } from '@/components/role/RoleAvatar'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useRoleStore } from '@/features/role/roleStore'
@@ -11,6 +12,7 @@ import { formatPreviewTime, messageImages, messageText } from '@/features/chat/s
 interface Props {
   roleLabel: string
   avatarUrl?: string | null
+  avatarRegion?: RoleAvatarRegion
   roleColor?: string
   showAvatar?: boolean
 }
@@ -21,6 +23,7 @@ function MessageRow({
   time,
   roleLabel,
   avatarUrl,
+  avatarRegion,
   roleColor,
   isUser,
   pending,
@@ -31,6 +34,7 @@ function MessageRow({
   time: string
   roleLabel: string
   avatarUrl?: string | null
+  avatarRegion?: RoleAvatarRegion
   roleColor?: string
   isUser: boolean
   pending?: boolean
@@ -38,7 +42,9 @@ function MessageRow({
 }): React.JSX.Element {
   return (
     <div className={cn('flex items-start gap-2.5', isUser && 'flex-row-reverse')}>
-      {showAvatar ? (
+      {showAvatar && !isUser && avatarRegion ? (
+        <RoleAvatar src={avatarUrl} region={avatarRegion} label={roleLabel} className="mt-0.5 size-7 border text-xs text-brand" />
+      ) : showAvatar ? (
         <span
           className={cn(
             'mt-0.5 flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background text-xs',
@@ -84,7 +90,7 @@ function MessageRow({
   )
 }
 
-export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true }: Props): React.JSX.Element {
+export function ChatThread({ roleLabel, avatarUrl, avatarRegion, roleColor, showAvatar = true }: Props): React.JSX.Element {
   const messages = useChatStore((s) => s.messages)
   const streamingSegments = useChatStore((s) => s.streamingSegments)
   const roleId = useRoleStore((s) => s.activeId)
@@ -196,6 +202,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true 
                   time={formatPreviewTime(message.ts ?? null)}
                   roleLabel={roleLabel}
                   avatarUrl={avatarUrl}
+                  avatarRegion={avatarRegion}
                   roleColor={roleColor}
                   isUser={message.role === 'user'}
                   showAvatar={showAvatar}
@@ -211,6 +218,7 @@ export function ChatThread({ roleLabel, avatarUrl, roleColor, showAvatar = true 
                 time=""
                 roleLabel={roleLabel}
                 avatarUrl={avatarUrl}
+                avatarRegion={avatarRegion}
                 roleColor={roleColor}
                 isUser={false}
                 pending

@@ -203,6 +203,7 @@ const api = {
         userIdentity?: string
         userTerm?: string
       }
+      avatar?: WorkshopDraft['avatar'] | null
       voice?: Partial<WorkshopDraft['voice']>
       provenance?: Partial<WorkshopDraft['provenance']>
     }) => invoke<WorkshopDraft>(IpcChannels.workshop.save, input),

@@ -1,5 +1,8 @@
 import type { LLMConfig, Live2DModelConfig } from '../app/config'
 import type { RoleExampleTurn, RoleMode, RoleSummaryMeta } from '@core/role/types'
+import type { RoleAvatarRegion } from './avatar'
+
+export type { RoleAvatarRegion } from './avatar'
 
 export type { RoleExampleTurn, RoleMode, RoleSummaryMeta }
 
@@ -102,6 +105,12 @@ export interface RolePerformanceConfig {
   sprite?: RoleSpriteConfig
   outfits?: RoleOutfit[]
   defaultOutfit?: string
+  avatar?: RoleAvatarRegion
+  transform?: {
+    scale: number
+    xRatio: number
+    yRatio: number
+  }
 }
 
 export interface RolePersona {
@@ -151,6 +160,8 @@ export interface RoleCardEditableFields {
   greeting?: string
   examples?: RoleExampleTurn[]
   activeOutfitId?: string
+  avatar?: RoleAvatarRegion | null
+  transform?: { scale: number; xRatio: number; yRatio: number }
   persona: RolePersona
 }
 

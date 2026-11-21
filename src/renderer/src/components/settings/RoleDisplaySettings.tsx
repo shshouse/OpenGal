@@ -92,17 +92,14 @@ export function RoleDisplaySettings({
     nextX: number,
     nextY: number
   ): Promise<void> {
-    const base = model ?? config?.model
-    if (!base) return
-    const updated: Live2DModelConfig = {
-      ...base,
-      scale: nextScale,
-      xRatio: nextX,
-      canvasYRatio: nextY
-    }
+    const role = useRoleStore.getState().getActive()
+    if (!role) return
     setSaving(true)
     try {
-      await save({ model: updated })
+      const res = await window.opengal.role.saveCard(role.id, { persona: role.persona, transform: { scale: nextScale, xRatio: nextX, yRatio: nextY } })
+      if (!res.success) throw new Error(res.error ?? '显示设置保存失败')
+      await useRoleStore.getState().loadRoles(role.id)
+      await onSave({})
     } finally {
       setSaving(false)
     }
@@ -116,10 +113,9 @@ export function RoleDisplaySettings({
   }
 
   const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId))
-  const outfitChoice = useRoleStore((s) => (s.activeId ? s.outfits[s.activeId] : undefined))
   const setOutfit = useRoleStore((s) => s.setOutfit)
   const outfitEntries = activeCard?.outfitEntries ?? []
-  const currentOutfitId = outfitChoice ?? activeCard?.performance.defaultOutfit ?? ''
+  const currentOutfitId = activeCard?.activeOutfitId ?? activeCard?.performance.defaultOutfit ?? ''
 
   return (
     <div className="space-y-4">

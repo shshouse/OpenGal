@@ -11,7 +11,7 @@ import { IpcChannels } from '@shared/app/ipc-channels'
 import type { RoleCardEntry } from '@shared/types'
 import { getDataRoot, getModRoot } from '../infra/paths'
 import { getOwnedRoleCard } from '../role/cardLoader'
-import { allocateUniqueRoleId, ensureRolesRoot, sanitizeFolderName } from '../role/store'
+import { allocateRoleFolder, allocateUniqueRoleId, ensureRolesRoot, sanitizeFolderName, writeRoleMeta } from '../role/store'
 
 const DRAFT_FILE = 'draft.json'
 const LF = String.fromCharCode(10)
@@ -101,6 +101,7 @@ export interface SaveWorkshopDraftInput {
   greeting?: string
   examples?: WorkshopDraft['examples']
   persona: WorkshopDraft['persona']
+  avatar?: WorkshopDraft['avatar'] | null
   voice?: Partial<WorkshopDraft['voice']>
   provenance?: Partial<WorkshopDraft['provenance']>
 }
@@ -140,6 +141,9 @@ export function saveWorkshopDraft(
     examples: input.examples ?? existing?.examples ?? [],
     persona: input.persona,
     portraitRelPath,
+    ...(input.avatar !== undefined
+      ? input.avatar ? { avatar: input.avatar } : {}
+      : existing?.avatar ? { avatar: existing.avatar } : {}),
     voice: {
       engine: input.voice?.engine ?? existing?.voice.engine ?? 'none',
       ...(input.voice?.fishReferenceId !== undefined
@@ -348,6 +352,7 @@ function buildManifestFromDraft(
         spriteDir: 'sprites',
         defaultSprite,
       },
+      ...(draft.avatar ? { avatar: draft.avatar } : {}),
     },
     persona: draft.persona,
     license: draft.provenance.license || 'Personal-Use-Only',
@@ -400,44 +405,22 @@ export function finalizeWorkshopDraftToRole(
   if (!draft) throw new Error(`未找到草稿 ${draftId}`)
   const draftDir = safeDraftDir(draftId, dataRoot)
 
-  const baseFolder = sanitizeFolderName(draft.displayName || draft.name)
-  const rolesRoot = ensureRolesRoot(dataRoot)
-  let folderName = baseFolder
-  let n = 2
-  while (fs.existsSync(path.join(rolesRoot, folderName))) {
-    folderName = `${baseFolder} ${n}`
-    n++
-  }
-
   const roleId = allocateUniqueRoleId(dataRoot, draft.name)
-  const targetDir = path.join(rolesRoot, folderName)
-  fs.mkdirSync(path.join(targetDir, 'sprites'), { recursive: true })
-  fs.mkdirSync(path.join(targetDir, 'attachments'), { recursive: true })
-  fs.mkdirSync(path.join(targetDir, 'logs'), { recursive: true })
-
+  const manifest = buildManifestFromDraft(draft, roleId, true)
+  const targetDir = path.join(ensureRolesRoot(dataRoot), allocateRoleFolder(dataRoot, draft.displayName || draft.name))
+  fs.mkdirSync(targetDir, { recursive: true })
   copyDirectoryContents(path.join(draftDir, 'sprites'), path.join(targetDir, 'sprites'))
   copyDirectoryContents(path.join(draftDir, 'voice'), path.join(targetDir, 'voice'))
   writeVoiceConfigIfPresent(draft, targetDir, true)
-
-  const manifest = buildManifestFromDraft(draft, roleId, true)
   fs.writeFileSync(path.join(targetDir, 'opengal.json'), JSON.stringify(manifest, null, 2) + LF, 'utf-8')
-  fs.writeFileSync(
-    path.join(targetDir, 'meta.json'),
-    JSON.stringify(
-      {
-        roleId,
-        templateId: 'workshop',
-        templateFolder: draftId,
-        templateVersion: '1.0.0',
-        displayName: draft.displayName,
-        mode: draft.mode,
-        createdAt: new Date().toISOString(),
-      },
-      null,
-      2,
-    ),
-    'utf-8',
-  )
+  writeRoleMeta(targetDir, {
+    roleId,
+    templateId: 'workshop',
+    templateFolder: draftId,
+    templateVersion: '1.0.0',
+    displayName: draft.displayName,
+    mode: draft.mode,
+  })
 
   const card = getOwnedRoleCard(roleId, dataRoot)
   if (!card) throw new Error('角色生成未通过校验，请检查人设内容是否填写完整')

@@ -107,6 +107,8 @@ export class WindowManager {
   }
 
   createMainWindow(): BrowserWindow {
+    // 对话、语音和记忆管线属于窗口渲染进程；切换窗口时销毁旧窗口，避免两套管线并行写库。
+    this.closeMateWindow()
     if (this.main && !this.main.isDestroyed()) {
       if (this.main.isMinimized()) this.main.restore()
       this.main.show()
@@ -208,6 +210,14 @@ export class WindowManager {
   }
 
   openMateWindow(): { success: true } {
+    if (this.mate && !this.mate.isDestroyed()) {
+      this.mate.focus()
+      return { success: true }
+    }
+    if (this.main && !this.main.isDestroyed()) {
+      this.main.destroy()
+      this.main = null
+    }
     if (this.mate && !this.mate.isDestroyed()) {
       this.mate.focus()
       return { success: true }

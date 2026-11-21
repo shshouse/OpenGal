@@ -1,4 +1,5 @@
 import type { RoleExampleTurn, RoleMode } from '../role/types'
+import type { RoleAvatarRegion } from '@shared/role/avatar'
 
 export type AssetProvenanceKind =
   | 'original'
@@ -32,6 +33,7 @@ export interface WorkshopDraft {
     userTerm?: string
   }
   portraitRelPath?: string
+  avatar?: RoleAvatarRegion
   voice: WorkshopVoiceRef
   provenance: {
     kind: AssetProvenanceKind

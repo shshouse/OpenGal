@@ -35,7 +35,6 @@ export default function MateView(): React.JSX.Element {
   const roles = useRoleStore((s) => s.list)
   const activeId = useRoleStore((s) => s.activeId)
   const loadRoles = useRoleStore((s) => s.loadRoles)
-  const outfits = useRoleStore((s) => s.outfits)
   const activeRole = roles.find((card) => card.id === activeId) ?? null
 
   const runningById = useRoleRuntimeStore((s) => s.byId)
@@ -66,7 +65,7 @@ export default function MateView(): React.JSX.Element {
   React.useEffect(
     () =>
       window.opengal.role.onOutfitChanged((change) => {
-        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
+        void useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
       }),
     [],
   )
@@ -390,7 +389,7 @@ export default function MateView(): React.JSX.Element {
             role={activeRole}
             model={model}
             sleeping={sleeping}
-            outfitId={activeRole ? outfits[activeRole.id] : undefined}
+            outfitId={activeRole?.activeOutfitId}
             transparent
             mate
             onSnapshot={(dataUrl) => window.opengal.mate.emitAvatar(dataUrl)}

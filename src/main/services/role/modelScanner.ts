@@ -52,5 +52,11 @@ export function resolveModelFromCard(card: RoleCardEntry): Live2DModelConfig | n
   if (live2d.scale !== undefined) config.scale = live2d.scale
   if (live2d.xRatio !== undefined) config.xRatio = live2d.xRatio
   if (live2d.paramMapping) config.paramMapping = { ...DEFAULT_PARAM_MAPPING, ...live2d.paramMapping }
+  const transform = card.performance.transform
+  if (transform) {
+    config.scale = transform.scale
+    config.xRatio = transform.xRatio
+    config.canvasYRatio = transform.yRatio
+  }
   return config
 }

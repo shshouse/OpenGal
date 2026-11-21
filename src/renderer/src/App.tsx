@@ -46,6 +46,8 @@ export default function App(): React.JSX.Element {
   const [view, setView] = React.useState<AppViewName>('chat')
   const [actionError, setActionError] = React.useState('')
   const [liveActivity, setLiveActivity] = React.useState('')
+  const [avatarSource, setAvatarSource] = React.useState<{ roleId: string; url: string } | null>(null)
+  const [avatarCaptureRequest, setAvatarCaptureRequest] = React.useState(0)
   const [lifePaused, setLifePaused] = React.useState(true)
   const lastMoodRef = React.useRef('')
 
@@ -55,7 +57,6 @@ export default function App(): React.JSX.Element {
   const loadRoles = useRoleStore((s) => s.loadRoles)
   const activeId = useRoleStore((s) => s.activeId)
   const activeCard = useRoleStore((s) => s.list.find((card) => card.id === s.activeId)) ?? null
-  const outfits = useRoleStore((s) => s.outfits)
   const runningById = useRoleRuntimeStore((s) => s.byId)
   const activeRunning = isRoleRunning(runningById, activeId)
 
@@ -89,7 +90,7 @@ export default function App(): React.JSX.Element {
   React.useEffect(
     () =>
       window.opengal.role?.onOutfitChanged?.((change) => {
-        useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
+        void useRoleStore.getState().setOutfit(change.roleId, change.outfitId)
       }) ?? (() => {}),
     [],
   )
@@ -184,22 +185,27 @@ export default function App(): React.JSX.Element {
     })()
   }, [activeId])
 
-  const spriteIdleUrl =
-    activeCard?.performance.mode === 'sprite' ? (activeCard.spriteFrames?.idle ?? null) : null
+  const requestAvatarSource = React.useCallback(() => setAvatarCaptureRequest((value) => value + 1), [])
+
+  const spriteIdleUrl = activeCard?.spriteFrames?.idle ?? null
+  React.useEffect(() => {
+    setAvatarSource(null)
+  }, [activeId])
   React.useEffect(() => {
     if (!spriteIdleUrl) {
       setAvatarUrl(null)
       return
     }
     let cancelled = false
-    setAvatarUrl(spriteIdleUrl)
+    setAvatarUrl(activeCard?.performance.avatar ? spriteIdleUrl : null)
+    if (activeCard?.performance.avatar) return () => { cancelled = true }
     void cropImageHead(spriteIdleUrl).then((cropped) => {
       if (!cancelled && cropped) setAvatarUrl(cropped)
     })
     return () => {
       cancelled = true
     }
-  }, [spriteIdleUrl])
+  }, [activeCard?.performance.avatar, spriteIdleUrl])
 
   const saveConfig = React.useCallback(async (patch: Partial<AppConfig>): Promise<void> => {
     const res = await window.opengal.config.set(patch)
@@ -228,12 +234,16 @@ export default function App(): React.JSX.Element {
 
   const handleStageTransformChange = React.useCallback(
     (next: { scale: number; xRatio: number; yRatio: number }) => {
-      if (!model) return
-      void saveConfig({
-        model: { ...model, scale: next.scale, xRatio: next.xRatio, canvasYRatio: next.yRatio },
+      if (!model || !activeCard) return
+      const transform = { scale: next.scale, xRatio: next.xRatio, yRatio: next.yRatio }
+      void window.opengal.role.saveCard(activeCard.id, { persona: activeCard.persona, transform }).then((res) => {
+        if (res.success) {
+          setModel({ ...model, ...next, canvasYRatio: next.yRatio })
+          void loadRoles(activeCard.id)
+        }
       }).catch(() => {})
     },
-    [model, saveConfig],
+    [activeCard, loadRoles, model],
   )
 
   async function toggleRunningFor(roleId: string): Promise<void> {
@@ -279,7 +289,6 @@ export default function App(): React.JSX.Element {
 
   async function returnToDesktopStage(): Promise<void> {
     await window.opengal.mate?.open?.()
-    await window.opengal.window?.close?.()
   }
 
   function openSettingsTab(tab: string): void {
@@ -294,7 +303,7 @@ export default function App(): React.JSX.Element {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <WindowBar />
 
-      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b bg-card px-3">
+      {roles.length > 0 ? <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b bg-card px-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1">
           {roles.map((role) => {
             const selected = role.id === activeId
@@ -361,22 +370,158 @@ export default function App(): React.JSX.Element {
             回到桌面陪伴
           </Button>
         ) : null}
-      </div>
+      </div> : null}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <NavRail view={view} onNavigate={setView} />
 
-        <aside className="hidden w-[320px] shrink-0 flex-col border-r bg-card/40 md:flex lg:w-[360px]">
+
+
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+          {actionError ? (
+            <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
+              {actionError}
+            </div>
+          ) : null}
+
+          <div className={view === 'chat' ? 'flex h-full min-w-0 flex-1 flex-col' : 'hidden'}>
+            {activeCard ? (
+              <>
+                <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b bg-card px-4">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h1 className="truncate text-sm font-semibold">{activeLabel}</h1>
+                    <ContextUsageIndicator />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => useChatStore.getState().clear()}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Trash2 className="size-3.5" />
+                      清空对话
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setView('role')}
+                      className="h-7 px-2.5 text-xs"
+                    >
+                      生活与设定
+                    </Button>
+                  </div>
+                </header>
+                <div className="min-h-0 flex-1">
+                  <ChatThread
+                    roleLabel={activeLabel}
+                    avatarUrl={activeCard.performance.avatar && avatarSource?.roleId === activeCard.id ? avatarSource.url : avatarUrl}
+                    avatarRegion={activeCard.performance.avatar}
+                    roleColor={activeCard.color}
+                  />
+                </div>
+                <div className="shrink-0 border-t bg-background px-4 py-3">
+                  <div className="mx-auto w-full max-w-[820px]">
+                    <ChatComposerBar />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                <p className="text-sm font-medium">还没有创建角色</p>
+                <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
+                  先从 mods 模组模板或空白设定创建一个独立角色，她就会出现在你的桌面与工作台中。
+                </p>
+                <Button type="button" size="sm" onClick={() => setView('create')}>
+                  <Plus className="size-4" />
+                  立即创建角色
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {view === 'create' ? (
+            <RoleCreatorPanel
+              onRoleCreated={() => setView('chat')}
+              onOpenWorkshop={() => setView('workshop')}
+              onOpenMarket={() => setView('market')}
+            />
+          ) : null}
+
+          {(view === 'role' || view === 'home') ? (
+            <React.Suspense fallback={null}>
+              <RoleStudio
+                role={activeCard}
+                onClose={() => setView('create')}
+                onRoleDeleted={() => {
+                  if (useRoleStore.getState().list.length === 0) setView('create')
+                  else setView('chat')
+                }}
+                onOpenDisplaySettings={() => openSettingsTab('display')}
+                onOpenTtsSettings={() => openSettingsTab('tts')}
+                onOpenModelSettings={() => openSettingsTab('llm')}
+                avatarSrc={activeCard && avatarSource?.roleId === activeCard.id ? avatarSource.url : null}
+                onRequestAvatarSrc={requestAvatarSource}
+              />
+            </React.Suspense>
+          ) : null}
+
+          {view === 'workshop' ? (
+            <RoleWorkshopPanel
+              onPreviewPortraitChange={setWorkshopPreviewUrl}
+              onRoleFinalized={() => setView('chat')}
+            />
+          ) : null}
+
+          {view === 'market' ? (
+            <React.Suspense fallback={null}>
+              <MarketPage />
+            </React.Suspense>
+          ) : null}
+
+          {view === 'settings' ? (
+            <div className="flex h-full w-full flex-col bg-background">
+              <div className="flex h-12 shrink-0 items-center border-b px-4">
+                <span className="text-sm font-semibold">设置</span>
+                <button
+                  type="button"
+                  title="关闭"
+                  aria-label="关闭设置"
+                  className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={() => setView('chat')}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                {config ? (
+                  <React.Suspense fallback={null}>
+                    <SettingsCenter config={config} model={model} onSave={saveConfig} />
+                  </React.Suspense>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {view === 'logs' ? <LogsPanel onClose={() => setView('chat')} /> : null}
+        </main>
+
+        {roles.length > 0 ? <aside data-role-stage className="hidden w-[320px] shrink-0 flex-col border-l bg-card/40 md:flex lg:w-[360px]">
           <div className="relative min-h-0 flex-1 overflow-hidden">
             {activeCard || workshopPreviewUrl ? (
               <RoleStageCanvas
                 role={activeCard}
                 model={model}
                 sleeping={!activeRunning}
-                outfitId={activeCard ? outfits[activeCard.id] : undefined}
+                outfitId={activeCard?.activeOutfitId}
                 previewPortraitUrl={view === 'workshop' ? workshopPreviewUrl : null}
                 onTransformChange={handleStageTransformChange}
                 onSnapshot={setAvatarUrl}
+                avatarRegion={activeCard?.performance.avatar}
+                captureRequest={avatarCaptureRequest}
+                onCapture={(url) => { if (activeCard) setAvatarSource({ roleId: activeCard.id, url }) }}
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-xs text-muted-foreground">
@@ -458,7 +603,7 @@ export default function App(): React.JSX.Element {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">服装</span>
                   <select
-                    value={outfits[activeCard.id] ?? activeCard.activeOutfitId ?? activeCard.performance.defaultOutfit ?? ''}
+                    value={activeCard.activeOutfitId ?? activeCard.performance.defaultOutfit ?? ''}
                     onChange={(e) => useRoleStore.getState().setOutfit(activeCard.id, e.target.value)}
                     className="h-7 flex-1 rounded-md border bg-background px-2 text-xs"
                   >
@@ -472,135 +617,7 @@ export default function App(): React.JSX.Element {
               ) : null}
             </div>
           ) : null}
-        </aside>
-
-        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
-          {actionError ? (
-            <div role="alert" className="shrink-0 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive">
-              {actionError}
-            </div>
-          ) : null}
-
-          <div className={view === 'chat' ? 'flex h-full min-w-0 flex-1 flex-col' : 'hidden'}>
-            {activeCard ? (
-              <>
-                <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b bg-card px-4">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <h1 className="truncate text-sm font-semibold">{activeLabel}</h1>
-                    <ContextUsageIndicator />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => useChatStore.getState().clear()}
-                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <Trash2 className="size-3.5" />
-                      清空对话
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setView('role')}
-                      className="h-7 px-2.5 text-xs"
-                    >
-                      生活与设定
-                    </Button>
-                  </div>
-                </header>
-                <div className="min-h-0 flex-1">
-                  <ChatThread
-                    roleLabel={activeLabel}
-                    avatarUrl={avatarUrl}
-                    roleColor={activeCard.color}
-                  />
-                </div>
-                <div className="shrink-0 border-t bg-background px-4 py-3">
-                  <div className="mx-auto w-full max-w-[820px]">
-                    <ChatComposerBar />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                <p className="text-sm font-medium">还没有创建角色</p>
-                <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
-                  先从 mods 模组模板或空白设定创建一个独立角色，她就会出现在你的桌面与工作台中。
-                </p>
-                <Button type="button" size="sm" onClick={() => setView('create')}>
-                  <Plus className="size-4" />
-                  立即创建角色
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {view === 'create' ? (
-            <RoleCreatorPanel
-              onRoleCreated={() => setView('chat')}
-              onOpenWorkshop={() => setView('workshop')}
-              onOpenMarket={() => setView('market')}
-            />
-          ) : null}
-
-          {(view === 'role' || view === 'home') ? (
-            <React.Suspense fallback={null}>
-              <RoleStudio
-                role={activeCard}
-                onClose={() => setView('create')}
-                onRoleDeleted={() => {
-                  if (useRoleStore.getState().list.length === 0) setView('create')
-                  else setView('chat')
-                }}
-                onOpenDisplaySettings={() => openSettingsTab('display')}
-                onOpenTtsSettings={() => openSettingsTab('tts')}
-                onOpenModelSettings={() => openSettingsTab('llm')}
-              />
-            </React.Suspense>
-          ) : null}
-
-          {view === 'workshop' ? (
-            <RoleWorkshopPanel
-              onPreviewPortraitChange={setWorkshopPreviewUrl}
-              onRoleFinalized={() => setView('chat')}
-            />
-          ) : null}
-
-          {view === 'market' ? (
-            <React.Suspense fallback={null}>
-              <MarketPage />
-            </React.Suspense>
-          ) : null}
-
-          {view === 'settings' ? (
-            <div className="flex h-full w-full flex-col bg-background">
-              <div className="flex h-12 shrink-0 items-center border-b px-4">
-                <span className="text-sm font-semibold">设置</span>
-                <button
-                  type="button"
-                  title="关闭"
-                  aria-label="关闭设置"
-                  className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={() => setView('chat')}
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-              <div className="min-h-0 flex-1">
-                {config ? (
-                  <React.Suspense fallback={null}>
-                    <SettingsCenter config={config} model={model} onSave={saveConfig} />
-                  </React.Suspense>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          {view === 'logs' ? <LogsPanel onClose={() => setView('chat')} /> : null}
-        </main>
+        </aside> : null}
       </div>
     </div>
   )

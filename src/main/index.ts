@@ -76,11 +76,7 @@ app.whenReady().then(() => {
   })
 
   app.on('activate', () => {
-    if (listOwnedRoleCards().length > 0) {
-      windows.openMateWindow()
-    } else {
-      windows.createMainWindow()
-    }
+    windows.createMainWindow()
   })
 }).catch((err: Error) => {
   console.error('[fatal] 应用启动失败:', err.stack ?? err.message)

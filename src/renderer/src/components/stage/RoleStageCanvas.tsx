@@ -1,5 +1,5 @@
 import * as React from 'react'
-import type { Live2DModelConfig, RoleCardEntry } from '@shared/types'
+import type { Live2DModelConfig, RoleAvatarRegion, RoleCardEntry } from '@shared/types'
 import { Live2DStage } from '@/components/live2d/Live2DStage'
 import { SpriteStage } from '@/components/sprite/SpriteStage'
 import { SpineStage } from '@/components/spine/SpineStage'
@@ -14,6 +14,9 @@ interface Props {
   previewPortraitUrl?: string | null
   onTransformChange?: (next: { scale: number; xRatio: number; yRatio: number }) => void
   onSnapshot?: (dataUrl: string) => void
+  avatarRegion?: RoleAvatarRegion
+  captureRequest?: number
+  onCapture?: (dataUrl: string) => void
 }
 
 export function RoleStageCanvas({
@@ -26,6 +29,9 @@ export function RoleStageCanvas({
   previewPortraitUrl,
   onTransformChange,
   onSnapshot,
+  avatarRegion,
+  captureRequest,
+  onCapture,
 }: Props): React.JSX.Element {
   if (previewPortraitUrl) {
     return (
@@ -84,6 +90,9 @@ export function RoleStageCanvas({
       transformGestures={!mate}
       onChange={onTransformChange}
       onSnapshot={onSnapshot}
+      avatarRegion={avatarRegion}
+      captureRequest={captureRequest}
+      onCapture={onCapture}
     />
   )
 }

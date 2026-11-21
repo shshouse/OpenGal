@@ -1,8 +1,9 @@
 import * as React from 'react'
 import * as PIXI from 'pixi.js'
 import { Loader2, AlertCircle } from 'lucide-react'
-import type { Live2DModelConfig } from '@shared/types'
+import type { Live2DModelConfig, RoleAvatarRegion } from '@shared/types'
 import { registerLive2DModel, playMotionGroup, resetPose, setEyesClosed } from '@/features/live2d/live2dBus'
+import { avatarCropPixels } from '@shared/role/avatar'
 import { getHeadCrop } from '@/lib/headCrop'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { useStartupStore } from '@/features/startup/startupStore'
@@ -34,6 +35,9 @@ interface Props {
   sleeping?: boolean
   onChange?: (next: { scale: number; xRatio: number; yRatio: number }) => void
   onSnapshot?: (dataUrl: string) => void
+  avatarRegion?: RoleAvatarRegion
+  captureRequest?: number
+  onCapture?: (dataUrl: string) => void
 }
 
 export function Live2DStage({
@@ -43,7 +47,10 @@ export function Live2DStage({
   transformGestures = true,
   sleeping = false,
   onChange,
-  onSnapshot
+  onSnapshot,
+  avatarRegion,
+  captureRequest = 0,
+  onCapture
 }: Props) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
@@ -362,45 +369,39 @@ export function Live2DStage({
     setEyesClosed(sleeping)
   }, [sleeping])
 
+  const capture = React.useCallback(async (forEditor: boolean): Promise<void> => {
+    const app = appRef.current
+    if (!app) return
+    try {
+      const dataUrl = await app.renderer.extract.base64(app.stage)
+      const image = new Image()
+      image.src = dataUrl
+      await image.decode()
+      if (forEditor) { onCapture?.(dataUrl); return }
+      if (!onSnapshot) return
+      const bounds = modelRef.current?.getBounds()
+      const ratio = app.screen.width > 0 ? image.width / app.screen.width : 1
+      const modelBounds = bounds ? { x: bounds.x * ratio, y: bounds.y * ratio, width: bounds.width * ratio, height: bounds.height * ratio } : undefined
+      const crop = avatarRegion ? avatarCropPixels(avatarRegion, image.width, image.height) : getHeadCrop(image.width, image.height, modelBounds)
+      if (crop.size === 0) return
+      const target = document.createElement('canvas')
+      target.width = crop.size
+      target.height = crop.size
+      const ctx = target.getContext('2d')
+      if (!ctx) return
+      ctx.drawImage(image, crop.x, crop.y, crop.size, crop.size, 0, 0, crop.size, crop.size)
+      onSnapshot(target.toDataURL('image/png'))
+    } catch { /* 模型尚未就绪 */ }
+  }, [avatarRegion, onCapture, onSnapshot])
+
   React.useEffect(() => {
-    if (!onSnapshot) return
-    let capturing = false
-    const timer = window.setInterval(() => {
-      const app = appRef.current
-      if (!app || capturing) return
-      capturing = true
-      void (async () => {
-        try {
-          const dataUrl = await app.renderer.extract.base64(app.stage)
-          const image = new Image()
-          image.src = dataUrl
-          await image.decode()
-          const bounds = modelRef.current?.getBounds()
-          const ratio = app.screen.width > 0 ? image.width / app.screen.width : 1
-          const modelBounds = bounds ? {
-            x: bounds.x * ratio,
-            y: bounds.y * ratio,
-            width: bounds.width * ratio,
-            height: bounds.height * ratio,
-          } : undefined
-          const crop = getHeadCrop(image.width, image.height, modelBounds)
-          if (crop.size === 0) return
-          const target = document.createElement('canvas')
-          target.width = crop.size
-          target.height = crop.size
-          const ctx = target.getContext('2d')
-          if (!ctx) return
-          ctx.drawImage(image, crop.x, crop.y, crop.size, crop.size, 0, 0, crop.size, crop.size)
-          onSnapshot(target.toDataURL('image/png'))
-        } catch {
-          /* 模型尚未就绪时忽略 */
-        } finally {
-          capturing = false
-        }
-      })()
-    }, 800)
-    return () => window.clearInterval(timer)
-  }, [onSnapshot])
+    if (!onSnapshot || status !== 'ready') return
+    void capture(false)
+  }, [capture, onSnapshot, status])
+
+  React.useEffect(() => {
+    if (captureRequest > 0 && status === 'ready') void capture(true)
+  }, [capture, captureRequest, status])
 
   return (
     <div

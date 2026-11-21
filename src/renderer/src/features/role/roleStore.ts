@@ -10,28 +10,12 @@ interface RoleState {
   activeId: string | null
   loading: boolean
   error: string | null
-  outfits: Record<string, string>
   loadRoles: (preferredActiveId?: string | null) => Promise<void>
   setActive: (id: string) => Promise<void>
-  setOutfit: (roleId: string, outfitId: string) => void
+  setOutfit: (roleId: string, outfitId: string) => Promise<void>
   getActive: () => RoleCardEntry | null
 }
 
-const OUTFIT_STORAGE_KEY = 'opengal:outfits'
-
-function readOutfits(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(OUTFIT_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return {}
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-    )
-  } catch {
-    return {}
-  }
-}
 
 function interruptBusyTurn(): void {
   const chat = useChatStore.getState()
@@ -57,16 +41,16 @@ export const useRoleStore = create<RoleState>((set, get) => ({
   loading: false,
   error: null,
 
-  outfits: readOutfits(),
 
-  setOutfit: (roleId, outfitId) => {
-    const next = { ...get().outfits, [roleId]: outfitId }
-    try {
-      localStorage.setItem(OUTFIT_STORAGE_KEY, JSON.stringify(next))
-    } catch {
-      // 存储不可用时仍然切当前会话的显示
+  setOutfit: async (roleId, outfitId) => {
+    const card = get().list.find((item) => item.id === roleId)
+    if (!card) return
+    const res = await window.opengal.role.saveCard(roleId, { persona: card.persona, activeOutfitId: outfitId })
+    if (!res.success) {
+      set({ error: res.error ?? '换装保存失败' })
+      return
     }
-    set({ outfits: next })
+    await get().loadRoles(roleId)
   },
 
   loadRoles: async (preferredActiveId) => {

@@ -77,6 +77,18 @@ export function sanitizeFolderName(name: string): string {
   return cleaned.replace(/[. ]+$/g, '')
 }
 
+export function allocateRoleFolder(dataRoot: string, displayName: string): string {
+  const base = sanitizeFolderName(displayName)
+  if (!base) throw new Error('角色名称无效')
+  let folderName = base
+  let sequence = 2
+  while (isFolderNameTaken(dataRoot, folderName)) {
+    folderName = `${base} ${sequence}`
+    sequence++
+  }
+  return folderName
+}
+
 export function isFolderNameTaken(dataRoot: string, name: string): boolean {
   const folder = sanitizeFolderName(name)
   if (!folder) return true
@@ -179,25 +191,20 @@ export function materializeRole(
 ): string {
   const folder = sanitizeFolderName(displayName)
   if (!folder) throw new Error('角色名不能为空')
-  const root = ensureRolesRoot(dataRoot)
-  const target = path.join(root, folder)
+  const target = path.join(ensureRolesRoot(dataRoot), folder)
   if (fs.existsSync(target)) throw new Error(`角色目录已存在：${folder}`)
-
   const roleId = opts.roleId ?? allocateUniqueRoleId(dataRoot, template.id)
   copyDirectorySync(templateDir, target, COPY_SKIP_ENTRIES)
   patchMaterializedCardFile(target, { id: roleId, displayName, mode: opts.mode })
   ensureSelfContainedSubdirs(target)
-
-  const meta: RoleMeta = {
+  writeRoleMeta(target, {
     roleId,
     templateId: template.id,
     templateFolder: template.folder,
     templateVersion: template.version ?? null,
     displayName,
     ...(opts.mode ? { mode: opts.mode } : {}),
-    createdAt: new Date().toISOString(),
-  }
-  fs.writeFileSync(path.join(target, META_FILE), JSON.stringify(meta, null, 2), 'utf-8')
+  })
   return target
 }
 
@@ -214,6 +221,11 @@ function buildPlaceholderPortraitSvg(label: string, accent = '#3B82F6'): string 
   ].join(LF)
 }
 
+export function writeRoleMeta(rootPath: string, meta: Omit<RoleMeta, 'createdAt'>): void {
+  const savedMeta = { ...meta, roleId: readDeclaredRoleId(rootPath) ?? meta.roleId, createdAt: new Date().toISOString() }
+  fs.writeFileSync(path.join(rootPath, META_FILE), JSON.stringify(savedMeta, null, 2), 'utf-8')
+}
+
 export function createBlankRoleDir(
   dataRoot: string,
   input: BlankRoleInput,
@@ -221,12 +233,7 @@ export function createBlankRoleDir(
   const baseFolder = sanitizeFolderName(input.displayName?.trim() || input.name.trim())
   if (!baseFolder) throw new Error('角色名称无效')
 
-  let folderName = baseFolder
-  let seq = 2
-  while (isFolderNameTaken(dataRoot, folderName)) {
-    folderName = `${baseFolder} ${seq}`
-    seq++
-  }
+  const folderName = allocateRoleFolder(dataRoot, baseFolder)
 
   const roleId = allocateUniqueRoleId(dataRoot, input.name)
   const rootPath = path.join(ensureRolesRoot(dataRoot), folderName)
@@ -262,16 +269,14 @@ export function createBlankRoleDir(
   }
   fs.writeFileSync(path.join(rootPath, 'opengal.json'), JSON.stringify(manifest, null, 2) + LF, 'utf-8')
 
-  const meta: RoleMeta = {
+  writeRoleMeta(rootPath, {
     roleId,
     templateId: 'custom',
     templateFolder: '',
     templateVersion: null,
     displayName: input.displayName?.trim() || input.name.trim(),
     mode: input.mode ?? 'agent',
-    createdAt: new Date().toISOString(),
-  }
-  fs.writeFileSync(path.join(rootPath, META_FILE), JSON.stringify(meta, null, 2), 'utf-8')
+  })
 
   return { roleId, folderName, rootPath }
 }

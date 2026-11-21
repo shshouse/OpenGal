@@ -11,6 +11,9 @@ interface Props {
   onOpenDisplaySettings: () => void
   onOpenTtsSettings: () => void
   onOpenModelSettings: () => void
+  avatarSrc?: string | null
+  onRequestAvatarSrc?: () => void
+  onAvatarSaved?: () => void
 }
 
 export function RoleTransferPanel({
@@ -19,6 +22,9 @@ export function RoleTransferPanel({
   onOpenDisplaySettings,
   onOpenTtsSettings,
   onOpenModelSettings,
+  avatarSrc,
+  onRequestAvatarSrc,
+  onAvatarSaved,
 }: Props): React.JSX.Element {
   const [notice, setNotice] = React.useState('')
   const [error, setError] = React.useState('')
@@ -51,6 +57,9 @@ export function RoleTransferPanel({
     <div className="flex flex-col gap-6">
       <AppearancePanel
         role={role}
+        avatarSrc={avatarSrc}
+        onRequestAvatarSrc={onRequestAvatarSrc}
+        onAvatarSaved={onAvatarSaved}
         onOpenDisplaySettings={onOpenDisplaySettings}
         onOpenTtsSettings={onOpenTtsSettings}
         onOpenModelSettings={onOpenModelSettings}

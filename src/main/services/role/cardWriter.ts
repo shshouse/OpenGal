@@ -83,6 +83,17 @@ function mergeCard(raw: Record<string, unknown>, fields: RoleCardEditableFields)
     else delete next.activeOutfitId
   }
 
+  if (fields.avatar !== undefined || fields.transform !== undefined) {
+    const performance = raw.performance && typeof raw.performance === 'object' && !Array.isArray(raw.performance)
+      ? raw.performance as Record<string, unknown>
+      : {}
+    const nextPerformance: Record<string, unknown> = { ...performance }
+    if (fields.avatar) nextPerformance.avatar = fields.avatar
+    else if (fields.avatar === null) delete nextPerformance.avatar
+    if (fields.transform) nextPerformance.transform = fields.transform
+    next.performance = nextPerformance
+  }
+
   const persona = raw.persona && typeof raw.persona === 'object' && !Array.isArray(raw.persona)
     ? raw.persona as Record<string, unknown>
     : {}

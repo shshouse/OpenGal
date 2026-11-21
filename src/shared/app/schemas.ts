@@ -19,6 +19,12 @@ export const roleExampleTurnSchema = z.object({
   assistant: z.string().min(1).max(4_000),
 })
 
+export const roleAvatarSchema = z.object({
+  x: z.number().finite().min(0).max(1),
+  y: z.number().finite().min(0).max(1),
+  radius: z.number().finite().gt(0).max(0.5),
+}).strict()
+
 export const roleCardEditableSchema = z
   .object({
     displayName: z.string().max(64).optional(),
@@ -28,6 +34,8 @@ export const roleCardEditableSchema = z
     greeting: z.string().max(2_000).optional(),
     examples: z.array(roleExampleTurnSchema).max(40).optional(),
     activeOutfitId: z.string().max(64).optional(),
+    avatar: roleAvatarSchema.nullable().optional(),
+    transform: z.object({ scale: z.number().finite().min(0.2).max(5), xRatio: z.number().finite().min(0).max(1), yRatio: z.number().finite().min(0).max(1) }).strict().optional(),
     persona: z
       .object({
         description: z.string().min(1).max(20_000),

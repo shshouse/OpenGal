@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { ExternalLink, FolderOutput, ImagePlus, Mic, Plus, Sparkles, Trash2 } from 'lucide-react'
 import type { AssetProvenanceKind, WorkshopDraft } from '@core/workshop/types'
-import type { RoleCardEntry, RoleExampleTurn, RoleMode } from '@shared/types'
+import type { RoleAvatarRegion, RoleCardEntry, RoleExampleTurn, RoleMode } from '@shared/types'
+import { AvatarCropper } from '@/components/role/AvatarCropper'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -48,6 +49,9 @@ export function RoleWorkshopPanel({
   const [displayName, setDisplayName] = React.useState('')
   const [language, setLanguage] = React.useState('zh')
   const [mode, setMode] = React.useState<RoleMode>('agent')
+  const [workshopPreviewUrl, setWorkshopPreviewUrl] = React.useState<string | null>(null)
+  const [avatar, setAvatar] = React.useState<RoleAvatarRegion | undefined>()
+  const [editingAvatar, setEditingAvatar] = React.useState(false)
   const [greeting, setGreeting] = React.useState('')
   const [description, setDescription] = React.useState('')
   const [personality, setPersonality] = React.useState('')
@@ -75,6 +79,7 @@ export function RoleWorkshopPanel({
       setDisplayName(draft.displayName)
       setLanguage(draft.language)
       setMode(draft.mode)
+      setAvatar(draft.avatar)
       setGreeting(draft.greeting)
       setDescription(draft.persona.description)
       setPersonality(draft.persona.personality)
@@ -90,7 +95,9 @@ export function RoleWorkshopPanel({
       setCredits(draft.provenance.credits)
 
       const preview = await window.opengal.workshop.portraitPreview(draft.draftId)
-      onPreviewPortraitChange(preview.success ? (preview.data ?? null) : null)
+      const url = preview.success ? (preview.data ?? null) : null
+      setWorkshopPreviewUrl(url)
+      onPreviewPortraitChange(url)
     },
     [onPreviewPortraitChange],
   )
@@ -127,6 +134,8 @@ export function RoleWorkshopPanel({
     setDisplayName('')
     setLanguage('zh')
     setMode('agent')
+    setAvatar(undefined)
+    setEditingAvatar(false)
     setGreeting('')
     setDescription('')
     setPersonality('')
@@ -174,6 +183,7 @@ export function RoleWorkshopPanel({
           referenceAudioRelPath: referenceAudioRel || undefined,
           language: language.trim() || 'zh',
         },
+        avatar,
         provenance: {
           kind: provenanceKind,
           license: license.trim(),
@@ -185,7 +195,7 @@ export function RoleWorkshopPanel({
         return null
       }
       await applyDraftToForm(res.data)
-      setNotice('草稿已保存，左侧舞台已更新预览')
+      setNotice('草稿已保存，角色预览已更新')
       return res.data
     } finally {
       setSaving(false)
@@ -353,11 +363,23 @@ export function RoleWorkshopPanel({
             <ImagePlus className="size-3.5" />
             选择立绘图片
           </Button>
+          <Button type="button" variant="outline" size="sm" disabled={!activeDraftId} onClick={() => setEditingAvatar((value) => !value)}>
+            <ImagePlus className="size-3.5" />设置头像区域
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => void handlePickAsset('voice')}>
             <Mic className="size-3.5" />
             {referenceAudioRel ? '更换参考音频' : '选择参考音频'}
           </Button>
         </section>
+
+        {editingAvatar && activeDraftId ? (
+          <AvatarCropper
+            src={workshopPreviewUrl ?? ''}
+            initial={avatar}
+            onSave={(region) => { setAvatar(region); setEditingAvatar(false); setNotice('头像区域已设置，保存草稿后随模组包导出') }}
+            onCancel={() => setEditingAvatar(false)}
+          />
+        ) : null}
 
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
