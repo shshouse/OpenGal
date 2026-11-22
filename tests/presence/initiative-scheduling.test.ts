@@ -85,13 +85,6 @@ function envSnapshot(): EnvSnapshot {
   }
 }
 
-async function advanceOneTick(): Promise<void> {
-  await vi.advanceTimersByTimeAsync(60_000)
-  await vi.waitFor(() => {
-    if (state.inputs.length === 0) throw new Error('尚未主动开口')
-  })
-}
-
 describe('Agent 主动开口调度', () => {
   let stop: () => void
 
@@ -119,7 +112,14 @@ describe('Agent 主动开口调度', () => {
   })
 
   it('刚回来不能绕过静默阈值；达到阈值后仍主动开口', async () => {
-    await advanceOneTick()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(state.evaluateCalls).toBe(0)
+    expect(state.inputs).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(9 * 60_000)
+    await vi.waitFor(() => {
+      if (state.inputs.length === 0) throw new Error('达到静默阈值后仍未主动开口')
+    })
     expect(state.evaluateCalls).toBe(1)
     expect(state.inputs).toHaveLength(1)
     expect(state.inputs[0]?.source).toBe('system')

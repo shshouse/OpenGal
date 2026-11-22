@@ -24,12 +24,3 @@ export function buildInitiativePerception(
   }
   return events
 }
-
-export function detectReturn(
-  wasReturned: boolean,
-  env: EnvSnapshot | null,
-): { fire: boolean; wasReturned: boolean } {
-  if (!env) return { fire: false, wasReturned }
-  const nowReturned = env.justReturned === true
-  return { fire: nowReturned && !wasReturned, wasReturned: nowReturned }
-}
