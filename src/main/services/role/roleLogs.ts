@@ -40,28 +40,3 @@ export function appendRoleLog(
     // 角色单目录日志写失败不阻塞主流程
   }
 }
-
-export function readRoleLogs(roleId: string, limit = 100): RoleLogRecord[] {
-  const { roleDir } = resolveRoleDbDir(roleId)
-  const logFile = path.join(roleDir, 'logs', LOG_FILE_NAME)
-  if (!fs.existsSync(logFile)) return []
-  try {
-    const lines = fs
-      .readFileSync(logFile, 'utf-8')
-      .split(LF)
-      .map((line) => line.trim())
-      .filter(Boolean)
-    const slice = lines.slice(-Math.max(1, Math.min(1000, limit)))
-    const out: RoleLogRecord[] = []
-    for (const line of slice) {
-      try {
-        out.push(JSON.parse(line) as RoleLogRecord)
-      } catch {
-        continue
-      }
-    }
-    return out
-  } catch {
-    return []
-  }
-}

@@ -11,7 +11,14 @@ import { IpcChannels } from '@shared/app/ipc-channels'
 import type { RoleCardEntry } from '@shared/types'
 import { getDataRoot, getModRoot } from '../infra/paths'
 import { getOwnedRoleCard } from '../role/cardLoader'
-import { allocateRoleFolder, allocateUniqueRoleId, ensureRolesRoot, sanitizeFolderName, writeRoleMeta } from '../role/store'
+import {
+  allocateRoleFolder,
+  allocateUniqueRoleId,
+  buildPlaceholderPortraitSvg,
+  ensureRolesRoot,
+  sanitizeFolderName,
+  writeRoleMeta,
+} from '../role/store'
 
 const DRAFT_FILE = 'draft.json'
 const LF = String.fromCharCode(10)
@@ -37,19 +44,6 @@ function safeDraftDir(draftId: string, dataRoot = getDataRoot()): string {
     throw new Error('越界草稿路径已被拦截')
   }
   return resolved
-}
-
-function defaultPlaceholderSvg(label: string, accent = '#3B82F6'): string {
-  const safeChar = (label.trim()[0] ?? 'R').replace(/[<>&"']/g, '')
-  const safeColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(accent) ? accent : '#3B82F6'
-  return [
-    '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="768" viewBox="0 0 512 768">',
-    '  <rect width="512" height="768" rx="48" fill="none"/>',
-    `  <circle cx="256" cy="248" r="96" fill="${safeColor}" fill-opacity="0.18" stroke="${safeColor}" stroke-width="4"/>`,
-    `  <path d="M116 640c0-88 62-152 140-152s140 64 140 152" fill="${safeColor}" fill-opacity="0.14" stroke="${safeColor}" stroke-width="4" stroke-linecap="round"/>`,
-    `  <text x="256" y="276" text-anchor="middle" font-family="sans-serif" font-size="76" font-weight="600" fill="${safeColor}">${safeChar}</text>`,
-    '</svg>',
-  ].join(LF)
 }
 
 function broadcastDraftUpdate(draft: WorkshopDraft): void {
@@ -125,7 +119,7 @@ export function saveWorkshopDraft(
     portraitRelPath = 'sprites/idle.svg'
     fs.writeFileSync(
       path.join(dir, portraitRelPath),
-      defaultPlaceholderSvg(input.displayName || input.name, color),
+      buildPlaceholderPortraitSvg(input.displayName || input.name, color),
       'utf-8',
     )
   }
@@ -453,7 +447,7 @@ export function exportDraftAsModPack(
   if (compliance.recipeOnly) {
     fs.writeFileSync(
       path.join(modPath, 'sprites', 'idle.svg'),
-      defaultPlaceholderSvg(draft.displayName, draft.color),
+      buildPlaceholderPortraitSvg(draft.displayName, draft.color),
       'utf-8',
     )
     writeVoiceConfigIfPresent(draft, modPath, false)

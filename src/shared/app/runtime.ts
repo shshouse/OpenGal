@@ -1,9 +1,34 @@
+import type { RoleMode, RoleStateSnapshot } from '../../core/role/types'
 import type { ScreenPulse } from '../presence/screen'
 
 export interface IpcResult<T = unknown> {
   success: boolean
   data?: T
   error?: string
+}
+
+export interface RuntimeRoleItem {
+  roleId: string
+  displayName: string
+  mode: RoleMode
+  running: boolean
+  lifePaused: boolean
+  thinking: boolean
+  state: RoleStateSnapshot
+}
+
+export interface RuntimePoolSnapshot {
+  focusedRoleId: string | null
+  runningRoleIds: string[]
+  roles: Record<string, RuntimeRoleItem>
+}
+
+export interface AutonomousSpeakPayload {
+  roleId: string
+  line: string
+  mood: string
+  activity: string
+  ts: number
 }
 
 export type BootStepStatus = 'pending' | 'running' | 'ok' | 'failed' | 'skipped'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeCardLlm } from '@shared/role/cardLlm'
+import { sanitizeCardLlm } from '@shared/role/cardSchema'
 
 describe('sanitizeCardLlm', () => {
   it('移除角色卡里的 baseURL/apiKey 等越权字段', () => {

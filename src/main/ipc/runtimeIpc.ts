@@ -7,7 +7,6 @@ import { clearLifeLogs, getRoleState, listLifeLogs, patchRoleState } from '../se
 import { scanMods } from '../services/mods/scanner'
 import { getOwnedRoleCard, listRoleTemplates } from '../services/role/cardLoader'
 import { deleteOwnedRole, exportOwnedRoleFolder } from '../services/role/lifecycle'
-import { readRoleLogs } from '../services/role/roleLogs'
 import { createBlankRoleDir } from '../services/role/store'
 import {
   executeLifeTick,
@@ -125,12 +124,6 @@ export function registerRuntimeAndWorkshopIpc(): void {
     [roleIdSchema, z.enum(['all', 'traces', 'diary']).optional()],
     (roleId, scope) => clearLifeLogs(roleId, scope ?? 'traces'),
   )
-  handleValidated(
-    IpcChannels.role.roleLogs,
-    [roleIdSchema, z.number().int().min(1).max(500).optional()],
-    (roleId, limit) => readRoleLogs(roleId, limit ?? 100),
-  )
-
   ipcMain.handle(IpcChannels.runtime.snapshot, () => wrap(() => getRuntimePoolSnapshot()))
   handleValidated(
     IpcChannels.runtime.setRunning,

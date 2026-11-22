@@ -97,7 +97,6 @@ export const IpcChannels = {
     patchState: 'role:patchState',
     lifeLogs: 'role:lifeLogs',
     clearLifeLogs: 'role:clearLifeLogs',
-    roleLogs: 'role:roleLogs',
     outfitChanged: 'role:outfitChanged'
   },
   chatHistory: {

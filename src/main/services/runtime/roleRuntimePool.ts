@@ -6,11 +6,17 @@ import {
   type LifeAction,
 } from '@core/harness/lifeLoop'
 import { formatStyleAnchorBlock } from '@core/role/styleAnchor'
-import type { RoleMode, RoleStateSnapshot } from '@core/role/types'
+import type { RoleMode } from '@core/role/types'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import { getErrorMessage } from '@shared/app/errors'
 import { summarizeToolResult } from '@shared/dialogue/toolSummary'
-import type { ChatMessage, RoleCardEntry } from '@shared/types'
+import type {
+  AutonomousSpeakPayload,
+  ChatMessage,
+  RoleCardEntry,
+  RuntimePoolSnapshot,
+  RuntimeRoleItem,
+} from '@shared/types'
 import { readConfig, writeConfig } from '../config/store'
 import { logBus } from '../infra/logBus'
 import { callLLM } from '../llm/client'
@@ -31,30 +37,6 @@ import { getOwnedRoleCard, listOwnedRoleCards } from '../role/cardLoader'
 import { saveRoleCard } from '../role/cardWriter'
 import { appendRoleLog } from '../role/roleLogs'
 import { handleWebSearch } from '../tools/builtin'
-
-export interface RuntimeRoleItem {
-  roleId: string
-  displayName: string
-  mode: RoleMode
-  running: boolean
-  lifePaused: boolean
-  thinking: boolean
-  state: RoleStateSnapshot
-}
-
-export interface RuntimePoolSnapshot {
-  focusedRoleId: string | null
-  runningRoleIds: string[]
-  roles: Record<string, RuntimeRoleItem>
-}
-
-export interface AutonomousSpeakPayload {
-  roleId: string
-  line: string
-  mood: string
-  activity: string
-  ts: number
-}
 
 interface ActiveRoleSlot {
   roleId: string

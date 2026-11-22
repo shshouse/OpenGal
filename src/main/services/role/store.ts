@@ -208,7 +208,7 @@ export function materializeRole(
   return target
 }
 
-function buildPlaceholderPortraitSvg(label: string, accent = '#3B82F6'): string {
+export function buildPlaceholderPortraitSvg(label: string, accent = '#3B82F6'): string {
   const safeChar = (label.trim()[0] ?? 'R').replace(/[<>&"']/g, '')
   const safeColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(accent) ? accent : '#3B82F6'
   return [

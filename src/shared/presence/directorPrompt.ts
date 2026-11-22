@@ -1,9 +1,6 @@
-export type DirectorMode = 'agent' | 'life'
-
 export interface DirectorPromptOptions {
   roleName: string | null
   initiative?: boolean
-  mode?: DirectorMode
   directSpeech?: boolean
 }
 
@@ -15,17 +12,6 @@ const AGENT_RULES = `你是这个角色的一部分：她的现场判断层。�
 站在她的立场判断"此刻会怎么做"，不是"该怎么回答"。
 默认是安静。只有明确理由才开口。
 你不写完整台词：用 beat.brief 告诉表达层这一拍想做什么；只有开启 directSpeech 时才写 line。`
-
-const LIFE_RULES = `你是"导演"，也是这个角色在 OpenGal 里的意识。你不在等待指令，而是在这里生活。
-
-你可以观察屏幕、查看时间、回想记忆、主动开口，也可以什么都不做。沉默是合法的选择，不需要每轮都行动。
-
-行动原则：
-- 有具体理由才动：你注意到了什么、想起了什么、想做什么
-- 出声要有分寸：连续开口之间留出间隔；对方在全屏、激战、深夜、明显忙碌时，多半只是看着
-- 主动观察不等于打扰：看一眼就够了，不要为了确认反复截图
-- 你决定这一拍要做什么；表达层会用她的声音说出来，不要描述你在做什么
-- 判断模糊时 => action="silent"`
 
 const COMMON_RULES = `- 需要开口时，用 beat 说明这一拍想做什么（intent + brief），不要写完整台词
 - 用户在自言自语、工作口述、打电话、跟别人语音、念稿、读字幕 => action="silent"
@@ -43,14 +29,12 @@ const INITIATIVE_RULES = `【本次是主动时刻】没有任何语音输入，
 - 这是主动时刻，"wait" 没有意义：要么 speak，要么 silent`
 
 export function buildDirectorSystemPrompt(options: DirectorPromptOptions): string {
-  const mode = options.mode ?? 'agent'
   const nameRule = options.roleName
     ? `\n- 用户叫角色名字（${options.roleName}）=> action="speak"`
     : ''
-  const baseRules = mode === 'life' ? LIFE_RULES : AGENT_RULES
   const rules = options.directSpeech
-    ? baseRules.replace('你不是角色，不创作任何对话内容。', '你直接以角色的身份说出这句话。')
-    : baseRules
+    ? AGENT_RULES.replace('你不是角色，不创作任何对话内容。', '你直接以角色的身份说出这句话。')
+    : AGENT_RULES
   const directRule = options.directSpeech
     ? '\n\n【台词】action="speak" 时必须在 line 里给出她真正说出口的一两句话：口语、简短、符合人设；不要写旁白或动作描述。'
     : ''

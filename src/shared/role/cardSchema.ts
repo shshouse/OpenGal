@@ -1,5 +1,6 @@
 /** 角色卡校验用手写而不是 zod：读入时要归一化旧字段并过滤敏感字段，这两步 zod 不做。
  *  其余跨进程入参统一走 schemas.ts 的 zod schema。 */
+import type { LLMConfig } from '../app/config'
 import type {
   OutfitMode,
   PerformanceMode,
@@ -9,12 +10,36 @@ import type {
   RoleSpriteConfig,
   WindowMode,
 } from './index'
-import { sanitizeCardLlm } from './cardLlm'
 
 export const CARD_SCHEMA_VERSION = 1
 
 const MAX_TEXT = 20_000
 const MAX_NAME = 64
+
+// 角色卡只许覆盖生成参数；endpoint 与密钥必须取自全局配置，防恶意卡劫持 LLM 流量与密钥
+const CARD_LLM_KEYS = [
+  'provider',
+  'modelName',
+  'temperature',
+  'maxTokens',
+  'contextWindow',
+  'multimodal',
+  'thinking',
+  'thinkingBudget',
+] as const
+
+export function sanitizeCardLlm(llm: Partial<LLMConfig> | undefined): Partial<LLMConfig> | undefined {
+  if (!llm) return llm
+  const safe: Record<string, unknown> = {}
+  for (const key of CARD_LLM_KEYS) {
+    if (llm[key] !== undefined) safe[key] = llm[key]
+  }
+  const dropped = Object.keys(llm).filter((k) => !(CARD_LLM_KEYS as readonly string[]).includes(k))
+  if (dropped.length > 0) {
+    console.warn(`[roleCardLoader] 已过滤角色卡 llm 敏感字段: ${dropped.join(', ')}`)
+  }
+  return safe
+}
 const COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 const WINDOW_MODES: WindowMode[] = ['mate', 'theater']
@@ -420,7 +445,7 @@ export function validateRoleCard(raw: unknown, folderName = ''): RoleCardValidat
       issues.push({ path: 'llm', code: 'type', message: '应为对象', severity: 'error' })
     } else {
       const dropped = Object.keys(raw.llm).filter(
-        (key) => !['provider', 'modelName', 'temperature', 'maxTokens', 'contextWindow', 'multimodal', 'thinking', 'thinkingBudget'].includes(key),
+        (key) => !(CARD_LLM_KEYS as readonly string[]).includes(key),
       )
       for (const key of dropped) {
         issues.push({

@@ -4,7 +4,6 @@ import { describeAction } from './directorContract'
 import { useChatStore } from '@/features/chat/chatStore'
 import { useLogsStore } from '@/features/logs/logsStore'
 import { resolveInitiativePolicy } from '@shared/presence/initiativePolicy'
-import { detectReturn } from './initiativePerception'
 import { buildInitiativeNudge } from '@shared/presence/initiativeNudge'
 import { speechLanguageLabel } from '@shared/dialogue/subtitles'
 import { useRoleStore } from '@/features/role/roleStore'
@@ -25,7 +24,6 @@ export function startInitiative(): () => void {
   let lastActivityAt = Date.now()
   let lastInitiativeAt = 0
   let running = false
-  let wasReturned = false
 
   const off = pipelineBus.on('user:input', (msg) => {
     // 导演与问候自己发出的输入不算用户活动，否则会无限自我重置
@@ -48,12 +46,8 @@ export function startInitiative(): () => void {
       if (useChatStore.getState().isSending) return
       const envRes = await window.opengal.env.get()
       const env = envRes.success ? (envRes.data ?? null) : null
-      const returned = detectReturn(wasReturned, env)
-      wasReturned = returned.wasReturned
       const idleMs = Date.now() - lastActivityAt
-      const idleReady = idleMs >= policy.idleMinutes * 60_000
-      const returnReady = cfg.directorMode === 'life' && returned.fire
-      if (!idleReady && !returnReady) return
+      if (idleMs < policy.idleMinutes * 60_000) return
       if (lastInitiativeAt && Date.now() - lastInitiativeAt < INITIATIVE_COOLDOWN_MS) return
 
       const decision = await evaluateInitiative(idleMs)
@@ -69,7 +63,7 @@ export function startInitiative(): () => void {
       lastInitiativeAt = Date.now()
       const card = useRoleStore.getState().list.find((c) => c.id === activeId)
       const languageLabel = card?.language ? speechLanguageLabel(card.language) : null
-      const nudge = buildInitiativeNudge(Math.round(idleMs / 60_000), env, cfg.directorMode ?? 'agent', undefined, languageLabel)
+      const nudge = buildInitiativeNudge(Math.round(idleMs / 60_000), env, undefined, languageLabel)
       log('info', `主动开口: ${decision.reason}`)
       useChatStore.getState().setSending(true)
       pipelineBus.emit('user:input', { text: nudge, source: 'system', systemPrompt: nudge })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { isRoleRunning, toggleRoleRunning } from '@shared/role/runtime'
 import { getHeadCrop, getImageHeadCrop } from '@/lib/headCrop'
+import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 
 describe('角色运行状态', () => {
   it('默认所有角色都是沉睡', () => {
@@ -24,6 +25,34 @@ describe('角色运行状态', () => {
 
   it('没有角色 id 时不改变状态', () => {
     expect(toggleRoleRunning({ a: true }, null)).toEqual({ a: true })
+  })
+
+  it('用主进程快照逐角色更新运行状态', () => {
+    const snapshot = {
+      focusedRoleId: 'miku',
+      runningRoleIds: ['miku'],
+      roles: {
+        miku: {
+          roleId: 'miku', displayName: '初音未来', mode: 'life' as const,
+          running: true, lifePaused: false, thinking: false,
+          state: {
+            mood: 'neutral', energy: 80, relationshipStage: '初识朋友',
+            currentActivity: '观察桌面', shortTermGoal: '', nextTickAt: null, updatedAt: 1,
+          },
+        },
+        kaltsit: {
+          roleId: 'kaltsit', displayName: '凯尔希', mode: 'agent' as const,
+          running: false, lifePaused: false, thinking: false,
+          state: {
+            mood: 'neutral', energy: 90, relationshipStage: '初识朋友',
+            currentActivity: '休息中', shortTermGoal: '', nextTickAt: null, updatedAt: 1,
+          },
+        },
+      },
+    }
+    useRoleRuntimeStore.getState().hydrateSnapshot(snapshot)
+    expect(useRoleRuntimeStore.getState().byId).toEqual({ miku: true, kaltsit: false })
+    expect(useRoleRuntimeStore.getState().byId).not.toBe(snapshot.roles)
   })
 })
 

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildDirectorSystemPrompt } from '../../src/shared/presence/directorPrompt'
 
 describe('导演提示词', () => {
-  it('agent 模式围绕角色立场，并保留默认安静', () => {
-    const prompt = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent' })
+  it('语音导演围绕角色立场，并保留默认安静', () => {
+    const prompt = buildDirectorSystemPrompt({ roleName: '凯尔希' })
     expect(prompt).toContain('凯尔希')
     expect(prompt).toContain('她的现场判断层')
     expect(prompt).toContain('默认是安静')
@@ -12,35 +12,27 @@ describe('导演提示词', () => {
     expect(prompt).not.toContain('你不在等待指令')
   })
 
-  it('life 模式不等待指令，允许自主行动与沉默', () => {
-    const prompt = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'life' })
-    expect(prompt).toContain('你不在等待指令')
-    expect(prompt).toContain('沉默')
-    expect(prompt).toContain('"action"')
-    expect(prompt).not.toContain('默认是安静')
-  })
-
   it('主动时刻的规则只在主动判定时出现', () => {
-    const passive = buildDirectorSystemPrompt({ roleName: null, mode: 'agent' })
-    const active = buildDirectorSystemPrompt({ roleName: null, mode: 'agent', initiative: true })
+    const passive = buildDirectorSystemPrompt({ roleName: null })
+    const active = buildDirectorSystemPrompt({ roleName: null, initiative: true })
     expect(passive).not.toContain('【本次是主动时刻】')
     expect(active).toContain('【本次是主动时刻】')
   })
 
   it('直出模式下要求导演给出台词，并去掉不创作对话的约束', () => {
-    const direct = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent', directSpeech: true })
+    const direct = buildDirectorSystemPrompt({ roleName: '凯尔希', directSpeech: true })
     expect(direct).toContain('必须在 line 里')
     expect(direct).not.toContain('不创作任何对话内容')
   })
 
   it('未开启直出时要求用 beat 表达意图，而不是写完整台词', () => {
-    const indirect = buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent' })
+    const indirect = buildDirectorSystemPrompt({ roleName: '凯尔希' })
     expect(indirect).toContain('beat.brief')
     expect(indirect).not.toContain('必须在 line 里')
   })
 
   it('没有角色名时不写名字规则', () => {
-    expect(buildDirectorSystemPrompt({ roleName: null, mode: 'agent' })).not.toContain('用户叫角色名字（')
-    expect(buildDirectorSystemPrompt({ roleName: '凯尔希', mode: 'agent' })).toContain('用户叫角色名字（凯尔希）')
+    expect(buildDirectorSystemPrompt({ roleName: null })).not.toContain('用户叫角色名字（')
+    expect(buildDirectorSystemPrompt({ roleName: '凯尔希' })).toContain('用户叫角色名字（凯尔希）')
   })
 })

@@ -488,7 +488,6 @@ async function askDirector(
       content: buildDirectorSystemPrompt({
         roleName,
         initiative: isInitiative,
-        mode: cfgAll?.asr?.directorMode ?? 'agent',
         directSpeech: cfgAll?.asr?.directorDirectSpeech ?? false
       })
     },

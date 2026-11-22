@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '@shared/app/ipc-channels'
 import type {
   AppConfig,
+  AutonomousSpeakPayload,
   ChatMessage,
   IpcResult,
   LLMRequest,
@@ -16,6 +17,7 @@ import type {
   RoleCardEditableFields,
   RoleCardEntry,
   RoleCardSaveResult,
+  RuntimePoolSnapshot,
   ToolDefinition
 } from '@shared/types'
 import type { LogEntry } from '@shared/app/log'
@@ -27,29 +29,9 @@ import type { MateControl, MateStatePayload } from '@shared/ui/mate'
 import type { UIState, UIStatePatch } from '@shared/ui/uiState'
 import type { StorageUsage } from '@shared/app/storage'
 
-export interface RuntimeRoleItemView {
-  roleId: string
-  displayName: string
-  mode: RoleMode
-  running: boolean
-  lifePaused: boolean
-  thinking: boolean
-  state: RoleStateSnapshot
-}
-
-export interface RuntimePoolSnapshotView {
-  focusedRoleId: string | null
-  runningRoleIds: string[]
-  roles: Record<string, RuntimeRoleItemView>
-}
-
-export interface AutonomousSpeakEvent {
-  roleId: string
-  line: string
-  mood: string
-  activity: string
-  ts: number
-}
+export type RuntimeRoleItemView = RuntimePoolSnapshot['roles'][string]
+export type RuntimePoolSnapshotView = RuntimePoolSnapshot
+export type AutonomousSpeakEvent = AutonomousSpeakPayload
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, ...args) as Promise<IpcResult<T>>
@@ -271,12 +253,6 @@ const api = {
       invoke<LifeLogEntry[]>(IpcChannels.role.lifeLogs, id, limit),
     clearLifeLogs: (id: string, scope?: 'all' | 'traces' | 'diary') =>
       invoke<number>(IpcChannels.role.clearLifeLogs, id, scope),
-    roleLogs: (id: string, limit?: number) =>
-      invoke<Array<{ ts: number; level: string; scope: string; message: string; detail?: string }>>(
-        IpcChannels.role.roleLogs,
-        id,
-        limit
-      ),
     onOutfitChanged: (listener: (change: RoleOutfitChange) => void) => {
       const handler = (_: unknown, change: RoleOutfitChange) => listener(change)
       ipcRenderer.on(IpcChannels.role.outfitChanged, handler)

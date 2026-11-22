@@ -98,11 +98,7 @@ export default function MateView(): React.JSX.Element {
         window.opengal.runtime.snapshot().catch(() => null),
       ])
       if (snapRes?.success && snapRes.data) {
-        const map: Record<string, boolean> = {}
-        for (const [id, item] of Object.entries(snapRes.data.roles)) {
-          map[id] = item.running
-        }
-        useRoleRuntimeStore.getState().hydrate(map)
+        useRoleRuntimeStore.getState().hydrateSnapshot(snapRes.data)
       } else if (cfgRes.success && cfgRes.data) {
         useRoleRuntimeStore.getState().hydrate(cfgRes.data.runningRoles)
       }
@@ -186,11 +182,7 @@ export default function MateView(): React.JSX.Element {
     if (!activeRole) return
     const next = !running
     const res = await window.opengal.runtime.setRunning(activeRole.id, next)
-    if (res.success && res.data) {
-      const map: Record<string, boolean> = {}
-      for (const [id, item] of Object.entries(res.data.roles)) map[id] = item.running
-      useRoleRuntimeStore.getState().hydrate(map)
-    }
+    if (res.success && res.data) useRoleRuntimeStore.getState().hydrateSnapshot(res.data)
   }
 
   async function toggleMode(): Promise<void> {

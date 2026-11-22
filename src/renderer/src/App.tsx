@@ -105,9 +105,7 @@ export default function App(): React.JSX.Element {
       if (!cfg.success || !cfg.data) return
       setConfig(cfg.data)
       if (snap?.success && snap.data) {
-        const map: Record<string, boolean> = {}
-        for (const [id, item] of Object.entries(snap.data.roles)) map[id] = item.running
-        useRoleRuntimeStore.getState().hydrate(map)
+        useRoleRuntimeStore.getState().hydrateSnapshot(snap.data)
       } else {
         useRoleRuntimeStore.getState().hydrate(cfg.data.runningRoles)
       }
@@ -252,11 +250,7 @@ export default function App(): React.JSX.Element {
       if (window.opengal.runtime?.setRunning) {
         const res = await window.opengal.runtime.setRunning(roleId, nextRunning)
         if (!res.success) throw new Error(res.error || '运行状态切换失败')
-        if (res.data) {
-          const map: Record<string, boolean> = {}
-          for (const [id, item] of Object.entries(res.data.roles)) map[id] = item.running
-          useRoleRuntimeStore.getState().hydrate(map)
-        }
+        if (res.data) useRoleRuntimeStore.getState().hydrateSnapshot(res.data)
       } else {
         const runningRoles = {
           ...useRoleRuntimeStore.getState().byId,
