@@ -1,4 +1,8 @@
-export const ROLE_DB_SCHEMA_VERSION = 2
+/**
+ * 角色记忆库的结构版本。正式发布前没有 v1 基线，当前结构就是第 1 版；
+ * 以后改结构再逐次 +1，不要提前占号。
+ */
+export const ROLE_DB_SCHEMA_VERSION = 1
 
 export class RoleDbVersionError extends Error {
   readonly dbVersion: number

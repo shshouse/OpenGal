@@ -242,7 +242,7 @@ function backupBeforeSchemaUpgrade(port: NodeSqlitePort, folderName: string, fro
   }
 }
 
-function migrateMessagesV2(port: NodeSqlitePort): void {
+function ensureMessageColumns(port: NodeSqlitePort): void {
   const cols = new Set(
     port.query<{ name: string }>('PRAGMA table_info(messages)').map((col) => col.name),
   )
@@ -281,11 +281,11 @@ function verifyAndMigrateHandle(port: NodeSqlitePort, folderName: string): void 
 
   if (existingVersion > 0 && existingVersion < ROLE_DB_SCHEMA_VERSION) {
     backupBeforeSchemaUpgrade(port, folderName, existingVersion)
-    migrateMessagesV2(port)
+    ensureMessageColumns(port)
   }
 
   port.exec(ROLE_DB_SCHEMA)
-  migrateMessagesV2(port)
+  ensureMessageColumns(port)
 
   const indexed = new Set(port.query<{ rowid: number }>('SELECT rowid FROM messages_fts').map((r) => Number(r.rowid)))
   const pending = port
