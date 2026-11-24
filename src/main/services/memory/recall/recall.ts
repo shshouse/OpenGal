@@ -1,4 +1,11 @@
-import { isExpired, normalizeText, resolveCurrent, wantsHistory, type Memory } from '../model/model'
+import {
+  isExpired,
+  normalizeText,
+  resolveCurrent,
+  similarity,
+  wantsHistory,
+  type Memory,
+} from '../model/model'
 import { scoreMemory } from '../model/score'
 
 export interface RecallOptions {
@@ -20,6 +27,7 @@ interface Buckets {
   user: Scored[]
   character: Scored[]
   relationship: Scored[]
+  promises: Scored[]
   past: Memory[]
 }
 
@@ -63,6 +71,41 @@ function promiseLine(item: Scored): Scored {
   return { ...item, text: `约定：${item.text}${due}（还没兑现）` }
 }
 
+/** MMR 的多样性权重：1 只看分数，0 只看差异。0.7 是常见默认值。 */
+const MMR_LAMBDA = 0.7
+
+/**
+ * 分组内 MMR 重排：每次挑「分数高、且不像已选项」的那条。
+ * 只在同一分组内做，跨组不互相压制；约定类不参与，避免两条措辞相近的承诺被当成重复。
+ */
+function diversify(items: Scored[], lambda = MMR_LAMBDA): Scored[] {
+  if (items.length < 2) return items
+  const pool = [...items]
+  const picked: Scored[] = []
+  while (pool.length > 0) {
+    let bestIndex = 0
+    let bestRank = Number.NEGATIVE_INFINITY
+    for (let index = 0; index < pool.length; index++) {
+      const candidate = pool[index]
+      if (!candidate) continue
+      let overlap = 0
+      for (const chosen of picked) {
+        const sim = similarity(candidate.memory.text, chosen.memory.text)
+        if (sim > overlap) overlap = sim
+      }
+      const rank = lambda * candidate.score - (1 - lambda) * overlap
+      if (rank > bestRank) {
+        bestRank = rank
+        bestIndex = index
+      }
+    }
+    const [next] = pool.splice(bestIndex, 1)
+    if (!next) break
+    picked.push(next)
+  }
+  return picked
+}
+
 function bucketMemories(
   memories: Memory[],
   query: string | null,
@@ -88,11 +131,8 @@ function bucketMemories(
   return {
     user: groups.user.sort(compare),
     character: groups.character.sort(compare),
-    relationship: [
-      ...promises.sort(compare).map(promiseLine),
-      ...groups.relationship.sort(compare),
-      ...episodes.sort(compare),
-    ],
+    relationship: [...groups.relationship.sort(compare), ...episodes.sort(compare)],
+    promises: promises.sort(compare).map(promiseLine),
     past: wantsHistory(query)
       ? uniqueHistory(states.flatMap((state) => state.history)).slice(0, 5)
       : [],
@@ -130,15 +170,25 @@ export function assembleBlock(memories: Memory[], query: string | null, options:
   if (live.length === 0) return null
 
   const buckets = bucketMemories(live, query, now, options.relevance ?? (() => 1))
-  const total = buckets.user.length + buckets.character.length + buckets.relationship.length + buckets.past.length
+  const total =
+    buckets.user.length +
+    buckets.character.length +
+    buckets.relationship.length +
+    buckets.promises.length +
+    buckets.past.length
   if (total === 0) return null
 
   const budget: Budget = { used: 0, cap: options.charCap }
   const lines: string[] = []
-  for (const key of ['user', 'character', 'relationship'] as const) {
-    const kept = takeScored(buckets[key], budget)
+  const sections: Array<[string, Scored[]]> = [
+    [GROUP_LABELS.user, diversify(buckets.user)],
+    [GROUP_LABELS.character, diversify(buckets.character)],
+    [GROUP_LABELS.relationship, [...buckets.promises, ...diversify(buckets.relationship)]],
+  ]
+  for (const [label, items] of sections) {
+    const kept = takeScored(items, budget)
     if (kept.length === 0) continue
-    lines.push(`${GROUP_LABELS[key]}：${kept.map((item) => item.text).join('；')}`)
+    lines.push(`${label}：${kept.map((item) => item.text).join('；')}`)
     for (const item of kept) options.onUsed?.(item.memory)
   }
 

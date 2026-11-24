@@ -181,6 +181,7 @@ describe('记忆注入评测', () => {
       }
     }
 
+    expect(failed.map((r) => r.id)).toEqual([])
     expect(results.length).toBe(CASES.length)
   })
 })
