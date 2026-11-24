@@ -97,6 +97,7 @@ const api = {
         insertedFacts: number
         refreshedFacts: number
         insertedStories: number
+        refreshedStories: number
       }>(IpcChannels.memory.apply, roleId, payload),
     manualAdd: (roleId: string, text: string, entity?: MemoryFact['entity']) =>
       invoke<MemoryFact>(IpcChannels.memory.manualAdd, roleId, text, entity),

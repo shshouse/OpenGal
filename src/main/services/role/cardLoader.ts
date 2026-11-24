@@ -93,7 +93,16 @@ function spriteFramesOf(rootPath: string, sprite: RoleSpriteConfig, owned: boole
     if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.existsSync(file)) return undefined
     return owned ? toRoleUrl(file) : toModUrl(file)
   }
-  const idle = frame(sprite.defaultSprite)
+  // 默认帧写错或文件被删时，退到目录里的第一张，避免整个 sprite 失效后落到 Live2D 用别人的模型
+  const anyPng = (): string | undefined => {
+    try {
+      const file = fs.readdirSync(dir).find((name) => /\.png$/i.test(name))
+      return file ? frame(file) : undefined
+    } catch {
+      return undefined
+    }
+  }
+  const idle = frame(sprite.defaultSprite) ?? anyPng()
   if (!idle) return undefined
   return {
     idle,
@@ -102,26 +111,31 @@ function spriteFramesOf(rootPath: string, sprite: RoleSpriteConfig, owned: boole
     blinkTalk: frame('blink-talk.png'),
     happy: frame('happy.png'),
     sad: frame('sad.png'),
-    ...(emotionFramesOf(rootPath, path.join(rootPath, sprite.spriteDir), owned) ?? {}),
+    ...(emotionFramesOf(rootPath, dir, owned) ?? {}),
   }
 }
 
-/** 约定目录 sprites/emotions/：文件名就是表情名，加一张图就多一种表情 */
+/** 文件名就是表情名：sprites/emotions/ 优先，sprites/ 根目录也认，固定帧名除外 */
 function emotionFramesOf(
   rootPath: string,
   spriteDir: string,
   owned: boolean,
 ): { emotions?: Record<string, string> } | undefined {
-  const dir = path.join(spriteDir, 'emotions')
-  if (!fs.existsSync(dir)) return undefined
+  const RESERVED = new Set(['idle', 'blink', 'talk', 'blink-talk', 'happy', 'sad'])
   const emotions: Record<string, string> = {}
-  for (const file of fs.readdirSync(dir)) {
-    if (!/\.png$/i.test(file)) continue
-    const name = file.slice(0, -4).trim()
-    if (!name) continue
-    const url = cardFileUrl(rootPath, path.relative(rootPath, path.join(dir, file)), owned)
-    if (url) emotions[name] = url
+  const collect = (dir: string, skipReserved: boolean): void => {
+    if (!fs.existsSync(dir)) return
+    for (const file of fs.readdirSync(dir)) {
+      if (!/\.png$/i.test(file)) continue
+      const name = file.slice(0, -4).trim()
+      if (!name || (skipReserved && RESERVED.has(name))) continue
+      if (name in emotions) continue
+      const url = cardFileUrl(rootPath, path.relative(rootPath, path.join(dir, file)), owned)
+      if (url) emotions[name] = url
+    }
   }
+  collect(path.join(spriteDir, 'emotions'), false)
+  collect(spriteDir, true)
   return Object.keys(emotions).length ? { emotions } : undefined
 }
 

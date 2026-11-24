@@ -2,6 +2,7 @@ import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/tran
 import path from 'node:path'
 import fs from 'node:fs'
 import { getErrorMessage } from '@shared/app/errors'
+import { cosineSimilarity } from './cosine'
 
 export interface VectorItem {
   id: string
@@ -68,22 +69,6 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
     extractorPromise = null
     throw new Error(`ONNX 模型加载失败: ${modelError}`)
   }
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0
-  let dot = 0
-  let magA = 0
-  let magB = 0
-  for (let index = 0; index < a.length; index++) {
-    const left = a[index] ?? 0
-    const right = b[index] ?? 0
-    dot += left * right
-    magA += left * left
-    magB += right * right
-  }
-  const denom = Math.sqrt(magA) * Math.sqrt(magB)
-  return denom > 0 ? dot / denom : 0
 }
 
 export async function computeEmbeddingAsync(text: string): Promise<number[]> {

@@ -2,22 +2,22 @@ import { randomUUID } from 'node:crypto'
 import type { MemoryApplyPayload, MemoryCandidateFact, MemoryCandidateStory } from '@shared/types'
 import { memoryDbReady } from '../db/core'
 import {
-  isPositive,
-  similarity,
-  slotOf,
   type Memory,
   type MemoryEntity,
   type MemoryEvidence,
   type MemorySource,
 } from '../model/model'
+import { computeEmbeddingAsync } from '../model/vector'
 import {
   deleteMemory,
   insertMemory,
   listMemories,
   reinforceMemory,
+  refreshEpisode,
   setMemoryFrozen,
   setMemoryState,
 } from './store'
+import { findRepeatedEpisode, isRepeatedFact } from './dedupe'
 import { listMessageIdsInRange } from './memories'
 import { pruneSummaries } from './summaries'
 
@@ -74,6 +74,7 @@ export interface ApplyResult {
   insertedFacts: number
   refreshedFacts: number
   insertedStories: number
+  refreshedStories: number
 }
 
 interface ApplyContext {
@@ -84,19 +85,26 @@ interface ApplyContext {
   result: ApplyResult
 }
 
-function applyFactCandidate(context: ApplyContext, candidate: MemoryCandidateFact): void {
+/** 向量只是加分项：模型缺失或加载失败时退回字面判断，不能阻断写入。 */
+async function embedOrNull(text: string): Promise<number[] | null> {
+  try {
+    return await computeEmbeddingAsync(text)
+  } catch {
+    return null
+  }
+}
+
+function applyFactCandidate(
+  context: ApplyContext,
+  candidate: MemoryCandidateFact,
+  embedding: number[] | null,
+): void {
   const { roleId, existing, at, evidence, result } = context
   const entry = toMemory(roleId, candidate, at)
+  entry.embedding = embedding
   if (evidence) entry.evidence = { ...entry.evidence, ...evidence }
 
-  const repeated = existing.find(
-    (memory) =>
-      memory.kind === 'fact' &&
-      memory.state === 'active' &&
-      slotOf(memory) === slotOf(entry) &&
-      isPositive({ polarity: !memory.negated }) === isPositive({ polarity: !entry.negated }) &&
-      similarity(memory.text, entry.text) >= 0.9,
-  )
+  const repeated = existing.find((memory) => isRepeatedFact(memory, entry))
   if (repeated) {
     reinforceMemory(repeated.id, at, roleId)
     result.refreshedFacts++
@@ -107,41 +115,38 @@ function applyFactCandidate(context: ApplyContext, candidate: MemoryCandidateFac
   result.insertedFacts++
 }
 
-function applyEpisodeCandidate(
+function toEpisode(
   roleId: string,
   candidate: MemoryCandidateStory,
   at: number,
   evidence: MemoryEvidence | undefined,
-): void {
-  insertMemory(
+  embedding: number[] | null,
+): Memory {
+  return {
+    id: newId('s'),
     roleId,
-    {
-      id: newId('s'),
-      roleId,
-      kind: 'episode',
-      episodeKind: candidate.kind,
-      text: candidate.text.trim(),
-      entity: 'relationship',
-      subject: null,
-      attribute: null,
-      value: null,
-      negated: false,
-      importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
-      source: 'llm_inferred',
-      state: 'active',
-      happenedAt: at,
-      dueAt: candidate.due_at ?? null,
-      validFrom: new Date(at).toISOString(),
-      invalidAt: null,
-      confirmedAt: at,
-      evidence: evidence ? { ...evidence } : { reinforce: 0, negate: 0 },
-      pinned: false,
-      frozen: false,
-      embedding: null,
-      createdAt: at,
-    },
-    'llm',
-  )
+    kind: 'episode',
+    episodeKind: candidate.kind,
+    text: candidate.text.trim(),
+    entity: 'relationship',
+    subject: null,
+    attribute: null,
+    value: null,
+    negated: false,
+    importance: Math.min(10, Math.max(1, Math.round(candidate.importance))),
+    source: 'llm_inferred',
+    state: 'active',
+    happenedAt: at,
+    dueAt: candidate.due_at ?? null,
+    validFrom: new Date(at).toISOString(),
+    invalidAt: null,
+    confirmedAt: at,
+    evidence: evidence ? { ...evidence } : { reinforce: 0, negate: 0 },
+    pinned: false,
+    frozen: false,
+    embedding,
+    createdAt: at,
+  }
 }
 
 export async function applyCandidates(
@@ -150,7 +155,12 @@ export async function applyCandidates(
 ): Promise<ApplyResult> {
   await memoryDbReady()
   const existing = listMemories(roleId)
-  const result: ApplyResult = { insertedFacts: 0, refreshedFacts: 0, insertedStories: 0 }
+  const result: ApplyResult = {
+    insertedFacts: 0,
+    refreshedFacts: 0,
+    insertedStories: 0,
+    refreshedStories: 0,
+  }
   const at = nowMs()
   const evidence: MemoryEvidence | undefined = payload.evidence
     ? {
@@ -164,11 +174,19 @@ export async function applyCandidates(
 
   const context: ApplyContext = { roleId, existing, at, evidence, result }
   for (const candidate of (payload.facts ?? []).filter((item) => item.text?.trim())) {
-    applyFactCandidate(context, candidate)
+    applyFactCandidate(context, candidate, await embedOrNull(candidate.text.trim()))
   }
 
   for (const candidate of (payload.stories ?? []).filter((item) => item.text?.trim())) {
-    applyEpisodeCandidate(roleId, candidate, at, evidence)
+    const entry = toEpisode(roleId, candidate, at, evidence, await embedOrNull(candidate.text.trim()))
+    const repeated = findRepeatedEpisode(existing, entry)
+    if (repeated) {
+      refreshEpisode(repeated.id, at, roleId)
+      result.refreshedStories++
+      continue
+    }
+    insertMemory(roleId, entry, 'llm')
+    existing.push(entry)
     result.insertedStories++
   }
 

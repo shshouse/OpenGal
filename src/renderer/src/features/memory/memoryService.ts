@@ -186,7 +186,7 @@ async function runExtract(force = false): Promise<void> {
       await refreshSnapshot(roleId)
       log(
         'info',
-        `回想完成（${roleId}）：新记 ${r.insertedFacts} 条事实 / ${r.insertedStories} 条故事，确认 ${r.refreshedFacts} 条`
+        `回想完成（${roleId}）：新记 ${r.insertedFacts} 条事实 / ${r.insertedStories} 条故事，确认 ${r.refreshedFacts} 条事实 / ${r.refreshedStories} 条故事`
       )
     }
   } finally {

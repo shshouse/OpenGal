@@ -80,3 +80,15 @@ export function reinforceMemory(id: string, at = Date.now(), roleId?: string): v
     handle.port.run('UPDATE memories SET confirmed_at = ?, reinforce = reinforce + 1 WHERE id = ?', [at, id])
   })
 }
+
+/** 合并重复情节：把发生时间挪到这一次，并累加印证次数。 */
+export function refreshEpisode(id: string, at = Date.now(), roleId?: string): void {
+  const handle = findHandleByMemoryId(id, roleId)
+  if (!handle) return
+  handle.port.transaction(() => {
+    handle.port.run(
+      'UPDATE memories SET happened_at = ?, confirmed_at = ?, reinforce = reinforce + 1 WHERE id = ?',
+      [at, at, id],
+    )
+  })
+}
