@@ -2,7 +2,6 @@ import {
   isExpired,
   normalizeText,
   resolveCurrent,
-  similarity,
   wantsHistory,
   type Memory,
 } from '../model/model'
@@ -27,6 +26,7 @@ interface Buckets {
   user: Scored[]
   character: Scored[]
   relationship: Scored[]
+  episodes: Scored[]
   promises: Scored[]
   past: Memory[]
 }
@@ -74,36 +74,76 @@ function promiseLine(item: Scored): Scored {
 /** MMR 的多样性权重：1 只看分数，0 只看差异。0.7 是常见默认值。 */
 const MMR_LAMBDA = 0.7
 
+interface Prepared {
+  item: Scored
+  norm: string
+  grams: Set<string>
+}
+
+function bigramsOf(input: string): Set<string> {
+  const set = new Set<string>()
+  for (let index = 0; index < input.length - 1; index++) set.add(input.slice(index, index + 2))
+  return set
+}
+
+function prepare(item: Scored): Prepared {
+  const norm = normalizeText(item.memory.text)
+  return { item, norm, grams: bigramsOf(norm) }
+}
+
+/** 与 model.similarity 同口径，但入参已预处理，避免每轮重复归一化和建集合。 */
+function overlapOf(a: Prepared, b: Prepared): number {
+  if (!a.norm || !b.norm) return 0
+  if (a.norm.includes(b.norm) || b.norm.includes(a.norm)) return 1
+  if (a.grams.size === 0 || b.grams.size === 0) return 0
+  let overlap = 0
+  for (const gram of a.grams) if (b.grams.has(gram)) overlap++
+  return (2 * overlap) / (a.grams.size + b.grams.size)
+}
+
 /**
- * 分组内 MMR 重排：每次挑「分数高、且不像已选项」的那条。
- * 只在同一分组内做，跨组不互相压制；约定类不参与，避免两条措辞相近的承诺被当成重复。
+ * 分组内 MMR：边挑边扣预算，挑满即停。
+ * 每挑一条只刷新剩余候选的「最大重叠度」，把 O(n³) 的重算降到 O(n × 选中数)。
+ * 只在同一分组内做，跨组不互相压制；约定类不参与，避免措辞相近的承诺被当成重复。
  */
-function diversify(items: Scored[], lambda = MMR_LAMBDA): Scored[] {
-  if (items.length < 2) return items
-  const pool = [...items]
-  const picked: Scored[] = []
-  while (pool.length > 0) {
-    let bestIndex = 0
+function diversify(items: Scored[], budget: Budget, lambda = MMR_LAMBDA): Scored[] {
+  if (items.length === 0) return []
+  const pool = items.map(prepare)
+  const taken = new Array<boolean>(pool.length).fill(false)
+  const maxOverlap = new Array<number>(pool.length).fill(0)
+  const kept: Scored[] = []
+
+  while (true) {
+    let bestIndex = -1
     let bestRank = Number.NEGATIVE_INFINITY
     for (let index = 0; index < pool.length; index++) {
-      const candidate = pool[index]
-      if (!candidate) continue
-      let overlap = 0
-      for (const chosen of picked) {
-        const sim = similarity(candidate.memory.text, chosen.memory.text)
-        if (sim > overlap) overlap = sim
-      }
-      const rank = lambda * candidate.score - (1 - lambda) * overlap
+      if (taken[index]) continue
+      const entry = pool[index]
+      if (!entry) continue
+      const rank = lambda * entry.item.score - (1 - lambda) * (maxOverlap[index] ?? 0)
       if (rank > bestRank) {
         bestRank = rank
         bestIndex = index
       }
     }
-    const [next] = pool.splice(bestIndex, 1)
-    if (!next) break
-    picked.push(next)
+
+    const chosen = bestIndex >= 0 ? pool[bestIndex] : undefined
+    if (!chosen) break
+    if (budget.used + chosen.item.text.length > budget.cap) break
+    budget.used += chosen.item.text.length
+    taken[bestIndex] = true
+    kept.push(chosen.item)
+
+    for (let index = 0; index < pool.length; index++) {
+      if (taken[index]) continue
+      const other = pool[index]
+      if (!other) continue
+      const overlap = overlapOf(chosen, other)
+      if (overlap > (maxOverlap[index] ?? 0)) maxOverlap[index] = overlap
+    }
   }
-  return picked
+
+  return kept
 }
 
 function bucketMemories(
@@ -131,7 +171,8 @@ function bucketMemories(
   return {
     user: groups.user.sort(compare),
     character: groups.character.sort(compare),
-    relationship: [...groups.relationship.sort(compare), ...episodes.sort(compare)],
+    relationship: groups.relationship.sort(compare),
+    episodes: episodes.sort(compare),
     promises: promises.sort(compare).map(promiseLine),
     past: wantsHistory(query)
       ? uniqueHistory(states.flatMap((state) => state.history)).slice(0, 5)
@@ -174,22 +215,29 @@ export function assembleBlock(memories: Memory[], query: string | null, options:
     buckets.user.length +
     buckets.character.length +
     buckets.relationship.length +
+    buckets.episodes.length +
     buckets.promises.length +
     buckets.past.length
   if (total === 0) return null
 
+  // 预算按显示顺序消耗：关于他 → 关于你自己 → 约定 → 关系事实 → 情节
   const budget: Budget = { used: 0, cap: options.charCap }
+  const user = diversify(buckets.user, budget)
+  const character = diversify(buckets.character, budget)
+  const promises = takeScored(buckets.promises, budget)
+  const relationship = diversify(buckets.relationship, budget)
+  const episodes = diversify(buckets.episodes, budget)
+
   const lines: string[] = []
   const sections: Array<[string, Scored[]]> = [
-    [GROUP_LABELS.user, diversify(buckets.user)],
-    [GROUP_LABELS.character, diversify(buckets.character)],
-    [GROUP_LABELS.relationship, [...buckets.promises, ...diversify(buckets.relationship)]],
+    [GROUP_LABELS.user, user],
+    [GROUP_LABELS.character, character],
+    [GROUP_LABELS.relationship, [...promises, ...relationship, ...episodes]],
   ]
   for (const [label, items] of sections) {
-    const kept = takeScored(items, budget)
-    if (kept.length === 0) continue
-    lines.push(`${label}：${kept.map((item) => item.text).join('；')}`)
-    for (const item of kept) options.onUsed?.(item.memory)
+    if (items.length === 0) continue
+    lines.push(`${label}：${items.map((item) => item.text).join('；')}`)
+    for (const item of items) options.onUsed?.(item.memory)
   }
 
   const past = takeLines(buckets.past.map(shortText), budget)
