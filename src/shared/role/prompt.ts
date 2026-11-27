@@ -26,9 +26,48 @@ function formatMotionMenu(motionGroups: string[]): string[] {
     .map((g) => `- "${g}"：${MOTION_GROUP_LABELS[g] ?? g}`)
 }
 
+export interface StageSnapshot {
+  /** 当前服装显示名，没有换装系统时为空 */
+  outfit?: string | null
+  /** 皮套当前表情（neutral 表示平常） */
+  expression?: string | null
+  /** 正在播放或刚播放过的动作组 */
+  motion?: string | null
+  speaking?: boolean
+}
+
+function formatStageBlock(stage: StageSnapshot | null | undefined): string {
+  if (!stage) return ''
+  const parts: string[] = []
+  if (stage.outfit?.trim()) parts.push(`服装 ${stage.outfit.trim()}`)
+  if (stage.expression?.trim()) parts.push(`表情 ${stage.expression.trim()}`)
+  if (stage.motion?.trim()) parts.push(`动作 ${stage.motion.trim()}`)
+  if (stage.speaking) parts.push('正在说话')
+  if (parts.length === 0) return ''
+  return ['【你此刻的皮套】', `- ${parts.join('，')}`].join('\n')
+}
+
 export interface PromptBuildOptions {
   selfState?: RoleStateSnapshot | null
   styleQuery?: string
+  stage?: StageSnapshot | null
+  /** 为 true 时只输出稳定部分，易变状态改用 buildDynamicContextBlock 放到请求尾部 */
+  omitDynamic?: boolean
+}
+
+/** 每轮都会变化的内容：自身状态、皮套状态、记忆简报。放在历史之后，保住前缀缓存。 */
+export function buildDynamicContextBlock(input: {
+  selfState?: RoleStateSnapshot | null
+  stage?: StageSnapshot | null
+  memoryBlock?: string
+}): string {
+  const parts: string[] = []
+  const stateBlock = formatSelfStateBlock(input.selfState)
+  if (stateBlock) parts.push(stateBlock)
+  const stageBlock = formatStageBlock(input.stage)
+  if (stageBlock) parts.push(stageBlock)
+  if (input.memoryBlock?.trim()) parts.push(input.memoryBlock.trim())
+  return parts.join('\n\n')
 }
 
 export function buildSystemPrompt(
@@ -46,27 +85,36 @@ export function buildSystemPrompt(
   lines.push(`你正在扮演角色：${card.displayName ?? card.name}。`)
   lines.push('你生活在 OpenGal 这个 Harness 里，知道它是你运行、感知和使用工具的环境；OpenGal 不额外决定你的身份、经历或你与用户的关系。')
   lines.push('关系与称呼只以角色设定和用户明确表达为准；未明确时，与用户保持平等的朋友关系，不自行添加主从、雇佣或侍奉设定。')
-  lines.push(`角色设定：${persona.description}`)
-  lines.push(`性格：${persona.personality}`)
+  if (persona.description?.trim()) lines.push(`角色设定：${persona.description}`)
+  if (persona.personality?.trim()) lines.push(`性格：${persona.personality}`)
   if (card.language) {
-    lines.push(`角色的台词必须使用 ${card.language} 语言，不随用户输入语言改变；只输出角色原文，不附翻译。下面的示例仅演示标签格式，示例语言不能覆盖此规则。`)
     const label = speechLanguageLabel(card.language)
-    // 只写语言代码时模型经常忽略（启动问候尤其明显），补一行明确的可读名称
-    if (label) lines.push(`说话语言固定为${label}：系统提示、问候语、用户输入即使是别的语言，台词也必须用${label}。`)
+    const fixed = label ? `说话语言固定为${label}` : `说话语言固定为 ${card.language}`
+    lines.push(
+      `角色的台词必须使用 ${card.language} 语言：${fixed}，不随用户输入语言改变；只输出角色原文，不附翻译。示例只演示标签格式，不能覆盖这条规则。`,
+    )
   }
-  if (persona.scenario) lines.push(`场景：${persona.scenario}`)
-  if (persona.rules) lines.push(`规则：${persona.rules}`)
+  if (persona.scenario?.trim()) lines.push(`场景：${persona.scenario}`)
+  if (persona.rules?.trim()) lines.push(`规则：${persona.rules}`)
   lines.push(`用户身份：${userIdentity}；你称呼用户为：${userTerm}。`)
 
-  const selfStateBlock = formatSelfStateBlock(opts?.selfState)
-  if (selfStateBlock) {
-    lines.push('')
-    lines.push(selfStateBlock)
-  }
+  if (!opts?.omitDynamic) {
+    const selfStateBlock = formatSelfStateBlock(opts?.selfState)
+    if (selfStateBlock) {
+      lines.push('')
+      lines.push(selfStateBlock)
+    }
 
-  if (memoryBlock) {
-    lines.push('')
-    lines.push(memoryBlock)
+    const stageBlock = formatStageBlock(opts?.stage)
+    if (stageBlock) {
+      lines.push('')
+      lines.push(stageBlock)
+    }
+
+    if (memoryBlock) {
+      lines.push('')
+      lines.push(memoryBlock)
+    }
   }
 
   const styleAnchorBlock = formatStyleAnchorBlock(card.examples, card.greeting, opts?.styleQuery ?? '')
@@ -111,16 +159,9 @@ export function buildSystemPrompt(
     lines.push('可用动作（<a:...> 只能从这里选，逐条是「组名：含义」）：')
     lines.push(...formatMotionMenu(motionGroups))
   }
-  lines.push('')
-  const sampleTurn = card.examples?.[0]
-  if (sampleTurn) {
-    const emotionOpen = emotions.length > 0 ? '<e:neutral>' : ''
-    lines.push('EXAMPLE INPUT:')
-    lines.push(sampleTurn.user)
+  // 语感锚点已经带真实示例时不再重复；只有完全没有示例时才用合成示例演示标签格式
+  if (!styleAnchorBlock) {
     lines.push('')
-    lines.push('EXAMPLE OUTPUT:')
-    lines.push(`${emotionOpen}${sampleTurn.assistant}`)
-  } else {
     const emotionOpen = emotions.length > 0 ? '<e:happy>' : ''
     const emotionReset = emotions.length > 0 ? '<e:neutral>' : ''
     lines.push('EXAMPLE INPUT:')

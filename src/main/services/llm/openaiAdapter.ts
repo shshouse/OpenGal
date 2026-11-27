@@ -113,6 +113,7 @@ export class OpenAIAdapter implements LLMAdapter {
       choices?: Array<{
         message?: {
           content?: string | null
+          reasoning_content?: string | null
           tool_calls?: ToolCall[]
         }
         finish_reason?: string | null
@@ -120,10 +121,19 @@ export class OpenAIAdapter implements LLMAdapter {
       usage?: RawUsage
     }
     const message = data.choices?.[0]?.message
-    const content = (message?.content ?? '').trim()
+    const { content, reasoning: inlineReasoning } = splitChunk(message?.content ?? '', {
+      insideThinkBlock: false,
+    })
+    // 思考内容有两种来源：OpenAI 兼容字段，或模型把 <think> 写进正文
+    const reasoning = `${message?.reasoning_content ?? ''}${inlineReasoning}`.trim()
     const toolCalls = message?.tool_calls
-    if (!content && !toolCalls?.length) throw new Error('Empty response from LLM')
-    return { content, toolCalls, usage: mapUsage(data.usage) }
+    if (!content.trim() && !toolCalls?.length) throw new Error('Empty response from LLM')
+    return {
+      content: content.trim(),
+      ...(reasoning ? { reasoning } : {}),
+      toolCalls,
+      usage: mapUsage(data.usage),
+    }
   }
 
   async chatStream(req: LLMChatRequest, callbacks: LLMStreamCallbacks): Promise<void> {

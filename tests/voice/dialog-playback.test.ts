@@ -35,6 +35,7 @@ vi.mock('@/features/live2d/live2dBus', () => ({
   applyEmotion: () => {
     state.order.push('emotion')
   },
+  notePerformanceActivity: () => {},
   playMotionGroup: (group: string) => {
     state.order.push(`motion:${group}`)
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSystemPrompt } from '@shared/role/prompt'
+import { buildDynamicContextBlock, buildSystemPrompt } from '@shared/role/prompt'
 import type { RoleCard } from '../../src/shared/types'
 
 const card: RoleCard = {
@@ -31,5 +31,60 @@ describe('表演资源注入提示词', () => {
   it('有动作组时逐条列出', () => {
     const prompt = buildSystemPrompt(card, ['Idle', 'wave'], undefined, false, ['neutral'])
     expect(prompt).toContain('wave')
+  })
+
+  it('把皮套当前状态写进提示词', () => {
+    const prompt = buildSystemPrompt(card, [], undefined, false, ['neutral'], {
+      stage: { outfit: '常服', expression: 'surprised', motion: 'wave', speaking: true },
+    })
+    expect(prompt).toContain('【你此刻的皮套】')
+    expect(prompt).toContain('服装 常服')
+    expect(prompt).toContain('表情 surprised')
+    expect(prompt).toContain('动作 wave')
+    expect(prompt).toContain('正在说话')
+  })
+
+  it('没有皮套信息时不写空块', () => {
+    const prompt = buildSystemPrompt(card, [], undefined, false, ['neutral'], { stage: {} })
+    expect(prompt).not.toContain('【你此刻的皮套】')
+  })
+
+  it('稳定提示不含易变状态，易变内容单独成块', () => {
+    const state = {
+      mood: '平静',
+      energy: 70,
+      relationshipStage: '信任',
+      currentActivity: '整理报告',
+      shortTermGoal: '',
+      nextTickAt: null,
+      updatedAt: Date.now(),
+    }
+    const stable = buildSystemPrompt(card, [], '【你记得的事】\n用户喜欢猫', false, ['neutral'], {
+      omitDynamic: true,
+      selfState: state,
+      stage: { expression: 'happy' },
+    })
+    expect(stable).not.toContain('【你记得的事】')
+    expect(stable).not.toContain('【你此刻的自身状态】')
+    expect(stable).not.toContain('【你此刻的皮套】')
+
+    const dynamic = buildDynamicContextBlock({
+      selfState: state,
+      stage: { expression: 'happy', outfit: '常服' },
+      memoryBlock: '【你记得的事】\n用户喜欢猫',
+    })
+    expect(dynamic).toContain('【你此刻的自身状态】')
+    expect(dynamic).toContain('【你此刻的皮套】')
+    expect(dynamic).toContain('【你记得的事】')
+  })
+
+  it('角色自带示例只出现一次，且不重复追加表情标签', () => {
+    const withExample = {
+      ...card,
+      examples: [{ user: '今天好累', assistant: '<e:neutral>那就休息。' }],
+    } as RoleCard
+    const prompt = buildSystemPrompt(withExample, [], undefined, false, ['neutral'])
+    expect(prompt.split('<e:neutral>那就休息。')).toHaveLength(2)
+    expect(prompt).not.toContain('<e:neutral><e:neutral>')
   })
 })

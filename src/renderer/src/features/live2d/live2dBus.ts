@@ -42,6 +42,46 @@ let currentModel: Live2DLike | null = null
 
 let initialPose: number[] | null = null
 
+/** 皮套当前可见状态，供系统提示描述「你现在是什么样」。 */
+let currentExpression: string | null = null
+let lastMotion: { group: string; at: number } | null = null
+const MOTION_VISIBLE_MS = 6000
+
+/** 台词触发的表情只保持一段时间，随后回到不表演时的样子。 */
+let baseExpression: string | null = null
+let emotionIdleTimer: ReturnType<typeof setTimeout> | null = null
+const EMOTION_HOLD_MS = 8000
+
+function restoreBaseExpression(): void {
+  const manager = currentModel?.internalModel?.motionManager?.expressionManager
+  if (!manager) return
+  if (baseExpression) {
+    manager.setExpression(baseExpression)
+    currentExpression = baseExpression
+    return
+  }
+  applyEmotion('neutral')
+}
+
+function scheduleEmotionRest(): void {
+  if (emotionIdleTimer) clearTimeout(emotionIdleTimer)
+  emotionIdleTimer = setTimeout(() => {
+    emotionIdleTimer = null
+    restoreBaseExpression()
+  }, EMOTION_HOLD_MS)
+}
+
+/** 每段语音开始时调用，把「安静多久才收表情」往后顺延。 */
+export function notePerformanceActivity(): void {
+  if (emotionIdleTimer) scheduleEmotionRest()
+}
+
+export function getStageSnapshot(): { expression: string | null; motion: string | null } {
+  const motion =
+    lastMotion && Date.now() - lastMotion.at <= MOTION_VISIBLE_MS ? lastMotion.group : null
+  return { expression: currentExpression, motion }
+}
+
 function capturePose(model: Live2DLike | null): number[] | null {
   const core = model?.internalModel?.coreModel
   if (!core?.getParameterCount || !core.getParameterValueByIndex) return null
@@ -140,7 +180,10 @@ const EMOTION_EXPRESSION_MAP: Record<string, string[]> = {
   worried: ['worried', 'worry', 'nervous', 'Worried']
 }
 
-export function applyEmotion(emotion: EmotionTag | string): void {
+export function applyEmotion(
+  emotion: EmotionTag | string,
+  options?: { transient?: boolean },
+): void {
   const model = currentModel
   if (!model) return
 
@@ -157,6 +200,19 @@ export function applyEmotion(emotion: EmotionTag | string): void {
   const picked = pickExpression(emotion, availableNames)
   if (picked) {
     expressionManager.setExpression(picked)
+    currentExpression = picked
+    if (options?.transient) {
+      if (/neutral/i.test(emotion)) {
+        if (emotionIdleTimer) clearTimeout(emotionIdleTimer)
+        emotionIdleTimer = null
+      } else {
+        scheduleEmotionRest()
+      }
+    } else {
+      baseExpression = picked
+      if (emotionIdleTimer) clearTimeout(emotionIdleTimer)
+      emotionIdleTimer = null
+    }
     return
   }
   // 模型写了不存在或未映射的表情时，明确记下来，便于发现提示词漂移
@@ -226,6 +282,7 @@ export function playMotionGroup(group: string): void {
   }
   console.log('[live2d] 播放动作组:', group)
   useLogsStore.getState().appendLocal('info', 'live2d', `播放动作组: ${group}`)
+  lastMotion = { group, at: Date.now() }
   resetPose()
   try {
     void mm.startRandomMotion(group, 3).catch(() => {})

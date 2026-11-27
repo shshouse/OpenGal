@@ -47,7 +47,7 @@ export interface ChatMessage {
   translation?: string
   translationLang?: string
   // 上下文装配标记：摘要/环境/意图段有不同的保留优先级
-  contextTag?: 'summary' | 'env' | 'intent'
+  contextTag?: 'summary' | 'env' | 'intent' | 'state'
 }
 
 export interface LLMRequest {
@@ -67,6 +67,8 @@ export interface LLMUsage {
 
 export interface LLMResponse {
   content: string
+  /** 模型返回的思考内容（reasoning_content 或 <think> 块），不参与台词。 */
+  reasoning?: string
   toolCalls?: ToolCall[]
   usage?: LLMUsage
 }

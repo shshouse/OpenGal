@@ -169,7 +169,7 @@ async function performScreenObservation(
       const shot = await lookAtScreen(1200)
       if (shot?.png) {
         const res = await callLLM({
-          slot: 'sub',
+          slot: 'main',
           overrides: { temperature: 0.6, maxTokens: 160 },
           messages: [
             {
@@ -407,7 +407,7 @@ export async function executeLifeTick(roleId: string, force = false): Promise<bo
     })
 
     const res = await callLLM({
-      slot: 'sub',
+      slot: 'main',
       messages: promptMsgs.map((m) => ({ role: m.role, content: m.content })),
       overrides: { temperature: 0.78, maxTokens: 520 },
     })

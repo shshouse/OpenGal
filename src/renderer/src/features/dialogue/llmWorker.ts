@@ -1,4 +1,4 @@
-import { buildSystemPrompt } from '@shared/role/prompt'
+import { buildDynamicContextBlock, buildSystemPrompt } from '@shared/role/prompt'
 import { SpeechStreamParser, extractAssistantDisplayText } from '@shared/dialogue/protocol'
 import { isRoleRunning } from '@shared/role/runtime'
 import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/presence/screen'
@@ -9,7 +9,8 @@ import type { LLMDialogMessage, UserInputMessage } from '@shared/dialogue/messag
 import { useChatStore } from '@/features/chat/chatStore'
 import { useToolCallsStore, type ToolCallRecord } from '@/features/tools/toolCallsStore'
 import { useLogsStore } from '@/features/logs/logsStore'
-import { getAvailableExpressions, getAvailableMotionGroups } from '@/features/live2d/live2dBus'
+import { getAvailableExpressions, getAvailableMotionGroups, getStageSnapshot } from '@/features/live2d/live2dBus'
+import { isSpeaking } from '@/features/speech/uiHandlers'
 import { getMemorySnapshot, setMemorySnapshot } from '@/features/memory/snapshot'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
 import { getActiveRoleCard } from '@/features/pipeline/activeCard'
@@ -176,14 +177,28 @@ export function startLLMWorker(): () => void {
     if (stale()) return
     const tools: ToolDefinition[] = toolsResp.success && toolsResp.data ? toolsResp.data : []
     const selfState = stateResp && stateResp.success ? (stateResp.data ?? null) : null
+    const live = getStageSnapshot()
+    const activeEntry = useRoleStore.getState().getActive()
+    const stage = {
+      outfit:
+        activeEntry?.outfitEntries?.find((item) => item.id === activeEntry.activeOutfitId)?.name ??
+        activeEntry?.activeOutfitId ??
+        null,
+      expression: live.expression,
+      motion: live.motion,
+      speaking: isSpeaking(),
+    }
+    // 稳定部分：角色设定、规则、格式、动作菜单。每轮保持不变，才能命中前缀缓存。
     const systemContent = buildSystemPrompt(
       card,
       motionGroups,
-      memoryBlock ?? undefined,
+      undefined,
       tools.length > 0,
       resolveEmotions(card?.id),
-      { selfState, styleQuery: userText },
+      { omitDynamic: true },
     )
+    // 易变部分：自身状态、皮套状态、记忆简报。放到历史之后，避免改动前面的前缀。
+    const dynamicContext = buildDynamicContextBlock({ selfState, stage, memoryBlock: memoryBlock ?? undefined })
     const compressedHistory = await compressHistory(
       card.id,
       history,
@@ -196,9 +211,7 @@ export function startLLMWorker(): () => void {
     const contextItems: ContextItem[] = [
       { id: 'system', message: { role: 'system', content: systemContent }, priority: 1000 },
     ]
-    if (envMsg) {
-      contextItems.push({ id: 'env', message: { ...envMsg, contextTag: 'env' }, priority: 800 })
-    }
+    // 历史紧跟在稳定提示之后：这一段在轮次之间不会变，最容易被缓存复用
     sanitizeHistoryForLLM(compressedHistory).forEach((message, index) => {
       contextItems.push({
         id: `history-${index}`,
@@ -207,6 +220,16 @@ export function startLLMWorker(): () => void {
         priority: message.contextTag === 'summary' ? 700 : 100 + index,
       })
     })
+    if (envMsg) {
+      contextItems.push({ id: 'env', message: { ...envMsg, contextTag: 'env' }, priority: 800 })
+    }
+    if (dynamicContext) {
+      contextItems.push({
+        id: 'runtime',
+        message: { role: 'system', content: dynamicContext, contextTag: 'state' },
+        priority: 850,
+      })
+    }
     if (systemPrompt) {
       contextItems.push({
         id: 'intent',

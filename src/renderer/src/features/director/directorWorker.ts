@@ -60,6 +60,8 @@ interface DirectorDecisionLog {
   joined: string
   decision: 'respond' | 'silence' | 'wait' | 'skip'
   reason?: string
+  /** 模型开启思考时返回的推理过程，只进日志，不参与台词。 */
+  reasoning?: string
   skipWhy?: 'cooldown' | 'short' | 'busy'
   llmLatencyMs?: number
   screenIncluded?: boolean
@@ -119,6 +121,7 @@ function decisionLog(entry: DirectorDecisionLog): void {
       joined: entry.joined,
       decision: entry.decision,
       reason: entry.reason ?? '',
+      ...(entry.reasoning ? { reasoning: entry.reasoning.slice(0, 2000) } : {}),
       ...(entry.skipWhy ? { skipWhy: entry.skipWhy } : {}),
       ...(entry.waitRound !== undefined ? { waitRound: entry.waitRound } : {}),
       ...(entry.waitSec !== undefined ? { waitSec: entry.waitSec } : {}),
@@ -267,18 +270,22 @@ async function evaluate(): Promise<void> {
         userFocused: false,
       },
     }
-    const { decision, screenIncluded } = await withTimeout(
+    const { decision, screenIncluded, reasoning } = await withTimeout(
       askDirector(directorInput, backlog, cfg.directorScreenContext, () => generation === decisionGeneration),
       DIRECTOR_TIMEOUT_MS,
     )
     const llmLatencyMs = Date.now() - startedAt
     if (generation !== decisionGeneration) return
+    // 思考过程进日志面板和决策日志；它不属于台词，也不进对话历史
+    if (reasoning) window.opengal.logs.append('info', 'director', `导演思考：${reasoning.slice(0, 1200)}`)
+    const writeDecision = (entry: Omit<DirectorDecisionLog, 'reasoning'>): void =>
+      decisionLog({ ...entry, ...(reasoning ? { reasoning } : {}) })
     const action = decision.action
     if (!isActionAllowed(action, directorInput, Date.now())) {
       backlog = [...backlog, ...utterances]
       resetWaitState()
       log('info', `导演动作被限制: ${describeAction(action)}`)
-      decisionLog({
+      writeDecision({
         utterances, joined, decision: 'silence', reason: `blocked: ${decision.reason}`,
         llmLatencyMs, screenIncluded, engine: cfg.engine
       })
@@ -302,7 +309,7 @@ async function evaluate(): Promise<void> {
       dispatched = true
       resetWaitState()
       log('info', `导演放行: ${decision.reason}`)
-      decisionLog({
+      writeDecision({
         utterances, joined: fullText, decision: 'respond', reason: decision.reason,
         llmLatencyMs, screenIncluded, engine: cfg.engine
       })
@@ -318,7 +325,7 @@ async function evaluate(): Promise<void> {
           void evaluate()
         }, waitSec * 1000)
         log('info', `导演等待 ${waitSec}s (第${waitRound}轮): ${decision.reason}`)
-        decisionLog({
+        writeDecision({
           utterances, joined, decision: 'wait', reason: decision.reason,
           llmLatencyMs, screenIncluded, engine: cfg.engine, waitRound, waitSec
         })
@@ -326,7 +333,7 @@ async function evaluate(): Promise<void> {
         backlog = [...backlog, ...utterances]
         resetWaitState()
         log('info', `等待轮次耗尽，转入回溯池: ${decision.reason}`)
-        decisionLog({
+        writeDecision({
           utterances, joined, decision: 'silence', reason: `等待耗尽: ${decision.reason}`,
           llmLatencyMs, screenIncluded, engine: cfg.engine
         })
@@ -335,7 +342,7 @@ async function evaluate(): Promise<void> {
       backlog = [...backlog, ...utterances]
       resetWaitState()
       log('info', `导演沉默: ${describeAction(action)} / ${decision.reason}`)
-      decisionLog({
+      writeDecision({
         utterances, joined, decision: 'silence', reason: decision.reason,
         llmLatencyMs, screenIncluded, engine: cfg.engine
       })
@@ -415,7 +422,7 @@ async function askDirector(
   backlogUtterances: Utterance[],
   screenContext: boolean,
   current: () => boolean,
-): Promise<{ decision: DirectorDecision; screenIncluded: boolean }> {
+): Promise<{ decision: DirectorDecision; screenIncluded: boolean; reasoning?: string }> {
   const now = new Date(input.now)
   const chat = useChatStore.getState().messages
   const recent = chat.slice(-6).map((m) => `${m.role === 'user' ? '用户' : '角色'}: ${plainContent(m.content).slice(0, 120)}`)
@@ -494,19 +501,27 @@ async function askDirector(
     { role: 'user', content: userParts }
   ]
   if (!current()) throw new Error('导演设置已变化，放弃旧判定')
-  const res = await window.opengal.llm.chat({ messages, slot: 'sub' })
+  const res = await window.opengal.llm.chat({ messages, slot: 'main', overrides: { thinking: false } })
   const content = res.success ? (res.data?.content ?? '').trim() : ''
+  const reasoning = res.success ? (res.data?.reasoning ?? '').trim() : ''
   if (content) {
-    return { decision: parseDirectorDecision(content), screenIncluded }
+    return {
+      decision: parseDirectorDecision(content),
+      screenIncluded,
+      ...(reasoning ? { reasoning } : {}),
+    }
   }
-  if (!res.success) {
-    // llmClient 已在请求失败时回退过主模型，不再重复
-    throw new Error(res.error || 'empty director response')
-  }
+  if (!res.success) throw new Error(res.error || 'empty director response')
   if (!current()) throw new Error('导演设置已变化，放弃旧判定')
-  const retry = await window.opengal.llm.chat({ messages, slot: 'main' })
+  // 空内容重试一次；导演固定走主模型，没有副手可降级
+  const retry = await window.opengal.llm.chat({ messages, slot: 'main', overrides: { thinking: false } })
   if (!retry.success || !retry.data?.content) throw new Error(retry.error || 'empty director response')
-  return { decision: parseDirectorDecision(retry.data.content), screenIncluded }
+  const retryReasoning = (retry.data.reasoning ?? '').trim()
+  return {
+    decision: parseDirectorDecision(retry.data.content),
+    screenIncluded,
+    ...(retryReasoning ? { reasoning: retryReasoning } : {}),
+  }
 }
 
 

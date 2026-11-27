@@ -260,6 +260,22 @@ const api = {
       return () => {
         ipcRenderer.off(IpcChannels.role.outfitChanged, handler)
       }
+    },
+    onActRequest: (
+      listener: (requestId: string, request: import('@shared/role/act').RoleActRequest) => void
+    ) => {
+      const handler = (
+        _: unknown,
+        requestId: string,
+        request: import('@shared/role/act').RoleActRequest
+      ) => listener(requestId, request)
+      ipcRenderer.on(IpcChannels.role.actRequest, handler)
+      return () => {
+        ipcRenderer.off(IpcChannels.role.actRequest, handler)
+      }
+    },
+    replyAct: (requestId: string, result: import('@shared/role/act').RoleActResult) => {
+      ipcRenderer.send(IpcChannels.role.actResult, requestId, result)
     }
   },
   chatHistory: {

@@ -23,6 +23,7 @@ import { mergeSavedTransform } from '@/features/live2d/modelTransform'
 import { startLogsBridge } from '@/features/logs/logsStore'
 import { startPipeline } from '@/features/pipeline'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
+import { installRoleActChannel } from '@/features/role/actChannel'
 import { useRoleRuntimeStore } from '@/features/role/roleRuntimeStore'
 import { useRoleStore } from '@/features/role/roleStore'
 import { maybeGreet, useStartupStore } from '@/features/startup/startupStore'
@@ -63,6 +64,8 @@ export default function App(): React.JSX.Element {
   React.useEffect(() => {
     void useUIStateStore.getState().load?.()
   }, [])
+
+  React.useEffect(() => installRoleActChannel(), [])
 
   React.useEffect(() => {
     if (!uiStateLoaded || uiRestored.current) return

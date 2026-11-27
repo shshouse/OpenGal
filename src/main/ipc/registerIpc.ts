@@ -7,6 +7,7 @@ import { logBus } from '../services/infra/logBus'
 import { initTools } from '../services/tools'
 import { initPlugins } from '../services/plugins/registry'
 import { initMemoryStore } from '../services/memory'
+import { registerRoleActBridge } from '../services/role/actBridge'
 import type { WindowManager } from '../windows/windowManager'
 import { registerConfigIpc } from './configIpc'
 import { registerLlmIpc } from './llmIpc'
@@ -37,5 +38,6 @@ export function registerIpc(windows: WindowManager): void {
   registerTtsIpc()
   registerAsrIpc()
   registerSystemIpc(windows)
+  registerRoleActBridge()
   registerLogsIpc()
 }

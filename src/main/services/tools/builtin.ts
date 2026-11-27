@@ -17,6 +17,7 @@ import { getMemoryBlock, recallVerbatim } from '../memory'
 import { logBus } from '../infra/logBus'
 import { isScreenWatchEnabled, lookAtScreen } from '../perception/screenWatch'
 import { SCREEN_FALLBACK_MARKER, SCREEN_FRAME_MARKER, SCREEN_SHEET_MARKER } from '@shared/presence/screen'
+import { actTool } from './act'
 import { changeOutfitTool } from './outfit'
 import { workshopBuiltinTools } from './workshopTools'
 
@@ -416,6 +417,7 @@ export function registerBuiltinTools(): void {
       },
       async (args) => handleRecallMemory(args.query, args.from, args.to),
     ),
+    actTool,
     changeOutfitTool,
     ...workshopBuiltinTools,
   ]

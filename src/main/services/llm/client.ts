@@ -117,7 +117,12 @@ async function callLLMOnce(request: LLMRequest): Promise<LLMResponse> {
       tools: request.tools,
       toolChoice: request.toolChoice,
     })
-    logBus.info('llm', `请求完成 (non-stream) 回复=${res.content.length}字`, res.content.slice(0, 300))
+    const reasoning = res.reasoning ?? ''
+    logBus.info(
+      'llm',
+      `请求完成 (non-stream) 回复=${res.content.length}字${reasoning ? ` reasoning=${reasoning.length}字` : ''}`,
+      res.content.slice(0, 300),
+    )
     return res
   } catch (err) {
     logBus.error('llm', `请求失败 (non-stream): ${getErrorMessage(err)}`, getErrorStack(err))

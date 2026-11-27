@@ -34,6 +34,7 @@ vi.mock('@/features/logs/logsStore', () => ({
 vi.mock('@/features/live2d/live2dBus', () => ({
   getLive2DModel: () => state.model,
   applyEmotion: () => {},
+  notePerformanceActivity: () => {},
   playMotionGroup: () => {},
 }))
 vi.mock('@/features/director/directorWorker', () => ({

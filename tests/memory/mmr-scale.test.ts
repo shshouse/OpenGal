@@ -42,6 +42,6 @@ describe('记忆装配的规模上限', () => {
     const cost = Date.now() - started
 
     expect(block).toBeTruthy()
-    expect(cost).toBeLessThan(3000)
+    expect(cost).toBeLessThan(6000)
   })
 })

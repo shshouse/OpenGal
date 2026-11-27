@@ -1,5 +1,5 @@
 import type { TTSOutputMessage } from '@shared/dialogue/messages'
-import { applyEmotion, getLive2DModel, playMotionGroup } from '@/features/live2d/live2dBus'
+import { applyEmotion, getLive2DModel, notePerformanceActivity, playMotionGroup } from '@/features/live2d/live2dBus'
 import { useLogsStore } from '@/features/logs/logsStore'
 import type { MessageHandler } from '@/features/pipeline/handlerChain'
 import { pipelineBus } from '@/features/pipeline/pipelineBus'
@@ -34,8 +34,10 @@ export class DefaultDialogUiHandler implements MessageHandler<TTSOutputMessage> 
     const startVisuals = (): void => {
       if (msg.emotion && msg.emotion !== this.lastEmotion) {
         this.lastEmotion = msg.emotion
-        applyEmotion(msg.emotion)
+        // 台词里的表情是临时的：说完全场安静一段时间后回到平常样子
+        applyEmotion(msg.emotion, { transient: true })
       }
+      notePerformanceActivity()
       // 同一次表演同步给相伴窗口，主窗口与相伴窗口不会出现两套情绪
       window.opengal.mate?.emitPerformance?.({
         emotion: msg.emotion,
